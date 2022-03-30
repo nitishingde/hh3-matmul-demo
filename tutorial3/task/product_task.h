@@ -70,7 +70,9 @@ class ProductTask : public hh::AbstractTask<1, std::pair<std::shared_ptr<MatrixB
     }
     this->addResult(res);
   }
-  std::shared_ptr<ProductTask<Type, Ord>> copy() override {
+  std::shared_ptr<hh::AbstractTask<1, std::pair<std::shared_ptr<MatrixBlockData<Type, 'a', Ord>>, std::shared_ptr<MatrixBlockData<Type, 'b', Ord>>>,
+      MatrixBlockData<Type, 'p', Ord>
+  >> copy() override {
     return std::make_shared<ProductTask<Type, Ord>>(this->numberThreads(), countPartialComputation_);
   }
 };

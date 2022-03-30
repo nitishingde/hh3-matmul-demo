@@ -73,7 +73,7 @@ class InputBlockState : public hh::State<2, MatrixBlockData<Type, 'a', Ord>, Mat
                                               std::shared_ptr<MatrixBlockData<Type, 'b', Ord>>>>();
         res->first = ptr;
         res->second = bB;
-        this->push(res);
+        this->addResult(res);
       }
     }
   }
@@ -91,7 +91,7 @@ class InputBlockState : public hh::State<2, MatrixBlockData<Type, 'a', Ord>, Mat
                                               std::shared_ptr<MatrixBlockData<Type, 'b', Ord>>>>();
         res->first = bA;
         res->second = ptr;
-        this->push(res);
+        this->addResult(res);
       }
     }
   }

@@ -45,7 +45,7 @@ class OutputState : public hh::State<1, MatrixBlockData<Type, 'c', Ord>, MatrixB
     auto i = ptr->rowIdx(), j = ptr->colIdx();
     --ttl_[i * gridWidthTTL_ + j];
     if(ttl_[i * gridWidthTTL_ + j] == 0){
-      this->push(ptr);
+      this->addResult(ptr);
     }
   }
 

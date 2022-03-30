@@ -37,9 +37,9 @@ class PartialComputationStateManager
                        MatrixBlockData<Type, 'c', Ord>,
                        MatrixBlockData<Type, 'p', Ord>,
                        std::pair<std::shared_ptr<MatrixBlockData<Type, 'c', Ord>>,
-                        std::shared_ptr<MatrixBlockData<Type, 'p', Ord>>>>("Partial Computation State Manager", state, false) {}
+                        std::shared_ptr<MatrixBlockData<Type, 'p', Ord>>>>(state, "Partial Computation State Manager", false) {}
 
-  bool canTerminate() override {
+  bool canTerminate() const override {
     this->state()->lock();
     auto ret = std::dynamic_pointer_cast<PartialComputationState<Type, Ord>>(this->state())->isDone();
     this->state()->unlock();

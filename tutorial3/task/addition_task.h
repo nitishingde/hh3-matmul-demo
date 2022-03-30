@@ -65,7 +65,11 @@ class AdditionTask : public hh::AbstractTask<1,
     this->addResult(c);
   }
 
-  std::shared_ptr<AdditionTask<Type, Ord>> copy() override {
+  std::shared_ptr<hh::AbstractTask<1,
+      std::pair<
+          std::shared_ptr<MatrixBlockData<Type, 'c', Ord>>,
+          std::shared_ptr<MatrixBlockData<Type, 'p', Ord>>>,
+      MatrixBlockData<Type, 'c', Ord>>> copy() override {
     return std::make_shared<AdditionTask>(this->numberThreads());
   }
 };

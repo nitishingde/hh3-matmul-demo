@@ -63,7 +63,7 @@ class PartialComputationState
       >();
       res->first = ptr;
       res->second = partialProduct(i, j);
-      this->push(res);
+      this->addResult(res);
       --ttl_;
     } else {
       blockMatrixC(ptr);
@@ -78,7 +78,7 @@ class PartialComputationState
       >();
       res->first = blockMatrixC(i, j);
       res->second = ptr;
-      this->push(res);
+      this->addResult(res);
       --ttl_;
     } else {
       partialProduct(ptr);

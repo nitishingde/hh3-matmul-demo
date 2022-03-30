@@ -153,73 +153,70 @@ int main(int argc, char **argv) {
   // Tasks
   auto taskTraversalA =
       std::make_shared<MatrixRowTraversalTask<MatrixType, 'a', Ord>>();
-//  auto taskTraversalB =
-//      std::make_shared<MatrixColumnTraversalTask<MatrixType, 'b', Ord>>();
-//  auto taskTraversalC =
-//      std::make_shared<MatrixRowTraversalTask<MatrixType, 'c', Ord>>();
-//  auto productTask =
-//      std::make_shared<ProductTask<MatrixType, Ord>>(numberThreadProduct, p);
-//  auto additionTask =
-//      std::make_shared<AdditionTask<MatrixType, Ord>>(numberThreadAddition);
+  auto taskTraversalB =
+      std::make_shared<MatrixColumnTraversalTask<MatrixType, 'b', Ord>>();
+  auto taskTraversalC =
+      std::make_shared<MatrixRowTraversalTask<MatrixType, 'c', Ord>>();
+  auto productTask =
+      std::make_shared<ProductTask<MatrixType, Ord>>(numberThreadProduct, p);
+  auto additionTask =
+      std::make_shared<AdditionTask<MatrixType, Ord>>(numberThreadAddition);
 
   // State
-//  auto stateInputBlock =
-//      std::make_shared<InputBlockState<MatrixType, Ord>>(nBlocks, mBlocks, pBlocks);
-//  auto statePartialComputation =
-//      std::make_shared<PartialComputationState<MatrixType, Ord>>(nBlocks, pBlocks, nBlocks * mBlocks * pBlocks);
-//  auto stateOutput =
-//      std::make_shared<OutputState<MatrixType, Ord>>(nBlocks, pBlocks, mBlocks);
+  auto stateInputBlock =
+      std::make_shared<InputBlockState<MatrixType, Ord>>(nBlocks, mBlocks, pBlocks);
+  auto statePartialComputation =
+      std::make_shared<PartialComputationState<MatrixType, Ord>>(nBlocks, pBlocks, nBlocks * mBlocks * pBlocks);
+  auto stateOutput =
+      std::make_shared<OutputState<MatrixType, Ord>>(nBlocks, pBlocks, mBlocks);
 
   // StateManager
-//  auto stateManagerInputBlock =
-//      std::make_shared<
-//          hh::StateManager<2,
-//              MatrixBlockData<MatrixType, 'a', Ord>, MatrixBlockData<MatrixType, 'b', Ord>>, // Block as Input
-//          std::pair<
-//              std::shared_ptr<MatrixBlockData<MatrixType, 'a', Ord>>,
-//              std::shared_ptr<MatrixBlockData<MatrixType, 'b', Ord>>> // Pair of block as output
-//      >("Input State Manager", stateInputBlock);
-//  auto stateManagerPartialComputation =
-//      std::make_shared<PartialComputationStateManager<MatrixType, Ord>>(statePartialComputation);
+  auto stateManagerInputBlock =
+      std::make_shared<
+          hh::StateManager<2, MatrixBlockData<MatrixType, 'a', Ord>, MatrixBlockData<MatrixType, 'b', Ord>,
+              std::pair<std::shared_ptr<MatrixBlockData<MatrixType, 'a', Ord>>, std::shared_ptr<MatrixBlockData<MatrixType, 'b', Ord>>> // Pair of block as output
+      >>(stateInputBlock, "Input State Manager");
+  auto stateManagerPartialComputation =
+      std::make_shared<PartialComputationStateManager<MatrixType, Ord>>(statePartialComputation);
 
-//  auto stateManagerOutputBlock =
-//      std::make_shared<hh::StateManager<
-//          MatrixBlockData<MatrixType, 'c', Ord>,
-//          MatrixBlockData<MatrixType, 'c', Ord>>>("Output State Manager", stateOutput);
+  auto stateManagerOutputBlock =
+      std::make_shared<hh::StateManager<1,
+          MatrixBlockData<MatrixType, 'c', Ord>,
+          MatrixBlockData<MatrixType, 'c', Ord>>>(stateOutput, "Output State Manager");
 
   // Build the graph
-//  matrixMultiplicationGraph.input(taskTraversalA);
-//  matrixMultiplicationGraph.input(taskTraversalB);
-//  matrixMultiplicationGraph.input(taskTraversalC);
-//  matrixMultiplicationGraph.addEdge(taskTraversalA, stateManagerInputBlock);
-//  matrixMultiplicationGraph.addEdge(taskTraversalB, stateManagerInputBlock);
-//  matrixMultiplicationGraph.addEdge(taskTraversalC, stateManagerPartialComputation);
-//  matrixMultiplicationGraph.addEdge(stateManagerInputBlock, productTask);
-//  matrixMultiplicationGraph.addEdge(productTask, stateManagerPartialComputation);
-//  matrixMultiplicationGraph.addEdge(stateManagerPartialComputation, additionTask);
-//  matrixMultiplicationGraph.addEdge(additionTask, stateManagerPartialComputation);
-//  matrixMultiplicationGraph.addEdge(additionTask, stateManagerOutputBlock);
-//  matrixMultiplicationGraph.output(stateManagerOutputBlock);
+  matrixMultiplicationGraph.addInputs(taskTraversalA);
+  matrixMultiplicationGraph.addInputs(taskTraversalB);
+  matrixMultiplicationGraph.addInputs(taskTraversalC);
+  matrixMultiplicationGraph.addEdges(taskTraversalA, stateManagerInputBlock);
+  matrixMultiplicationGraph.addEdges(taskTraversalB, stateManagerInputBlock);
+  matrixMultiplicationGraph.addEdges(taskTraversalC, stateManagerPartialComputation);
+  matrixMultiplicationGraph.addEdges(stateManagerInputBlock, productTask);
+  matrixMultiplicationGraph.addEdges(productTask, stateManagerPartialComputation);
+  matrixMultiplicationGraph.addEdges(stateManagerPartialComputation, additionTask);
+  matrixMultiplicationGraph.addEdges(additionTask, stateManagerPartialComputation);
+  matrixMultiplicationGraph.addEdges(additionTask, stateManagerOutputBlock);
+  matrixMultiplicationGraph.addOutputs(stateManagerOutputBlock);
 
   // Execute the graph
-//  matrixMultiplicationGraph.executeGraph();
+  matrixMultiplicationGraph.executeGraph();
 
   // Push the matrices
-//  matrixMultiplicationGraph.pushData(matrixA);
-//  matrixMultiplicationGraph.pushData(matrixB);
-//  matrixMultiplicationGraph.pushData(matrixC);
+  matrixMultiplicationGraph.pushData(matrixA);
+  matrixMultiplicationGraph.pushData(matrixB);
+  matrixMultiplicationGraph.pushData(matrixC);
 
   // Notify push done
-//  matrixMultiplicationGraph.finishPushingData();
+  matrixMultiplicationGraph.finishPushingData();
 
   // Wait for the graph to terminate
-//  matrixMultiplicationGraph.waitForTermination();
+  matrixMultiplicationGraph.waitForTermination();
 
   //Print the result matrix
-//  std::cout << *matrixC << std::endl;
+  std::cout << *matrixC << std::endl;
 
-//  matrixMultiplicationGraph.createDotFile("Tutorial3MatrixMultiplicationCycle.dot", hh::ColorScheme::EXECUTION,
-//                                          hh::StructureOptions::NONE);
+  matrixMultiplicationGraph.createDotFile("Tutorial3MatrixMultiplicationCycle.dot", hh::ColorScheme::EXECUTION,
+                                          hh::StructureOptions::NONE);
 
   // Deallocate the Matrices
   delete[] dataA;

@@ -39,8 +39,9 @@
 int main(int argc, char **argv) {
   using MatrixType = float;
   constexpr Order Ord = Order::Row;
+  using namespace std::chrono_literals;
 
-    comm::MPI_GlobalLockGuard globalLockGuard(&argc, &argv);
+    comm::MPI_GlobalLockGuard globalLockGuard(&argc, &argv, 6ms);
 
   // Mersenne Twister Random Generator
 //  uint64_t timeSeed = std::chrono::system_clock::now().time_since_epoch().count();

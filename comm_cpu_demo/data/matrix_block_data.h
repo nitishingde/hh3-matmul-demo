@@ -20,13 +20,16 @@
 #ifndef TUTORIAL3_MATRIXBLOCKDATA_H
 #define TUTORIAL3_MATRIXBLOCKDATA_H
 
+#include <cereal/cereal.hpp>
+#include <cereal/archives/binary.hpp>
 #include <iostream>
 #include <memory>
 
 #include "matrix_data.h"
+#include "serialization.h"
 
 template<class Type, char Id, Order Ord>
-class MatrixBlockData {
+class MatrixBlockData: public Serialization {
  protected:
   size_t rowIdx_ = 0;
   size_t colIdx_ = 0;
@@ -35,6 +38,7 @@ class MatrixBlockData {
   size_t leadingDimension_ = 0;
   Type *fullMatrixData_ = nullptr;
   Type *blockData_ = nullptr;
+  std::vector<Type> commBlockData_ {};
 
  public:
   MatrixBlockData() = default;
@@ -161,5 +165,60 @@ class MatrixBlockData {
 
     return os;
   }
+
+    Type get(size_t i, size_t j) const {
+        if constexpr (Ord == Order::Row) {
+            if(!commBlockData_.empty()) {
+                return commBlockData_[i * blockSizeWidth_ + j];
+            } else {
+                return blockData_[i * leadingDimension() + j];
+            }
+        } else {
+            if(!commBlockData_.empty()) {
+                return commBlockData_[j * blockSizeWidth_ + i];
+            } else {
+                return blockData_[j * leadingDimension() + i];
+            }
+        }
+    }
+
+    template<class Archive>
+    void save(Archive &archive) const {
+        archive(rowIdx_, colIdx_, blockSizeHeight_, blockSizeWidth_, leadingDimension_);
+        if constexpr(Ord == Order::Row) {
+            for(size_t i = 0; i < blockSizeWidth_; ++i) {
+                for(size_t j = 0; j < blockSizeHeight_; ++j) {
+                    archive(this->blockData_[i*leadingDimension_+j]);
+                }
+            }
+        } else {
+            for(size_t j = 0; j < blockSizeHeight_; ++j) {
+                for(size_t i = 0; i < blockSizeWidth_; ++i) {
+                    archive(this->blockData_[j*leadingDimension_+i]);
+                }
+            }
+        }
+    }
+
+    template<class Archive>
+    void load(Archive &archive) {
+        archive(rowIdx_, colIdx_, blockSizeHeight_, blockSizeWidth_, leadingDimension_);
+        this->commBlockData_.resize(blockSizeHeight_*blockSizeWidth_);
+        for(size_t i = 0; i < this->commBlockData_.size(); ++i) {
+            archive(this->commBlockData_[i]);
+        }
+    }
+
+    [[nodiscard]] std::string serialize() const override {
+        std::ostringstream buffer;
+        cereal::BinaryOutputArchive binaryOutputArchive(buffer);
+        binaryOutputArchive(*this);
+        return std::move(buffer.str());
+    }
+
+    void deserialize(std::istream &&istream) override {
+        cereal::BinaryInputArchive binaryInputArchive(istream);
+        binaryInputArchive(*this);
+    }
 };
 #endif //TUTORIAL3_MATRIXBLOCKDATA_H

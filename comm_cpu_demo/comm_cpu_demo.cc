@@ -20,12 +20,13 @@
 #include <hedgehog/hedgehog.h>
 #include <random>
 #include <memory>
-//#include "../utils/tclap/CmdLine.h"
 
 #include "data/matrix_data.h"
 #include "data/matrix_block_data.h"
 
+#include "task/accumulate_task.h"
 #include "task/addition_task.h"
+#include "task/comm_task.h"
 #include "task/product_task.h"
 #include "task/matrix_row_traversal_task.h"
 #include "task/matrix_column_traversal_task.h"
@@ -35,77 +36,40 @@
 #include "state/partial_computation_state.h"
 #include "state/partial_computation_state_manager.h"
 
-//class SizeConstraint : public TCLAP::Constraint<size_t> {
-// public:
-//  [[nodiscard]] std::string description() const override {
-//    return "Positive non null";
-//  }
-//  [[nodiscard]] std::string shortID() const override {
-//    return "NonNullInteger";
-//  }
-//  [[nodiscard]] bool check(size_t const &value) const override {
-//    return value > 0;
-//  }
-//};
-
 int main(int argc, char **argv) {
   using MatrixType = float;
-  constexpr Order Ord = Order::Column;
+  constexpr Order Ord = Order::Row;
+
+    comm::MPI_GlobalLockGuard globalLockGuard(&argc, &argv);
 
   // Mersenne Twister Random Generator
-  uint64_t timeSeed = std::chrono::system_clock::now().time_since_epoch().count();
-  std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed >> (uint64_t) 32)};
-  std::mt19937_64 rng(ss);
-
-  // Choose your distribution depending on the type of MatrixType
-  std::uniform_real_distribution<MatrixType> unif(0, 10);
-//  std::uniform_int_distribution<MatrixType> unif(0, 10);
+//  uint64_t timeSeed = std::chrono::system_clock::now().time_since_epoch().count();
+//  std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed >> (uint64_t) 32)};
+//  std::mt19937_64 rng(ss);
+//
+//  // Choose your distribution depending on the type of MatrixType
+//  std::uniform_real_distribution<MatrixType> unif(0, 10);
+////  std::uniform_int_distribution<MatrixType> unif(0, 10);
 
   // Args
-  size_t
-      n = 10,
-      m = 10,
-      p = 10,
-      nBlocks = 0,
-      mBlocks = 0,
-      pBlocks = 0,
-      blockSize = 5,
-      numberThreadProduct = 2,
-      numberThreadAddition = 2;
+    const size_t
+            n = 12,
+            m = 4,
+            p = 12,
+            blockSize = 2,
+    numberThreadProduct = 2,
+    numberThreadAddition = 2;
+
+    size_t
+            nBlocks = 0,
+            mBlocks = 0,
+            pBlocks = 0;
 
   // Allocate matrices
   MatrixType
       *dataA = nullptr,
       *dataB = nullptr,
       *dataC = nullptr;
-
-//  try {
-//    TCLAP::CmdLine cmd("Matrix Multiplication parameters", ' ', "0.1");
-//    SizeConstraint sc;
-//    TCLAP::ValueArg<size_t> nArg("n", "aheight", "Matrix A Height.", false, 10, &sc);
-//    cmd.add(nArg);
-//    TCLAP::ValueArg<size_t> mArg("m", "commondimension", "Common dimension.", false, 11, &sc);
-//    cmd.add(mArg);
-//    TCLAP::ValueArg<size_t> pArg("p", "bwidth", "Matrix B Width.", false, 12, &sc);
-//    cmd.add(pArg);
-//    TCLAP::ValueArg<size_t> blockArg("b", "blocksize", "Block Size.", false, 3, &sc);
-//    cmd.add(blockArg);
-//    TCLAP::ValueArg<size_t> productArg("x", "product", "Product task's number of threads.", false, 3, &sc);
-//    cmd.add(productArg);
-//    TCLAP::ValueArg<size_t> additionArg("a", "addition", "Addiction task's number of threads.", false, 3, &sc);
-//    cmd.add(additionArg);
-//
-//    cmd.parse(argc, argv);
-//
-//    n = nArg.getValue();
-//    m = mArg.getValue();
-//    p = pArg.getValue();
-//    numberThreadAddition = additionArg.getValue();
-//    numberThreadProduct = productArg.getValue();
-//    blockSize = blockArg.getValue();
-//    if (blockSize == 0) { blockSize = 1; }
-//  } catch (TCLAP::ArgException &e)  // catch any exceptions
-//  { std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl; }
 
   // Allocate and fill the matrices' data randomly
   dataA = new MatrixType[n * m]();
@@ -114,30 +78,25 @@ int main(int argc, char **argv) {
 
   for (size_t i = 0; i < n; ++i) {
     for (size_t j = 0; j < m; ++j) {
-      dataA[i * m + j] = unif(rng);
+      dataA[i * m + j] = i+j+4*comm::getMpiNodeId();
     }
   }
 
   for (size_t i = 0; i < m; ++i) {
     for (size_t j = 0; j < p; ++j) {
-      dataB[i * p + j] = unif(rng);
+      dataB[i * p + j] = std::abs(MatrixType(j)-MatrixType(i+4*comm::getMpiNodeId()));
     }
   }
 
   for (size_t i = 0; i < n; ++i) {
     for (size_t j = 0; j < p; ++j) {
-      dataC[i * p + j] = unif(rng);
+      dataC[i * p + j] = comm::isMpiRootPid() ? 1: 0;
     }
   }
   // Wrap them to convenient object representing the matrices
-  auto matrixA = std::make_shared<MatrixData<MatrixType, 'a', Ord>>(n, m, blockSize, dataA);
-  auto matrixB = std::make_shared<MatrixData<MatrixType, 'b', Ord>>(m, p, blockSize, dataB);
-  auto matrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(n, p, blockSize, dataC);
-
-  // Print the matrices
-  std::cout << *matrixA << std::endl;
-  std::cout << *matrixB << std::endl;
-  std::cout << *matrixC << std::endl;
+  auto subMatrixA = std::make_shared<MatrixData<MatrixType, 'a', Ord>>(n, m, blockSize, dataA);
+  auto subMatrixB = std::make_shared<MatrixData<MatrixType, 'b', Ord>>(m, p, blockSize, dataB);
+  auto partialMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(n, p, blockSize, dataC);
 
   nBlocks = std::ceil(n / blockSize) + (n % blockSize == 0 ? 0 : 1),
   mBlocks = std::ceil(m / blockSize) + (m % blockSize == 0 ? 0 : 1),
@@ -147,7 +106,7 @@ int main(int argc, char **argv) {
   auto matrixMultiplicationGraph =
       hh::Graph<3,
                 MatrixData<MatrixType, 'a', Ord>, MatrixData<MatrixType, 'b', Ord>, MatrixData<MatrixType, 'c', Ord>,
-                MatrixBlockData<MatrixType, 'c', Ord>>
+                void*>
           ("Matrix Multiplication Graph");
 
   // Tasks
@@ -196,15 +155,29 @@ int main(int argc, char **argv) {
   matrixMultiplicationGraph.addEdges(stateManagerPartialComputation, additionTask);
   matrixMultiplicationGraph.addEdges(additionTask, stateManagerPartialComputation);
   matrixMultiplicationGraph.addEdges(additionTask, stateManagerOutputBlock);
-  matrixMultiplicationGraph.addOutputs(stateManagerOutputBlock);
+    uint32_t blockCount = (n/blockSize)*(p/blockSize);
+    if(comm::isMpiRootPid()) {
+        auto receiverTask =
+                std::make_shared<ReceiverTask<MatrixBlockData<MatrixType, 'c', Ord>>>((comm::getMpiNumNodes()-1)*blockCount);
+        auto accumulateTask =
+                std::make_shared<AccumulateTask<MatrixType, 'c', Ord>>(n, p, (comm::getMpiNumNodes()-1)*blockCount);
+        matrixMultiplicationGraph.addEdges(stateManagerOutputBlock, accumulateTask);
+        matrixMultiplicationGraph.addEdges(receiverTask, accumulateTask);
+        matrixMultiplicationGraph.addOutputs(accumulateTask);
+    } else {
+        auto senderTask =
+                std::make_shared<SenderTask<MatrixBlockData<MatrixType, 'c', Ord>>>(0, blockCount);
+        matrixMultiplicationGraph.addEdges(stateManagerOutputBlock, senderTask);
+        matrixMultiplicationGraph.addOutputs(senderTask);
+    }
 
   // Execute the graph
   matrixMultiplicationGraph.executeGraph();
 
   // Push the matrices
-  matrixMultiplicationGraph.pushData(matrixA);
-  matrixMultiplicationGraph.pushData(matrixB);
-  matrixMultiplicationGraph.pushData(matrixC);
+  matrixMultiplicationGraph.pushData(subMatrixA);
+  matrixMultiplicationGraph.pushData(subMatrixB);
+  matrixMultiplicationGraph.pushData(partialMatrixC);
 
   // Notify push done
   matrixMultiplicationGraph.finishPushingData();
@@ -213,12 +186,17 @@ int main(int argc, char **argv) {
   matrixMultiplicationGraph.waitForTermination();
 
   //Print the result matrix
-  std::cout << *matrixC << std::endl;
+    if(comm::isMpiRootPid()) {
+        std::cout << *partialMatrixC << std::endl;
+    }
 
-  matrixMultiplicationGraph.createDotFile("Tutorial3MatrixMultiplicationCycle.dot", hh::ColorScheme::EXECUTION,
-                                          hh::StructureOptions::NONE);
+    matrixMultiplicationGraph.createDotFile(
+            "comm_cpu_demo_node" + std::to_string(comm::getMpiNodeId()) + ".dot",
+            hh::ColorScheme::EXECUTION,
+            hh::StructureOptions::NONE
+    );
 
-  // Deallocate the Matrices
+    // Deallocate the Matrices
   delete[] dataA;
   delete[] dataB;
   delete[] dataC;

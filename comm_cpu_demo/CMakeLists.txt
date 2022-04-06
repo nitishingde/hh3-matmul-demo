@@ -22,6 +22,7 @@ add_executable(comm_cpu_demo
 		data/data_type.h
 		data/matrix_block_data.h
 		data/matrix_data.h
+		data/serialization.h
 
 		state/input_block_state.h
 		state/output_state.h

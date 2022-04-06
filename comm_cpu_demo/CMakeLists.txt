@@ -1,3 +1,14 @@
+cmake_minimum_required(VERSION 3.12)
+
+# Uintah2::Comm
+include(FetchContent)
+FetchContent_Declare(
+		Uintah2
+		GIT_REPOSITORY https://github.com/nitishingde/Uintah2
+		GIT_TAG		   main
+)
+FetchContent_MakeAvailable(Uintah2)
+
 add_executable(comm_cpu_demo
 		comm_cpu_demo.cc
 
@@ -18,9 +29,14 @@ add_executable(comm_cpu_demo
 		${tclap_headers}
 		)
 
-target_link_libraries(comm_cpu_demo ${OpenBLAS_LIBRARIES})
+target_link_libraries(comm_cpu_demo PUBLIC ${OpenBLAS_LIBRARIES})
 target_include_directories(comm_cpu_demo PUBLIC ${OpenBLAS_INCLUDE_DIRS})
 target_compile_definitions(comm_cpu_demo PUBLIC -DUSE_OPENBLAS)
 
-target_link_libraries(comm_cpu_demo ${Hedgehog_LIBRARIES})
+target_link_libraries(comm_cpu_demo PUBLIC ${Hedgehog_LIBRARIES})
 target_include_directories(comm_cpu_demo PUBLIC ${Hedgehog_INCLUDE_DIRS})
+
+target_link_libraries(comm_cpu_demo
+	PUBLIC
+		Uintah2::comm
+)

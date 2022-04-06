@@ -55,7 +55,7 @@ public:
         comm::Communicator::signal.connect(&ReceiverTask::commSlot, this);
         using namespace std::chrono_literals;
         while(!canTerminate()) {
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(6ms);
         }
     }
 

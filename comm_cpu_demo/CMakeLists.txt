@@ -30,6 +30,7 @@ add_executable(comm_cpu_demo
 		state/partial_computation_state_manager.h
 
 		task/addition_task.h
+		task/comm_task.h
 		task/product_task.h
 		task/matrix_row_traversal_task.h
 		task/matrix_column_traversal_task.h

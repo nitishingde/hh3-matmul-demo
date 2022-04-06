@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
         auto receiverTask =
                 std::make_shared<ReceiverTask<MatrixBlockData<MatrixType, 'c', Ord>>>((comm::getMpiNumNodes()-1)*blockCount);
         auto accumulateTask =
-                std::make_shared<AccumulateTask<MatrixType, 'c', Ord>>(n, p, (comm::getMpiNumNodes()-1)*blockCount);
+                std::make_shared<AccumulateTask<MatrixType, 'c', Ord>>(n/blockSize, p/blockSize, (comm::getMpiNumNodes()-1)*blockCount);
         matrixMultiplicationGraph.addEdges(stateManagerOutputBlock, accumulateTask);
         matrixMultiplicationGraph.addEdges(receiverTask, accumulateTask);
         matrixMultiplicationGraph.addOutputs(accumulateTask);

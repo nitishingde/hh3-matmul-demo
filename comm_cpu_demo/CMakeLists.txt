@@ -9,6 +9,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Uintah2)
 
+FetchContent_Declare(
+		cereal
+		GIT_REPOSITORY https://github.com/USCiLab/cereal.git
+		GIT_TAG		   master
+)
+FetchContent_MakeAvailable(cereal)
+
 add_executable(comm_cpu_demo
 		comm_cpu_demo.cc
 
@@ -39,4 +46,5 @@ target_include_directories(comm_cpu_demo PUBLIC ${Hedgehog_INCLUDE_DIRS})
 target_link_libraries(comm_cpu_demo
 	PUBLIC
 		Uintah2::comm
+		cereal::cereal
 )

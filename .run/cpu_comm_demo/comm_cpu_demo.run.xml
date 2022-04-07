@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="comm_cpu_demo" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="-np 3 ./comm_cpu_demo" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$CMakeCurrentBuildDir$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="hedgehog_Tutorials" TARGET_NAME="comm_cpu_demo" CONFIG_NAME="Debug" RUN_PATH="/usr/bin/mpirun">
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>

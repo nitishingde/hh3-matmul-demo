@@ -79,13 +79,13 @@ int main(int argc, char **argv) {
 
   for (size_t i = 0; i < n; ++i) {
     for (size_t j = 0; j < m; ++j) {
-      dataA[i * m + j] = i+j+4*comm::getMpiNodeId();
+      dataA[i * m + j] = i+j+m*comm::getMpiNodeId();
     }
   }
 
   for (size_t i = 0; i < m; ++i) {
     for (size_t j = 0; j < p; ++j) {
-      dataB[i * p + j] = std::abs(MatrixType(j)-MatrixType(i+4*comm::getMpiNodeId()));
+      dataB[i * p + j] = std::abs(MatrixType(j)-MatrixType(i+m*comm::getMpiNodeId()));
     }
   }
 

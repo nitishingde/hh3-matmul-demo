@@ -34,7 +34,7 @@ private:
         else {
             for (size_t j = 0; j < c->blockSizeWidth(); ++j) {
                 for (size_t i = 0; i < c->blockSizeHeight(); ++i) {
-                    c->blockData()[j * c->leadingDimension() + i] += other->get(j, i);
+                    c->blockData()[j * c->leadingDimension() + i] += other->get(i, j);
                 }
             }
             count_++;

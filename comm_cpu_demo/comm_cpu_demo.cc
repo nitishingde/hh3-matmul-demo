@@ -79,13 +79,21 @@ int main(int argc, char **argv) {
 
   for (size_t i = 0; i < n; ++i) {
     for (size_t j = 0; j < m; ++j) {
-      dataA[i * m + j] = i+j+m*comm::getMpiNodeId();
+        if constexpr (Ord == Order::Row) {
+            dataA[i * m + j] = i+j+m*comm::getMpiNodeId();
+        } else {
+            dataA[j * n + i] = i+j+m*comm::getMpiNodeId();
+        }
     }
   }
 
   for (size_t i = 0; i < m; ++i) {
     for (size_t j = 0; j < p; ++j) {
-      dataB[i * p + j] = std::abs(MatrixType(j)-MatrixType(i+m*comm::getMpiNodeId()));
+        if constexpr (Ord == Order::Row) {
+            dataB[i * p + j] = std::abs(MatrixType(j)-MatrixType(i+m*comm::getMpiNodeId()));
+        } else {
+            dataB[j * m + i] = std::abs(MatrixType(j)-MatrixType(i + m * comm::getMpiNodeId()));
+        }
     }
   }
 

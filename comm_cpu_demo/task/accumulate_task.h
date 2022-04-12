@@ -2,6 +2,7 @@
 #define HEDGEHOG_TUTORIALS_ACCUMULATE_TASK_H
 
 #include <hedgehog/hedgehog.h>
+#include <atomic>
 #include "../data/matrix_block_data.h"
 
 

@@ -1,2 +1,5 @@
 .idea/
 cmake-build-*/
+*/.ipynb_checkpoints/
+build/
+comm_gpu_demo/cuda_headers/

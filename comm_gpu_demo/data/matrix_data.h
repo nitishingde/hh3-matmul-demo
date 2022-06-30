@@ -46,6 +46,8 @@ private:
     Type *matrixData_ = nullptr;
 
 public:
+    explicit MatrixData() = default;
+
     explicit MatrixData(size_t matrixHeight, size_t matrixWidth, size_t blockSize, Type &matrixData):
         matrixHeight_(matrixHeight), matrixWidth_(matrixWidth), blockSize_(blockSize),
         numBlocksRows_(std::ceil(matrixHeight_ / blockSize_) + (matrixHeight_ % blockSize_ == 0 ? 0: 1)),
@@ -67,6 +69,11 @@ public:
         }
     }
 
+    MatrixData(const MatrixData&) = delete;
+    MatrixData& operator=(const MatrixData&) = delete;
+    MatrixData(MatrixData&&) noexcept = delete;
+    MatrixData& operator=(MatrixData&&) noexcept = delete;
+
     [[nodiscard]] size_t matrixHeight() const { return matrixHeight_; }
     [[nodiscard]] size_t matrixWidth() const { return matrixWidth_; }
     [[nodiscard]] size_t blockSize() const { return blockSize_; }
@@ -74,6 +81,8 @@ public:
     [[nodiscard]] size_t numBlocksCols() const { return numBlocksCols_; }
     [[nodiscard]] size_t leadingDimension() const { return leadingDimension_; }
     Type *matrixData() const { return matrixData_; }
+    Type* data() const { return matrixData_; }
+    Type* data() { return matrixData_; }
 
     friend std::ostream &operator<<(std::ostream &os, const MatrixData &data) {
         os << "MatrixData " << Id

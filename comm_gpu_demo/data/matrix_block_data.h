@@ -46,8 +46,9 @@ protected:
     std::vector<Type> commBlockData_ {};
 
 public:
+    explicit MatrixBlockData() = default;
     // FIXME: Better to set leading dimension using Order rather than from a function parameter.
-    MatrixBlockData(size_t rowIdx, size_t colIdx, size_t blockSizeHeight, size_t blockSizeWidth, size_t leadingDimension, Type &fullMatrixData, Type &blockData):
+    explicit MatrixBlockData(size_t rowIdx, size_t colIdx, size_t blockSizeHeight, size_t blockSizeWidth, size_t leadingDimension, Type &fullMatrixData, Type &blockData):
         rowIdx_(rowIdx), colIdx_(colIdx),
         blockSizeHeight_(blockSizeHeight), blockSizeWidth_(blockSizeWidth), leadingDimension_(leadingDimension),
         fullMatrixData_(&fullMatrixData), blockData_(&blockData) {
@@ -57,7 +58,7 @@ public:
         }
     }
 
-    MatrixBlockData(size_t rowIdx, size_t colIdx, size_t blockSizeHeight, size_t blockSizeWidth, Type &fullMatrixData, Type &blockData):
+    explicit MatrixBlockData(size_t rowIdx, size_t colIdx, size_t blockSizeHeight, size_t blockSizeWidth, Type &fullMatrixData, Type &blockData):
         rowIdx_(rowIdx), colIdx_(colIdx),
         blockSizeHeight_(blockSizeHeight), blockSizeWidth_(blockSizeWidth),
         fullMatrixData_(&fullMatrixData), blockData_(&blockData) {
@@ -72,7 +73,7 @@ public:
         }
     }
 
-    MatrixBlockData(size_t rowIdx, size_t colIdx, MatrixData<Type, Id, Ord> &matrix) {
+    explicit MatrixBlockData(size_t rowIdx, size_t colIdx, MatrixData<Type, Id, Ord> &matrix) {
         rowIdx_ = rowIdx;
         colIdx_ = colIdx;
         blockSizeHeight_ = std::min(matrix.blockSize(), matrix.matrixHeight() - (rowIdx * matrix.blockSize()));

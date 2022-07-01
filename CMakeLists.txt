@@ -22,6 +22,7 @@ if (CUDA_FOUND)
 	message(STATUS "CUDA found")
 	set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 	set(CUDA_NVCC_FLAGS_RELEASE -O3; -DNDEBUG)
+	add_subdirectory(comm_gpu_demo)
 endif (CUDA_FOUND)
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${Hedgehog_CXX_FLAGS})

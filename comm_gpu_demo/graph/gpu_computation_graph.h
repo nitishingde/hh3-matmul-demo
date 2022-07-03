@@ -65,7 +65,7 @@ public:
         copyInBTask->connectMemoryManager(cudaMemoryManagerB);
         productTask->connectMemoryManager(cudaMemoryManagerProduct);
 
-        auto cudaInputBlockState = std::make_shared<CudaInputBlockState<MatrixType, Ord>>(M, K, N);
+        auto cudaInputBlockState = std::make_shared<CudaInputBlockState<MatrixType, Ord>>(mBlocks, kBlocks, nBlocks);
         auto cudaInputBlockStateManager = std::make_shared<hh::StateManager<2,
                 CudaMatrixBlockData<MatrixType, 'a', Ord>,
                 CudaMatrixBlockData<MatrixType, 'b', Ord>,

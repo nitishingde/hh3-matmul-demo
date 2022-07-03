@@ -68,13 +68,13 @@ public:
                 std::pair<std::shared_ptr<CudaMatrixBlockData<MatrixType, 'a', Ord>>, std::shared_ptr<CudaMatrixBlockData<MatrixType, 'b', Ord>>>
         >>(cudaInputBlockState, "Input State Manager", false);
 
-        this->template addInput<MatrixBlockData<MatrixType, 'a', Ord>>(copyInATask);
-        this->template addInput<MatrixBlockData<MatrixType, 'b', Ord>>(copyInBTask);
-        this->template addEdge<CudaMatrixBlockData<MatrixType, 'a', Ord>>(copyInATask, cudaInputBlockStateManager);
-        this->template addEdge<CudaMatrixBlockData<MatrixType, 'b', Ord>>(copyInBTask, cudaInputBlockStateManager);
-        this->template addEdge<InputBlockPair>(cudaInputBlockStateManager, productTask);
-        this->template addEdge<CudaMatrixBlockData<MatrixType, 'p', Ord>>(productTask, copyOutTask);
-        this->template addOutput<MatrixBlockData<MatrixType, 'p', Ord>>(copyOutTask);
+        this->template input<MatrixBlockData<MatrixType, 'a', Ord>>(copyInATask);
+        this->template input<MatrixBlockData<MatrixType, 'b', Ord>>(copyInBTask);
+        this->template edge<CudaMatrixBlockData<MatrixType, 'a', Ord>>(copyInATask, cudaInputBlockStateManager);
+        this->template edge<CudaMatrixBlockData<MatrixType, 'b', Ord>>(copyInBTask, cudaInputBlockStateManager);
+        this->template edge<InputBlockPair>(cudaInputBlockStateManager, productTask);
+        this->template edge<CudaMatrixBlockData<MatrixType, 'p', Ord>>(productTask, copyOutTask);
+        this->template output<MatrixBlockData<MatrixType, 'p', Ord>>(copyOutTask);
     }
 };
 

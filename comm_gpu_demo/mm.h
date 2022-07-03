@@ -212,17 +212,17 @@ public:
         >(outputState, "Output State Manager");
 
         // add edges
-        mainGraph_->template addInput<MatrixData<MatrixType, 'a', Ord>>(matrixATraversalTask);
-        mainGraph_->template addInput<MatrixData<MatrixType, 'b', Ord>>(matrixBTraversalTask);
-        mainGraph_->template addInput<MatrixData<MatrixType, 'c', Ord>>(matrixCTraversalTask);
-        mainGraph_->template addEdge<MatrixBlockData<MatrixType, 'c', Ord>>(matrixCTraversalTask, partialComputationStateManager);
-        mainGraph_->template addEdge<MatrixBlockData<MatrixType, 'a', Ord>>(matrixATraversalTask, multiGpuExecutionPipeline);
-        mainGraph_->template addEdge<MatrixBlockData<MatrixType, 'b', Ord>>(matrixBTraversalTask, multiGpuExecutionPipeline);
-        mainGraph_->template addEdge<MatrixBlockData<MatrixType, 'p', Ord>>(multiGpuExecutionPipeline, partialComputationStateManager);
-        mainGraph_->template addEdge<std::pair<std::shared_ptr<MatrixBlockData<MatrixType, 'c', Ord>>, std::shared_ptr<MatrixBlockData<MatrixType, 'p', Ord>>>>(partialComputationStateManager, additionTask);
-        mainGraph_->template addEdge<MatrixBlockData<MatrixType, 'c', Ord>>(additionTask, partialComputationStateManager);
-        mainGraph_->template addEdge<MatrixBlockData<MatrixType, 'c', Ord>>(additionTask, outputBlockStateManager);
-        mainGraph_->template addOutput<MatrixBlockData<MatrixType, 'c', Ord>>(outputBlockStateManager);
+        mainGraph_->template input<MatrixData<MatrixType, 'a', Ord>>(matrixATraversalTask);
+        mainGraph_->template input<MatrixData<MatrixType, 'b', Ord>>(matrixBTraversalTask);
+        mainGraph_->template input<MatrixData<MatrixType, 'c', Ord>>(matrixCTraversalTask);
+        mainGraph_->template edge<MatrixBlockData<MatrixType, 'c', Ord>>(matrixCTraversalTask, partialComputationStateManager);
+        mainGraph_->template edge<MatrixBlockData<MatrixType, 'a', Ord>>(matrixATraversalTask, multiGpuExecutionPipeline);
+        mainGraph_->template edge<MatrixBlockData<MatrixType, 'b', Ord>>(matrixBTraversalTask, multiGpuExecutionPipeline);
+        mainGraph_->template edge<MatrixBlockData<MatrixType, 'p', Ord>>(multiGpuExecutionPipeline, partialComputationStateManager);
+        mainGraph_->template edge<std::pair<std::shared_ptr<MatrixBlockData<MatrixType, 'c', Ord>>, std::shared_ptr<MatrixBlockData<MatrixType, 'p', Ord>>>>(partialComputationStateManager, additionTask);
+        mainGraph_->template edge<MatrixBlockData<MatrixType, 'c', Ord>>(additionTask, partialComputationStateManager);
+        mainGraph_->template edge<MatrixBlockData<MatrixType, 'c', Ord>>(additionTask, outputBlockStateManager);
+        mainGraph_->template output<MatrixBlockData<MatrixType, 'c', Ord>>(outputBlockStateManager);
 
         // execute graph
         mainGraph_->executeGraph();

@@ -1,7 +1,6 @@
 #ifndef HH3_MATMUL_MATRIX_ROW_TRAVERSAL_TASK_H
 #define HH3_MATMUL_MATRIX_ROW_TRAVERSAL_TASK_H
 
-#include <hedgehog/api/task/abstract_task.h>
 #include "../data/matrix_block_data.h"
 
 template<class MatrixType, char Id, Order Ord>

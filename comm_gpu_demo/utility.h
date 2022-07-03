@@ -1,7 +1,7 @@
 #ifndef HH3_MATMUL_UTILITY_H
 #define HH3_MATMUL_UTILITY_H
 
-#include <hedgehog/tools/cuda_debugging.h>
+#include <hedgehog/hedgehog.h>
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"

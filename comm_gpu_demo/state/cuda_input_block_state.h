@@ -20,7 +20,6 @@
 #ifndef HH3_MATMUL_CUDA_INPUT_BLOCK_STATE_H
 #define HH3_MATMUL_CUDA_INPUT_BLOCK_STATE_H
 
-#include <hedgehog/api/state_manager/state.h>
 #include "../data/cuda_matrix_block_data.h"
 
 template<class MatrixType, Order Ord>

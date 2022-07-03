@@ -20,10 +20,6 @@
 #ifndef HH3_MATMUL_GPU_COMPUTATION_GRAPH_H
 #define HH3_MATMUL_GPU_COMPUTATION_GRAPH_H
 
-#include <hedgehog/api/graph/graph.h>
-#include <cublas_v2.h>
-
-#include "../data/matrix_block_data.h"
 #include "../data/cuda_matrix_block_data.h"
 #include "../state/cuda_input_block_state.h"
 #include "../task/cuda_copy_in_gpu_task.h"

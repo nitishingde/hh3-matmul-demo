@@ -20,7 +20,6 @@
 #ifndef HH3_MATMUL_UNIFIED_MATRIX_BLOCK_DATA_H
 #define HH3_MATMUL_UNIFIED_MATRIX_BLOCK_DATA_H
 
-#include <hedgehog/hedgehog.h>
 #include "matrix_block_data.h"
 
 /**

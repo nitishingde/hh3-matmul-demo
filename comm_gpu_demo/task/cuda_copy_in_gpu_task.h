@@ -20,9 +20,6 @@
 #ifndef HH3_MATMUL_CUDA_COPY_IN_GPU_TASK_H
 #define HH3_MATMUL_CUDA_COPY_IN_GPU_TASK_H
 
-#include <hedgehog/api/task/abstract_cuda_task.h>
-#include <hedgehog/api/memory_manager/managed_memory.h>
-#include <hedgehog/tools/cuda_debugging.h>
 #include "../data/cuda_matrix_block_data.h"
 
 // Utils macro to convert row based intex to column based

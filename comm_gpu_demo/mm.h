@@ -1,13 +1,12 @@
 #ifndef HEDGEHOG_TUTORIALS_MM_H
 #define HEDGEHOG_TUTORIALS_MM_H
 
+#include "utility.h"
 #ifdef HH_USE_CUDA
-#include "utility.h"//FIXME
 #include <cublasXt.h>
 #else
 #include <openblas/cblas.h>
 #endif
-#include <hedgehog/hedgehog.h>
 #include "data/matrix_data.h"
 #include "execution_pipeline/multi_gpu_exec_pipeline.h"
 #include "graph/gpu_computation_graph.h"

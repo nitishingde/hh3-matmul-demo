@@ -20,8 +20,6 @@
 #ifndef HH3_MATMUL_CUDA_MATRIX_BLOCK_DATA_H
 #define HH3_MATMUL_CUDA_MATRIX_BLOCK_DATA_H
 
-#include <hedgehog/api/memory_manager/managed_memory.h>
-#include <hedgehog/tools/cuda_debugging.h>
 #include "matrix_block_data.h"
 
 template<class MatrixType, char Id, Order Ord>

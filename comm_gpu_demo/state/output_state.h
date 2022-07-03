@@ -20,7 +20,6 @@
 #ifndef HH3_MATMUL_OUTPUT_STATE_H
 #define HH3_MATMUL_OUTPUT_STATE_H
 
-#include <hedgehog/api/state_manager/state.h>
 #include "../data/matrix_block_data.h"
 
 template<class Type, Order Ord>

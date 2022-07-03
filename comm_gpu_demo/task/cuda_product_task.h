@@ -20,8 +20,6 @@
 #ifndef HH3_MATMUL_CUDA_PRODUCT_TASK_H
 #define HH3_MATMUL_CUDA_PRODUCT_TASK_H
 
-#include <hedgehog/api/task/abstract_cuda_task.h>
-#include <cublas.h>
 #include "../data/cuda_matrix_block_data.h"
 
 template<class MatrixType, Order Ord>

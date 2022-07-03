@@ -20,7 +20,6 @@
 #ifndef HH3_MATMUL_PARTIAL_COMPUTATION_STATE_MANAGER_H
 #define HH3_MATMUL_PARTIAL_COMPUTATION_STATE_MANAGER_H
 
-#include <hedgehog/api/state_manager/state_manager.h>
 #include "../data/matrix_block_data.h"
 #include "partial_computation_state.h"
 

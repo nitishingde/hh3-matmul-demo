@@ -2,7 +2,6 @@
 #ifndef HH3_MATMUL_ADDITION_TASK_H
 #define HH3_MATMUL_ADDITION_TASK_H
 
-#include <hedgehog/api/task/abstract_task.h>
 #include "../data/matrix_block_data.h"
 
 template<class MatrixType, Order Ord>

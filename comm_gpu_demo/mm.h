@@ -58,7 +58,7 @@ private:
         std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC
     ) override {
         size_t m = matrixA->matrixHeight(), k = matrixA->matrixWidth(), n = matrixB->matrixWidth();
-        size_t blockSize = std::min(size_t(4096), matrixC->blockSize());//FIXME
+        size_t blockSize = matrixC->blockSize();
 #if HH_USE_CUDA
         int devCount = 0;
         checkCudaErrors(cudaGetDeviceCount(&devCount));

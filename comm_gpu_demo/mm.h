@@ -210,7 +210,7 @@ private:
         mainGraph.createDotFile(
             "MMOuterProduct.dot",
             hh::ColorScheme::EXECUTION,
-            hh::StructureOptions::NONE
+            hh::StructureOptions::ALL
         );
     }
 

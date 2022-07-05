@@ -55,7 +55,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 #endif
 
-    MMOuterProduct<MatrixType, Ord> mmOuterProduct(m, k, n, blockSize);
+    MMOuterProduct<MatrixType, Ord> mmOuterProduct;
     mmOuterProduct.execute(matrixA, matrixB, matrixC);
 
 #if VERIFY_MM

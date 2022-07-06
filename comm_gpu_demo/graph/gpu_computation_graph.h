@@ -52,9 +52,10 @@ public:
         auto copyOutTask = std::make_shared<CudaCopyOutGpuTask<MatrixType, Ord>>(4);
 
         // memory managers
-        auto cudaMemoryManagerA = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'a', Ord>, size_t>>(mBlocks + 2, blockSize);
-        auto cudaMemoryManagerB = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'b', Ord>, size_t>>(nBlocks + 2, blockSize);
-        auto cudaMemoryManagerProduct = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'p', Ord>, size_t>>(6, blockSize);
+        // FIXME: ((mBlocks + nBlocks + productTask->numberThreads()) * blockSize * blockSize * 8) / 2^30 <= VRAM
+        auto cudaMemoryManagerA = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'a', Ord>, size_t>>(mBlocks, blockSize);
+        auto cudaMemoryManagerB = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'b', Ord>, size_t>>(nBlocks, blockSize);
+        auto cudaMemoryManagerProduct = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'p', Ord>, size_t>>(productTask->numberThreads(), blockSize);
 
         // connect the memory manager
         copyInATask->connectMemoryManager(cudaMemoryManagerA);

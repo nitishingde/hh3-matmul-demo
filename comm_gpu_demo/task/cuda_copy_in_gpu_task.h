@@ -76,7 +76,6 @@ public:
             ));
         }
 
-//        checkCudaErrors(cudaStreamSynchronize(this->stream()));//FIXME: optimize?
         cudaMatrixBlockData->recordEvent(this->stream());
         this->addResult(cudaMatrixBlockData);
     }

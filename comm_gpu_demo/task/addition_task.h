@@ -37,7 +37,9 @@ public:
             }
         }
 
-        delete[] blockP->blockData();
+        blockP->used();
+        blockP->returnToMemoryManager();
+
         this->addResult(blockC);
     }
 

@@ -20,6 +20,7 @@
 #ifndef HH3_MATMUL_MATRIX_BLOCK_DATA_H
 #define HH3_MATMUL_MATRIX_BLOCK_DATA_H
 
+#include <hedgehog/hedgehog.h>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -34,7 +35,7 @@
  * @tparam Ord
  */
 template<class Type, char Id, Order Ord>
-class MatrixBlockData {
+class MatrixBlockData: public hh::ManagedMemory {
 protected:
     size_t rowIdx_ = 0;
     size_t colIdx_ = 0;
@@ -43,7 +44,8 @@ protected:
     size_t leadingDimension_ = 0;
     Type *fullMatrixData_ = nullptr;
     Type *blockData_ = nullptr;
-    std::vector<Type> commBlockData_ {};
+    bool selfAllocated_ = false;
+    int32_t ttl_ = 0;
 
 public:
     explicit MatrixBlockData() = default;
@@ -91,6 +93,18 @@ public:
         }
     }
 
+    explicit MatrixBlockData(size_t blockSize): blockSizeHeight_(blockSize), blockSizeWidth_(blockSize), leadingDimension_(blockSize), selfAllocated_(true) {
+        blockData_ = fullMatrixData_ = new Type[blockSizeHeight_*blockSizeWidth_];
+    }
+
+    ~MatrixBlockData() {
+        if(selfAllocated_) {
+            delete[] blockData_;
+            blockData_ = fullMatrixData_ = nullptr;
+            selfAllocated_ = false;
+        }
+    }
+
     template<char OldId>
     explicit MatrixBlockData(MatrixBlockData<Type, OldId, Ord> &o) {
         this->rowIdx_ = o.rowIdx_;
@@ -128,6 +142,10 @@ public:
     void leadingDimension(size_t leadingDimension) { leadingDimension_ = leadingDimension; }
     void fullMatrixData(Type *fullMatrixData) { fullMatrixData_ = fullMatrixData; }
     void blockData(Type *blockData) { blockData_ = blockData; }
+
+    void ttl(int32_t ttl) { ttl_ = ttl; };
+    void used() { --ttl_; }
+    bool canBeRecycled() override { return ttl_ == 0; }
 
     friend std::ostream &operator<<(std::ostream &os, MatrixBlockData const &data) {
         os << "MatrixBlockData " << Id << " position Grid: (" << data.rowIdx_ << ", " << data.colIdx_ << ")" << std::endl;

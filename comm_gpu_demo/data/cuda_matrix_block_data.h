@@ -24,10 +24,8 @@
 
 template<class MatrixType, char Id, Order Ord>
 class CudaMatrixBlockData:
-    public MatrixBlockData<MatrixType, Id, Ord>,
-    public hh::ManagedMemory {
+    public MatrixBlockData<MatrixType, Id, Ord> {
 public:
-    int32_t ttl_ = 0;
     cudaEvent_t event_ {};
     bool eventCreated_ = false;
 
@@ -47,9 +45,6 @@ public:
         this->fullMatrixData_ = this->blockData_ = nullptr;
     }
 
-    void ttl(int32_t ttl) { ttl_ = ttl; };
-    void used() { --ttl_; }
-    bool canBeRecycled() override { return ttl_ == 0; }
     MatrixType** addressBlockData() { return &this->blockData_; }
 
     void recordEvent(cudaStream_t stream) {

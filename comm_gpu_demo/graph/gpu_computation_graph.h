@@ -56,11 +56,13 @@ public:
         auto cudaMemoryManagerA = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'a', Ord>, size_t>>(mBlocks, blockSize);
         auto cudaMemoryManagerB = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'b', Ord>, size_t>>(nBlocks, blockSize);
         auto cudaMemoryManagerProduct = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'p', Ord>, size_t>>(productTask->numberThreads(), blockSize);
+        auto memoryManagerProductBlock = std::make_shared<hh::StaticMemoryManager<MatrixBlockData<MatrixType, 'p', Ord>, size_t>>(4, blockSize);
 
         // connect the memory manager
         copyInATask->connectMemoryManager(cudaMemoryManagerA);
         copyInBTask->connectMemoryManager(cudaMemoryManagerB);
         productTask->connectMemoryManager(cudaMemoryManagerProduct);
+        copyOutTask->connectMemoryManager(memoryManagerProductBlock);
 
         auto cudaInputBlockState = std::make_shared<CudaInputBlockState<MatrixType, Ord>>(mBlocks, kBlocks, nBlocks);
         auto cudaInputBlockStateManager = std::make_shared<hh::StateManager<2,

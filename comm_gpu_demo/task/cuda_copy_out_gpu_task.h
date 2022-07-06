@@ -37,14 +37,13 @@ public:
         ) {}
 
     void execute(std::shared_ptr<CudaMatrixBlockData<MatrixType, 'p', Ord>> cudaMatrixBlockData) override {
-        auto productBlockData = std::make_shared<MatrixBlockData<MatrixType, 'p', Order::Column>>();
+        auto productBlockData = std::static_pointer_cast<MatrixBlockData<MatrixType, 'p', Ord>>(this->getManagedMemory());
         productBlockData->rowIdx(cudaMatrixBlockData->rowIdx());
         productBlockData->colIdx(cudaMatrixBlockData->colIdx());
         productBlockData->blockSizeHeight(cudaMatrixBlockData->blockSizeHeight());
         productBlockData->blockSizeWidth(cudaMatrixBlockData->blockSizeWidth());
         productBlockData->leadingDimension(cudaMatrixBlockData->leadingDimension());
-        productBlockData->blockData(new MatrixType[productBlockData->blockSizeWidth() * productBlockData->blockSizeHeight()]());
-        productBlockData->fullMatrixData(productBlockData->blockData());
+        productBlockData->ttl(1);
 
         checkCudaErrors(cudaMemcpyAsync(
             productBlockData->blockData(),

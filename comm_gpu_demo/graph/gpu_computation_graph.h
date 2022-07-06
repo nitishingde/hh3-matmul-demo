@@ -44,19 +44,20 @@ public:
         size_t mBlocks = std::ceil(M / blockSize) + (M % blockSize == 0 ? 0 : 1);
         size_t kBlocks = std::ceil(K / blockSize) + (K % blockSize == 0 ? 0 : 1);
         size_t nBlocks = std::ceil(N / blockSize) + (N % blockSize == 0 ? 0 : 1);
+        size_t productThreads = 4;
 
         // cuda tasks
         auto copyInATask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'a', Ord>>(mBlocks, 1);
         auto copyInBTask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'b', Ord>>(nBlocks, 1);
-        auto productTask = std::make_shared<CudaProductTask<MatrixType, Ord>>(4);
-        auto copyOutTask = std::make_shared<CudaCopyOutGpuTask<MatrixType, Ord>>(4);
+        auto productTask = std::make_shared<CudaProductTask<MatrixType, Ord>>(productThreads);
+        auto copyOutTask = std::make_shared<CudaCopyOutGpuTask<MatrixType, Ord>>(1);
 
         // memory managers
         // FIXME: ((mBlocks + nBlocks + productTask->numberThreads()) * blockSize * blockSize * 8) / 2^30 <= VRAM
         auto cudaMemoryManagerA = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'a', Ord>, size_t>>(mBlocks, blockSize);
         auto cudaMemoryManagerB = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'b', Ord>, size_t>>(nBlocks, blockSize);
-        auto cudaMemoryManagerProduct = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'p', Ord>, size_t>>(productTask->numberThreads(), blockSize);
-        auto memoryManagerProductBlock = std::make_shared<hh::StaticMemoryManager<MatrixBlockData<MatrixType, 'p', Ord>, size_t>>(4, blockSize);
+        auto cudaMemoryManagerProduct = std::make_shared<hh::StaticMemoryManager<CudaMatrixBlockData<MatrixType, 'p', Ord>, size_t>>(productThreads, blockSize);
+        auto memoryManagerProductBlock = std::make_shared<hh::StaticMemoryManager<MatrixBlockData<MatrixType, 'p', Ord>, size_t>>(productThreads, blockSize);
 
         // connect the memory manager
         copyInATask->connectMemoryManager(cudaMemoryManagerA);

@@ -46,6 +46,8 @@ protected:
     Type *blockData_ = nullptr;
     bool selfAllocated_ = false;
     int32_t ttl_ = 0;
+    cudaEvent_t event_ {};
+    bool eventCreated_ = false;
 
 public:
     explicit MatrixBlockData() = default;
@@ -103,6 +105,11 @@ public:
             blockData_ = fullMatrixData_ = nullptr;
             selfAllocated_ = false;
         }
+
+        if (eventCreated_) {
+            checkCudaErrors(cudaEventDestroy(event_));
+            eventCreated_ = false;
+        }
     }
 
     template<char OldId>
@@ -146,6 +153,18 @@ public:
     void ttl(int32_t ttl) { ttl_ = ttl; };
     void used() { --ttl_; }
     bool canBeRecycled() override { return ttl_ == 0; }
+
+    void recordEvent(cudaStream_t stream) {
+        if (!eventCreated_) {
+            checkCudaErrors(cudaEventCreate(&event_));
+            eventCreated_ = true;
+        }
+        checkCudaErrors(cudaEventRecord(event_, stream));
+    }
+
+    void synchronizeEvent() {
+        checkCudaErrors(cudaEventSynchronize(event_));
+    }
 
     friend std::ostream &operator<<(std::ostream &os, MatrixBlockData const &data) {
         os << "MatrixBlockData " << Id << " position Grid: (" << data.rowIdx_ << ", " << data.colIdx_ << ")" << std::endl;

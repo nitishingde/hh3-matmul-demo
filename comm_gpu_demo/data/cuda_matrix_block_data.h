@@ -23,12 +23,7 @@
 #include "matrix_block_data.h"
 
 template<class MatrixType, char Id, Order Ord>
-class CudaMatrixBlockData:
-    public MatrixBlockData<MatrixType, Id, Ord> {
-public:
-    cudaEvent_t event_ {};
-    bool eventCreated_ = false;
-
+class CudaMatrixBlockData: public MatrixBlockData<MatrixType, Id, Ord> {
 public:
     explicit CudaMatrixBlockData(size_t blockSize) {
         checkCudaErrors(cudaMalloc(this->addressBlockData(), sizeof(MatrixType)*blockSize*blockSize));
@@ -36,28 +31,11 @@ public:
     }
 
     ~CudaMatrixBlockData() {
-        if (eventCreated_) {
-            checkCudaErrors(cudaEventDestroy(event_));
-            eventCreated_ = false;
-        }
-
         checkCudaErrors(cudaFree(this->blockData()));
         this->fullMatrixData_ = this->blockData_ = nullptr;
     }
 
     MatrixType** addressBlockData() { return &this->blockData_; }
-
-    void recordEvent(cudaStream_t stream) {
-        if (!eventCreated_) {
-            checkCudaErrors(cudaEventCreate(&event_));
-            eventCreated_ = true;
-        }
-        checkCudaErrors(cudaEventRecord(event_, stream));
-    }
-
-    void synchronizeEvent() {
-        checkCudaErrors(cudaEventSynchronize(event_));
-    }
 };
 
 #endif //HH3_MATMUL_CUDA_MATRIX_BLOCK_DATA_H

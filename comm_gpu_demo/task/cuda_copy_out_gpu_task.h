@@ -53,7 +53,7 @@ public:
             this->stream()
         ));
 
-        checkCudaErrors(cudaStreamSynchronize(this->stream()));
+        productBlockData->recordEvent(this->stream());
 
         cudaMatrixBlockData->used();
         cudaMatrixBlockData->returnToMemoryManager();

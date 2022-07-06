@@ -32,10 +32,12 @@ class CudaCopyInGpuTask: public hh::AbstractCUDATask<1,
     > {
 private:
     int32_t ttl_ = 0;//FIXME int or uint?
+    size_t blockSize_ = 0;
 
 public:
-    explicit CudaCopyInGpuTask(int32_t ttl, size_t threadCount):
+    explicit CudaCopyInGpuTask(int32_t ttl, size_t blockSize, size_t threadCount):
         ttl_(ttl),
+        blockSize_(blockSize),
         hh::AbstractCUDATask<1, MatrixBlockData<MatrixType, Id, Ord>, CudaMatrixBlockData<MatrixType, Id, Ord>>(
             "Cuda Copy in GPU Task",
             threadCount,
@@ -63,8 +65,8 @@ public:
             ));
         } else {
             void *pHost = matrixBlockData->fullMatrixData() + IDX2C(
-                        matrixBlockData->rowIdx() * matrixBlockData->blockSizeHeight(),
-                        matrixBlockData->colIdx() * matrixBlockData->blockSizeWidth(),
+                        matrixBlockData->rowIdx() * blockSize_,
+                        matrixBlockData->colIdx() * blockSize_,
                         matrixBlockData->leadingDimension()
                     );
             checkCudaErrors(cublasSetMatrixAsync(
@@ -82,7 +84,7 @@ public:
 
     std::shared_ptr<hh::AbstractTask<1, MatrixBlockData<MatrixType, Id, Ord>, CudaMatrixBlockData<MatrixType, Id, Ord>>>
     copy() override {
-        return std::make_shared<CudaCopyInGpuTask>(ttl_, this->numberThreads());
+        return std::make_shared<CudaCopyInGpuTask>(ttl_, blockSize_, this->numberThreads());
     }
 };
 

@@ -47,8 +47,8 @@ public:
         size_t productThreads = 4;
 
         // cuda tasks
-        auto copyInATask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'a', Ord>>(mBlocks, 1);
-        auto copyInBTask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'b', Ord>>(nBlocks, 1);
+        auto copyInATask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'a', Ord>>(mBlocks, blockSize, 1);
+        auto copyInBTask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'b', Ord>>(nBlocks, blockSize, 1);
         auto productTask = std::make_shared<CudaProductTask<MatrixType, Ord>>(productThreads);
         auto copyOutTask = std::make_shared<CudaCopyOutGpuTask<MatrixType, Ord>>(1);
 

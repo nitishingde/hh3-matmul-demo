@@ -46,8 +46,8 @@ public:
         size_t nBlocks = std::ceil(N / blockSize) + (N % blockSize == 0 ? 0 : 1);
 
         // cuda tasks
-        auto copyInATask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'a', Ord>>(mBlocks, 4);
-        auto copyInBTask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'b', Ord>>(nBlocks, 4);
+        auto copyInATask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'a', Ord>>(mBlocks, 1);
+        auto copyInBTask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'b', Ord>>(nBlocks, 1);
         auto productTask = std::make_shared<CudaProductTask<MatrixType, Ord>>(4);
         auto copyOutTask = std::make_shared<CudaCopyOutGpuTask<MatrixType, Ord>>(4);
 

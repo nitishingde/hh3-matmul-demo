@@ -61,6 +61,9 @@ public:
         cudaBlockP->leadingDimension(cudaBlockP->blockSizeHeight());
         cudaBlockP->ttl(1);
 
+        cudaBlockA->synchronizeEvent();
+        cudaBlockB->synchronizeEvent();
+
         if constexpr(std::is_same_v<MatrixType, float>) {
             checkCudaErrors(cublasSgemm_v2(
                 handle_, CUBLAS_OP_N, CUBLAS_OP_N,

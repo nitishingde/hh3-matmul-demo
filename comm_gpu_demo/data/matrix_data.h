@@ -20,10 +20,12 @@
 #ifndef HH3_MATMUL_MATRIX_DATA_H
 #define HH3_MATMUL_MATRIX_DATA_H
 
+#include <cereal/archives/binary.hpp>
 #include <iostream>
 #include <cmath>
 #include <iomanip>
 #include "data_type.h"
+#include "serialization.h"
 
 
 /**
@@ -35,7 +37,7 @@
  * @tparam Ord
  */
 template <class Type, char Id = '0', Order Ord = Order::Row>
-class MatrixData {
+class MatrixData: public Serialization {
 private:
     size_t matrixHeight_ = 0;
     size_t matrixWidth_ = 0;
@@ -83,6 +85,34 @@ public:
     Type *matrixData() const { return matrixData_; }
     Type* data() const { return matrixData_; }
     Type* data() { return matrixData_; }
+    size_t sizeInBytes() const { return sizeof(Type) * matrixWidth_ * matrixHeight_; }
+
+    std::string serialize() const override {
+        // FIXME: ss.str() copies data
+        std::stringstream ss;
+        cereal::BinaryOutputArchive ar(ss);
+        ar(cereal::binary_data(&matrixWidth_, sizeof(matrixWidth_)));
+        ar(cereal::binary_data(&matrixHeight_, sizeof(matrixHeight_)));
+        ar(cereal::binary_data(&blockSize_, sizeof(blockSize_)));
+        ar(cereal::binary_data(&numBlocksRows_, sizeof(numBlocksRows_)));
+        ar(cereal::binary_data(&numBlocksCols_, sizeof(numBlocksCols_)));
+        ar(cereal::binary_data(&leadingDimension_, sizeof(leadingDimension_)));
+        ar(cereal::binary_data(matrixData_, sizeInBytes()));
+        return std::move(ss).str();
+    }
+
+    void deserialize(std::istream &&istream) override {
+        cereal::BinaryInputArchive ar(istream);
+        ar(cereal::binary_data(&matrixWidth_, sizeof(matrixWidth_)));
+        ar(cereal::binary_data(&matrixHeight_, sizeof(matrixHeight_)));
+        ar(cereal::binary_data(&blockSize_, sizeof(blockSize_)));
+        ar(cereal::binary_data(&numBlocksRows_, sizeof(numBlocksRows_)));
+        ar(cereal::binary_data(&numBlocksCols_, sizeof(numBlocksCols_)));
+        ar(cereal::binary_data(&leadingDimension_, sizeof(leadingDimension_)));
+        matrixData_ = new Type[matrixWidth_*matrixHeight_];//FIXME
+        std::fill_n(matrixData_, matrixWidth_*matrixHeight_, 0);
+        ar(cereal::binary_data(matrixData_, sizeInBytes()));
+    }
 
     friend std::ostream &operator<<(std::ostream &os, const MatrixData &data) {
         os << "MatrixData " << Id

@@ -64,15 +64,10 @@ public:
                 this->stream()
             ));
         } else {
-            void *pHost = matrixBlockData->fullMatrixData() + IDX2C(
-                        matrixBlockData->rowIdx() * blockSize_,
-                        matrixBlockData->colIdx() * blockSize_,
-                        matrixBlockData->leadingDimension()
-                    );
             checkCudaErrors(cublasSetMatrixAsync(
                 (int)cudaMatrixBlockData->blockSizeHeight(), (int)cudaMatrixBlockData->blockSizeWidth(),
                 sizeof(MatrixType),
-                pHost, (int)matrixBlockData->leadingDimension(),
+                matrixBlockData->blockData(), (int)matrixBlockData->leadingDimension(),
                 cudaMatrixBlockData->blockData(), (int)cudaMatrixBlockData->leadingDimension(),
                 this->stream()
             ));

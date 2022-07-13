@@ -8,8 +8,10 @@
 #include <openblas/cblas.h>
 #endif
 #include "data/matrix_data.h"
+#include "execution_pipeline/inner_product_exec_pipeline.h"
 #include "execution_pipeline/multi_gpu_exec_pipeline.h"
 #include "graph/gpu_computation_graph.h"
+#include "graph/inner_product_cuda_graph.h"
 #include "state/output_state.h"
 #include "state/partial_computation_state_manager.h"
 #include "task/addition_task.h"
@@ -223,15 +225,55 @@ private:
  *
  *
  */
-template<class MatrixType, Order order>
-class MMInnerProductMultipleNode: public MMStrategy<MatrixType, order> {
+template<class MatrixType, Order Ord>
+class MMInnerProduct: public MMStrategy<MatrixType, Ord> {
 private:
     void executeImpl(
-        [[maybe_unused]]const std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
-        [[maybe_unused]]const std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
-        [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC
+        [[maybe_unused]]const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+        [[maybe_unused]]const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+        [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC
     ) override {
+        size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
+        size_t mBlocks = std::ceil(double(M) / double(blockSize));
+        size_t kBlocks = std::ceil(double(K) / double(blockSize));
+        size_t nBlocks = std::ceil(double(N) / double(blockSize));
 
+
+        int deviceCount = 0;
+        checkCudaErrors(cudaGetDeviceCount(&deviceCount));
+        std::vector<int> deviceIds(deviceCount, 0);
+        std::iota(deviceIds.begin(), deviceIds.end(), 0);
+
+        auto taskGraph = hh::Graph<1,
+                MatrixData<MatrixType, 'c', Ord>,       //inp1
+                MatrixBlockData<MatrixType, 'c', Ord>   //out1
+            >("Inner Product Task Graph");
+        auto cudaGraph = std::make_shared<InnerProductCudaGraph<MatrixType, Ord>>(M, K, N, blockSize, matrixA, matrixB);
+        auto executionPipeline = std::make_shared<InnerProductExecPipeline<MatrixType, Ord>>(cudaGraph, deviceIds, nBlocks);
+
+        auto matrixTraversal = std::make_shared<MatrixRowTraversalTask<MatrixType, 'c', Ord>>();
+
+        // add edges
+        taskGraph.template input<MatrixData<MatrixType, 'c', Ord>>(matrixTraversal);
+        taskGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(matrixTraversal, executionPipeline);
+        taskGraph.template output<MatrixBlockData<MatrixType, 'c', Ord>>(executionPipeline);
+
+        // execute graph
+        taskGraph.executeGraph();
+
+        // push data
+        taskGraph.pushData(matrixC);
+        taskGraph.finishPushingData();
+
+        // wait
+        taskGraph.waitForTermination();
+
+        // create dot files for analysis
+        taskGraph.createDotFile(
+            "MMInnerProduct.dot",
+            hh::ColorScheme::EXECUTION,
+            hh::StructureOptions::ALL
+        );
     }
 
     std::string toString() const override {

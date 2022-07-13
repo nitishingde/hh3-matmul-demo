@@ -26,17 +26,21 @@ add_library(hh3_matmul
         mm.h
         utility.h
 
+        data/cuda_block_data.h
         data/cuda_matrix_block_data.h
         data/data_type.h
         data/matrix_block_data.h
         data/matrix_data.h
         data/serialization.h
 
+        execution_pipeline/inner_product_exec_pipeline.h
         execution_pipeline/multi_gpu_exec_pipeline.h
 
         graph/gpu_computation_graph.h
+        graph/inner_product_cuda_graph.h
 
         state/cuda_input_block_state.h
+        state/inner_product_computation_state.h
         state/output_state.h
         state/partial_computation_state.h
         state/partial_computation_state_manager.h
@@ -44,8 +48,10 @@ add_library(hh3_matmul
         task/cuda_copy_in_gpu_task.h
         task/cuda_copy_out_gpu_task.h
         task/cuda_product_task.h
+        task/inner_product_task.h
         task/matrix_column_traversal_task.h
         task/matrix_row_traversal_task.h
+        task/pair_generator_task.h
         task/addition_task.h
 )
 
@@ -71,6 +77,12 @@ target_link_libraries(hh3_matmul
 
 add_executable(gpu_demo gpu_demo.cpp)
 target_link_libraries(gpu_demo
+    PUBLIC
+        hh3_matmul
+)
+
+add_executable(inner_prod inner_prod.cpp)
+target_link_libraries(inner_prod
     PUBLIC
         hh3_matmul
 )

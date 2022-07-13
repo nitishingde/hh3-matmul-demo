@@ -45,15 +45,12 @@ public:
         productBlockData->leadingDimension(cudaMatrixBlockData->leadingDimension());
         productBlockData->ttl(1);
 
-        checkCudaErrors(cudaMemcpyAsync(
+        checkCudaErrors(cudaMemcpy(
             productBlockData->blockData(),
             cudaMatrixBlockData->blockData(),
             productBlockData->blockSizeHeight() * productBlockData->blockSizeWidth() * sizeof(MatrixType),
-            cudaMemcpyDeviceToHost,
-            this->stream()
+            cudaMemcpyDeviceToHost
         ));
-
-        productBlockData->recordEvent(this->stream());
 
         cudaMatrixBlockData->used();
         cudaMatrixBlockData->returnToMemoryManager();

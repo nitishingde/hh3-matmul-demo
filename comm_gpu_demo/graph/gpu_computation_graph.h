@@ -50,7 +50,7 @@ public:
         auto copyInATask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'a', Ord>>(mBlocks, blockSize, 1);
         auto copyInBTask = std::make_shared<CudaCopyInGpuTask<MatrixType, 'b', Ord>>(nBlocks, blockSize, 1);
         auto productTask = std::make_shared<CudaProductTask<MatrixType, Ord>>(productThreads);
-        auto copyOutTask = std::make_shared<CudaCopyOutGpuTask<MatrixType, Ord>>(1);
+        auto copyOutTask = std::make_shared<CudaCopyOutGpuTask<MatrixType, Ord>>(productThreads);
 
         // memory managers
         // FIXME: ((mBlocks + nBlocks + productTask->numberThreads()) * blockSize * blockSize * 8) / 2^30 <= VRAM

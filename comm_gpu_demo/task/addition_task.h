@@ -22,7 +22,6 @@ public:
         auto blockP = blockPair->second;
         assert(blockC->blockSizeWidth() == blockP->blockSizeWidth());
         assert(blockC->blockSizeHeight() == blockP->blockSizeHeight());
-        blockP->synchronizeEvent();
 
         if constexpr(Ord == Order::Row) {
             for(size_t i = 0; i < blockC->blockSizeHeight(); ++i) {

@@ -112,7 +112,7 @@ public:
         copyToCpu(blockP, cudaBlockP);
         cudaBlockA->returnToMemoryManager();
         cudaBlockB->returnToMemoryManager();
-        blockP->recordEvent(this->stream());//FIXME?
+
         checkCudaErrors(cudaStreamSynchronize(this->stream()));
         cudaBlockP->returnToMemoryManager();
 

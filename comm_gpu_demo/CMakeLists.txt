@@ -75,8 +75,8 @@ target_link_libraries(hh3_matmul
         Uintah2::comm
 )
 
-add_executable(gpu_demo gpu_demo.cpp)
-target_link_libraries(gpu_demo
+add_executable(outer_prod outer_prod.cpp)
+target_link_libraries(outer_prod
     PUBLIC
         hh3_matmul
 )

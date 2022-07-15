@@ -20,11 +20,13 @@
 #ifndef HH3_MATMUL_MATRIX_BLOCK_DATA_H
 #define HH3_MATMUL_MATRIX_BLOCK_DATA_H
 
+#include <cereal/cereal.hpp>
 #include <hedgehog/hedgehog.h>
 #include <iostream>
 #include <memory>
 #include <vector>
 #include "matrix_data.h"
+#include "serialization.h"
 
 /**
  * Stores just the meta data corresponding the matrix block data
@@ -35,7 +37,7 @@
  * @tparam Ord
  */
 template<class Type, char Id, Order Ord>
-class MatrixBlockData: public hh::ManagedMemory {
+class MatrixBlockData: public hh::ManagedMemory, Serialization {
 protected:
     size_t rowIdx_ = 0;
     size_t colIdx_ = 0;
@@ -100,10 +102,9 @@ public:
     }
 
     ~MatrixBlockData() {
-        if(selfAllocated_) {
+        if(selfAllocated_ and blockData_ != nullptr) {
             delete[] blockData_;
             blockData_ = fullMatrixData_ = nullptr;
-            selfAllocated_ = false;
         }
 
         if (eventCreated_) {
@@ -149,6 +150,7 @@ public:
     void leadingDimension(size_t leadingDimension) { leadingDimension_ = leadingDimension; }
     void fullMatrixData(Type *fullMatrixData) { fullMatrixData_ = fullMatrixData; }
     void blockData(Type *blockData) { blockData_ = blockData; }
+    size_t sizeInBytes() const { return sizeof(Type) * blockSizeHeight_ * blockSizeWidth_; }
 
     void ttl(int32_t ttl) { ttl_ = ttl; };
     void used() { --ttl_; }
@@ -164,6 +166,40 @@ public:
 
     void synchronizeEvent() {
         checkCudaErrors(cudaEventSynchronize(event_));
+    }
+
+    std::string serialize() const override {
+        // FIXME: ss.str() copies data
+        std::stringstream ss;
+        cereal::BinaryOutputArchive ar(ss);
+        ar(cereal::binary_data(&rowIdx_, sizeof(rowIdx_)));
+        ar(cereal::binary_data(&colIdx_, sizeof(colIdx_)));
+        ar(cereal::binary_data(&blockSizeHeight_, sizeof(blockSizeHeight_)));
+        ar(cereal::binary_data(&blockSizeWidth_, sizeof(blockSizeWidth_)));
+        if constexpr(Ord == Order::Row) {
+            for (size_t i = 0; i < blockSizeHeight(); ++i) {
+                ar(cereal::binary_data(&blockData_[i*leadingDimension_], sizeof(Type)*blockSizeWidth_));
+            }
+        } else {
+            for (size_t j = 0; j < blockSizeWidth(); ++j) {
+                for (size_t i = 0; i < blockSizeHeight(); ++i) {
+                    ar(cereal::binary_data(&blockData_[j*leadingDimension_ + i], sizeof(Type)));
+                }
+            }
+        }
+        return std::move(ss).str();
+    }
+
+    void deserialize(std::istream &&istream) override {
+        cereal::BinaryInputArchive ar(istream);
+        ar(cereal::binary_data(&rowIdx_, sizeof(rowIdx_)));
+        ar(cereal::binary_data(&colIdx_, sizeof(colIdx_)));
+        ar(cereal::binary_data(&blockSizeHeight_, sizeof(blockSizeHeight_)));
+        ar(cereal::binary_data(&blockSizeWidth_, sizeof(blockSizeWidth_)));
+        leadingDimension_ = blockSizeHeight_;
+        fullMatrixData_ = blockData_ = new Type[blockSizeWidth_*blockSizeHeight_];
+        selfAllocated_ = true;
+        ar(cereal::binary_data(blockData_, sizeInBytes()));
     }
 
     friend std::ostream &operator<<(std::ostream &os, MatrixBlockData const &data) {

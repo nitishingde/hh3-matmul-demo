@@ -45,6 +45,7 @@ add_library(hh3_matmul
         state/partial_computation_state.h
         state/partial_computation_state_manager.h
 
+        task/comm_task.h
         task/cuda_copy_in_gpu_task.h
         task/cuda_copy_out_gpu_task.h
         task/cuda_product_task.h
@@ -87,8 +88,8 @@ target_link_libraries(inner_prod
         hh3_matmul
 )
 
-add_executable(comm_gpu_demo comm_gpu_demo.cpp)
-target_link_libraries(comm_gpu_demo
+add_executable(comm_outer_prod comm_outer_prod.cpp)
+target_link_libraries(comm_outer_prod
     PUBLIC
         hh3_matmul
 )

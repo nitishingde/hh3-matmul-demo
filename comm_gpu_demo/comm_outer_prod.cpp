@@ -17,12 +17,11 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     // initialize comm library
     comm::CommLockGuard commLockGuard(&argc, &argv);
-    auto isRootNode = comm::isMpiRootPid();
 
     // A => m x k
     // B => k x n
     // C => m x n
-    const size_t m = 4, k = 2, n = 4, blockSize = 2;
+    const size_t m = 4, k = 3, n = 4, blockSize = 2;
 
     std::vector<MatrixType> subA(m*k), subB(k*n), matC(m*n, 0);
     auto subMatA = std::make_shared<MatrixData<MatrixType, 'a', Ord>>(m, k, blockSize, *subA.data());
@@ -37,10 +36,15 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     std::uniform_real_distribution<MatrixType> unif(0, 10);
 
     // initialize matrices
-    std::for_each(subMatA->data(), subMatA->data() + (m * k), [&unif, &rng](MatrixType &val) { val = comm::getMpiNodeId();(MatrixType) unif(rng); });
-    std::for_each(subMatB->data(), subMatB->data() + (k * n), [&unif, &rng](MatrixType &val) { val = comm::getMpiNodeId();(MatrixType) unif(rng); });
+    std::for_each(subMatA->data(), subMatA->data() + (m * k), [&unif, &rng](MatrixType &val) { val = comm::getMpiNodeId()+1;(MatrixType) unif(rng); });
+    std::for_each(subMatB->data(), subMatB->data() + (k * n), [&unif, &rng](MatrixType &val) { val = comm::getMpiNodeId()+1;(MatrixType) unif(rng); });
     if(comm::isMpiRootPid()) {
         std::for_each(matrixC->data(), matrixC->data() + (m * n), [&unif, &rng](MatrixType &val) { val = 1;(MatrixType) unif(rng); });
+    }
+
+    {
+        MMCommOuterProduct<MatrixType, Ord> commOuterProduct;
+        commOuterProduct.execute(subMatA, subMatB, matrixC);
     }
 
 #if VERIFY_MM
@@ -55,9 +59,8 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     auto matrixB = std::make_shared<MatrixData<MatrixType, 'b', Ord>>(k*comm::getMpiNumNodes(), n, blockSize, *matB.data());
     auto testMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *matV.data());
 
-    if(isRootNode) {
+    if(comm::isMpiRootPid()) {
         std::copy_n(subMatA->data(), m*k, matrixA->data());
-        std::copy_n(matrixC->data(), m*n, testMatrixC->data());
         for(size_t j = 0; j < subMatB->matrixWidth(); ++j) {
             for(size_t i = 0; i < subMatB->matrixHeight(); ++i) {
                 matrixB->data()[j*matrixB->leadingDimension()+i] = subMatB->data()[j*subMatB->leadingDimension()+i];
@@ -66,8 +69,8 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 
     // verify code
-    std::atomic_uint32_t aCount = comm::getMpiNumNodes()-1, bCount = comm::getMpiNumNodes()-1;
     if(comm::isMpiRootPid()) {
+        std::atomic_uint32_t aCount = comm::getMpiNumNodes()-1, bCount = comm::getMpiNumNodes()-1;
         comm::connectReceiver([&matrixA, &matrixB, &aCount, &bCount](comm::SignalType signalType) {
             auto otherNode = signalType->otherNode;
             if(signalType->id == 1) {
@@ -91,12 +94,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
                 bCount--;
             }
         });
-    } else {
-        comm::sendMessage(1, subMatA->serialize(), 0);
-        comm::sendMessage(2, subMatB->serialize(), 0);
-    }
 
-    if(comm::isMpiRootPid()) {
         while (0 < aCount.load() or 0 < bCount.load()) {}
 
         MMVerification<MatrixType, Ord> mmVerification;
@@ -105,6 +103,10 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         std::cout << *matrixB;
         std::cout << *matrixC;
         std::cout << *testMatrixC;
+    }
+    else {
+        comm::sendMessage(1, subMatA->serialize(), 0);
+        comm::sendMessage(2, subMatB->serialize(), 0);
     }
 #endif
 

@@ -7,6 +7,7 @@
 #else
 #include <openblas/cblas.h>
 #endif
+#include <comm/comm.h>
 #include "data/matrix_data.h"
 #include "execution_pipeline/inner_product_exec_pipeline.h"
 #include "execution_pipeline/multi_gpu_exec_pipeline.h"
@@ -15,6 +16,8 @@
 #include "state/output_state.h"
 #include "state/partial_computation_state_manager.h"
 #include "task/addition_task.h"
+#include "task/comm_task.h"
+#include "task/matrix_block_transformer_task.h"
 #include "task/matrix_column_traversal_task.h"
 #include "task/matrix_row_traversal_task.h"
 
@@ -218,6 +221,116 @@ private:
 
     std::string toString() const override {
         return "MM outer product";
+    }
+};
+
+template<class MatrixType, Order Ord>
+class MMCommOuterProduct: public MMStrategy<MatrixType, Ord> {
+private:
+    void executeImpl(
+            const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+            const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+            std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC
+        ) override {
+        // initial values
+        size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
+        int deviceCount = 0;
+        checkCudaErrors(cudaGetDeviceCount(&deviceCount));
+        std::vector<int> deviceIds{comm::getMpiNodeId()};
+#if not NDEBUG
+        printf("Devices: {");
+        for(auto dev: deviceIds) {
+            printf("%d, ", dev);
+        }
+        printf("\b\b}\n");
+#endif
+        size_t mBlocks = std::ceil(M / blockSize) + (M % blockSize == 0 ? 0 : 1);
+        size_t kBlocks = std::ceil(K / blockSize) + (K % blockSize == 0 ? 0 : 1);
+        size_t nBlocks = std::ceil(N / blockSize) + (N % blockSize == 0 ? 0 : 1);
+
+        // create nodes
+        auto mainGraph = hh::Graph<3,
+            MatrixData<MatrixType, 'a', Ord>,       //inp1
+            MatrixData<MatrixType, 'b', Ord>,       //inp2
+            MatrixData<MatrixType, 'c', Ord>,       //inp3
+            MatrixBlockData<MatrixType, 'c', Ord>,  //out1
+            void*                                   //out2
+        >("Main Graph");
+
+        auto matrixATraversalTask = std::make_shared<MatrixColumnTraversalTask<MatrixType, 'a', Ord>>();
+        auto matrixBTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, 'b', Ord>>();
+        auto matrixCTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, 'c', Ord>>();
+        auto additionTask = std::make_shared<AdditionTask<MatrixType, Ord>>(4);
+        auto matrixBlockTransformerTask = std::make_shared<MatrixBlockTransformerTask<MatrixType, 'c', 'p', Ord>>();
+
+        auto partialComputationState = std::make_shared<PartialComputationState<MatrixType, Ord>>(
+            mBlocks,
+            nBlocks,
+            mBlocks*nBlocks*(kBlocks + (comm::isMpiRootPid()? (comm::getMpiNumNodes()-1): 0))
+        );
+        auto partialComputationStateManager = std::make_shared<PartialComputationStateManager<MatrixType, Ord>>(partialComputationState);
+
+        auto gpuComputationGraph = std::make_shared<GPUComputationGraph<MatrixType, Ord>>(M, K, N, blockSize);
+        auto multiGpuExecutionPipeline = std::make_shared<MultiGPUExecPipeline<MatrixType, Ord>>(gpuComputationGraph, deviceIds);
+
+        auto outputState = std::make_shared<OutputState<MatrixType, Ord>>(
+            mBlocks,
+            nBlocks,
+            kBlocks + (comm::isMpiRootPid()? (comm::getMpiNumNodes()-1): 0)
+        );
+
+        // StateManager
+        auto outputBlockStateManager = std::make_shared<hh::StateManager<1,
+                MatrixBlockData<MatrixType, 'c', Ord>,
+                MatrixBlockData<MatrixType, 'c', Ord>
+            >>(outputState, "Output State Manager");
+
+        // add edges
+        mainGraph.template input<MatrixData<MatrixType, 'a', Ord>>(matrixATraversalTask);
+        mainGraph.template input<MatrixData<MatrixType, 'b', Ord>>(matrixBTraversalTask);
+        mainGraph.template input<MatrixData<MatrixType, 'c', Ord>>(matrixCTraversalTask);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(matrixCTraversalTask, partialComputationStateManager);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'a', Ord>>(matrixATraversalTask, multiGpuExecutionPipeline);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'b', Ord>>(matrixBTraversalTask, multiGpuExecutionPipeline);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'p', Ord>>(multiGpuExecutionPipeline, partialComputationStateManager);
+        mainGraph.template edge<std::pair<std::shared_ptr<MatrixBlockData<MatrixType, 'c', Ord>>, std::shared_ptr<MatrixBlockData<MatrixType, 'p', Ord>>>>(partialComputationStateManager, additionTask);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(additionTask, partialComputationStateManager);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(additionTask, outputBlockStateManager);
+        if(comm::isMpiRootPid()) {
+            auto receiverTask = std::make_shared<ReceiverTask<MatrixBlockData<MatrixType, 'p', Ord>>>(mBlocks*nBlocks*(comm::getMpiNumNodes()-1));
+            mainGraph.template edge<MatrixBlockData<MatrixType, 'p', Ord>>(receiverTask, partialComputationStateManager);
+            mainGraph.template output<MatrixBlockData<MatrixType, 'c', Ord>>(outputBlockStateManager);
+            //FIXME: end?
+        }
+        else {
+            auto senderTask = std::make_shared<SenderTask<MatrixBlockData<MatrixType, 'p', Ord>>>(0, mBlocks*nBlocks);
+            mainGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(outputBlockStateManager, matrixBlockTransformerTask);
+            mainGraph.template edge<MatrixBlockData<MatrixType, 'p', Ord>>(matrixBlockTransformerTask, senderTask);
+            mainGraph.template output<void*>(senderTask);
+        }
+
+        // execute graph
+        mainGraph.executeGraph();
+
+        // push data
+        mainGraph.pushData(matrixA);
+        mainGraph.pushData(matrixB);
+        mainGraph.pushData(matrixC);
+        mainGraph.finishPushingData();
+
+        // wait
+        mainGraph.waitForTermination();
+
+        // create dot files for analysis
+        mainGraph.createDotFile(
+            "MMCommOuterProduct" + std::to_string(comm::getMpiNodeId())+".dot",
+            hh::ColorScheme::EXECUTION,
+            hh::StructureOptions::ALL
+        );
+    }
+
+    std::string toString() const override {
+        return "MM multi node outer product";
     }
 };
 

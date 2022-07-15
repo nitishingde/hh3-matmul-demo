@@ -24,6 +24,7 @@
 #include <iostream>
 #include <cmath>
 #include <iomanip>
+#include <cassert>
 #include "data_type.h"
 #include "serialization.h"
 
@@ -36,7 +37,7 @@
  * @tparam Id
  * @tparam Ord
  */
-template <class Type, char Id = '0', Order Ord = Order::Row>
+template <class Type, char Id, Order Ord>
 class MatrixData: public Serialization {
 private:
     size_t matrixHeight_ = 0;
@@ -46,6 +47,7 @@ private:
     size_t numBlocksCols_ = 0;
     size_t leadingDimension_ = 0;
     Type *matrixData_ = nullptr;
+    bool selfAllocated_ = false;
 
 public:
     explicit MatrixData() = default;
@@ -68,6 +70,13 @@ public:
             this->leadingDimension_ = matrixWidth_;
         } else{
             this->leadingDimension_ = matrixHeight_;
+        }
+    }
+
+    ~MatrixData() {
+        if(selfAllocated_ and matrixData_ != nullptr) {
+            delete[] matrixData_;
+            matrixData_ = nullptr;
         }
     }
 
@@ -109,8 +118,8 @@ public:
         ar(cereal::binary_data(&numBlocksRows_, sizeof(numBlocksRows_)));
         ar(cereal::binary_data(&numBlocksCols_, sizeof(numBlocksCols_)));
         ar(cereal::binary_data(&leadingDimension_, sizeof(leadingDimension_)));
-        matrixData_ = new Type[matrixWidth_*matrixHeight_];//FIXME
-        std::fill_n(matrixData_, matrixWidth_*matrixHeight_, 0);
+        matrixData_ = new Type[matrixWidth_*matrixHeight_];
+        selfAllocated_ = true;
         ar(cereal::binary_data(matrixData_, sizeInBytes()));
     }
 

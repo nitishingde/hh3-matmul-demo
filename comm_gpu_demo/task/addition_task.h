@@ -56,7 +56,7 @@ public:
         }
 
         blockP->used();
-        blockP->returnToMemoryManager();
+        if(blockP->isMemoryManagerConnected()) blockP->returnToMemoryManager();
 
         this->addResult(blockC);
     }

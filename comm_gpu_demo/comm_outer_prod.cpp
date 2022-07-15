@@ -37,6 +37,11 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     auto subMatB = std::make_shared<MatrixData<MatrixType, 'b', Ord>>(k, n, blockSize, *subB.data());
     auto matrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *matC.data());
 
+    // initialize matrices
+#if not NDEBUG
+    std::for_each(subMatA->data(), subMatA->data() + (m * k), [](MatrixType &val) { val = comm::getMpiNodeId()+1; });
+    std::for_each(subMatB->data(), subMatB->data() + (k * n), [](MatrixType &val) { val = comm::getMpiNodeId()+1; });
+#else
     // Mersenne Twister Random Generator
     uint64_t timeSeed = std::chrono::system_clock::now().time_since_epoch().count();
     std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed >> (uint64_t) 32)};
@@ -44,11 +49,11 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     // Choose your distribution depending on the type of MatrixType
     std::uniform_real_distribution<MatrixType> unif(0, 10);
 
-    // initialize matrices
-    std::for_each(subMatA->data(), subMatA->data() + (m * k), [&unif, &rng](MatrixType &val) { val = comm::getMpiNodeId()+1;(MatrixType) unif(rng); });
-    std::for_each(subMatB->data(), subMatB->data() + (k * n), [&unif, &rng](MatrixType &val) { val = comm::getMpiNodeId()+1;(MatrixType) unif(rng); });
+    std::for_each(subMatA->data(), subMatA->data() + (m * k), [&unif, &rng](MatrixType &val) { val = (MatrixType) unif(rng); });
+    std::for_each(subMatB->data(), subMatB->data() + (k * n), [&unif, &rng](MatrixType &val) { val = (MatrixType) unif(rng); });
+#endif
     if(comm::isMpiRootPid()) {
-        std::for_each(matrixC->data(), matrixC->data() + (m * n), [&unif, &rng](MatrixType &val) { val = 1;(MatrixType) unif(rng); });
+        std::for_each(matrixC->data(), matrixC->data() + (m * n), [](MatrixType &val) { val = 1; });
     }
 
     {
@@ -58,6 +63,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
 #if VERIFY_MM
     // initialize matrices for verification
+#if not NDEBUG
     std::vector<MatrixType> matA, matB, matV;
     if(comm::isMpiRootPid()) {
         matA.resize(m*k*comm::getMpiNumNodes(), 0);
@@ -117,6 +123,28 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         comm::sendMessage(1, subMatA->serialize(), 0);
         comm::sendMessage(2, subMatB->serialize(), 0);
     }
+#else
+    std::vector<MatrixType> V(m*n, (comm::isMpiRootPid()? 1:0));
+    auto testMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *V.data());
+    {
+        MMCommVerification<MatrixType, Ord> mmCommVerification;
+        mmCommVerification.execute(subMatA, subMatB, testMatrixC, deviceIds);
+    }
+
+    if(comm::isMpiRootPid()) {
+        for(size_t i = 0; i < m*n; ++i) {
+            if(0.01 < std::abs(testMatrixC->data()[i]-matrixC->data()[i])) {
+                throw std::runtime_error(
+                    std::string("Matrix multiplication output is wrong!\n") +
+                    "@index = " + std::to_string(i) + "\n" +
+                    "{original = " + std::to_string(testMatrixC->data()[i]) + ", calculated = " + std::to_string(matrixC->data()[i]) + "}\n" +
+                    "diff = " + std::to_string(std::abs(testMatrixC->data()[i]-matrixC->data()[i])) + "\n"
+                );
+            }
+        }
+    }
+#endif
+
 #endif
 
     return 0;

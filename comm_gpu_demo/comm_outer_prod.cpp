@@ -18,6 +18,15 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     // initialize comm library
     comm::CommLockGuard commLockGuard(&argc, &argv);
 
+    std::vector<int32_t> deviceIds{comm::getMpiNodeId()};
+#if not NDEBUG
+    printf("Devices: {");
+        for(auto dev: deviceIds) {
+            printf("%d, ", dev);
+        }
+        printf("\b\b}\n");
+#endif
+
     // A => m x k
     // B => k x n
     // C => m x n
@@ -44,7 +53,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     {
         MMCommOuterProduct<MatrixType, Ord> commOuterProduct;
-        commOuterProduct.execute(subMatA, subMatB, matrixC);
+        commOuterProduct.execute(subMatA, subMatB, matrixC, deviceIds);
     }
 
 #if VERIFY_MM
@@ -98,7 +107,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         while (0 < aCount.load() or 0 < bCount.load()) {}
 
         MMVerification<MatrixType, Ord> mmVerification;
-        mmVerification.execute(matrixA, matrixB, testMatrixC);
+        mmVerification.execute(matrixA, matrixB, testMatrixC, deviceIds);
         std::cout << *matrixA;
         std::cout << *matrixB;
         std::cout << *matrixC;

@@ -7,6 +7,20 @@ int main([[maybe_unused]]int argc, [[maybe_unused]]char *argv[]) {
     using MatrixType = double;
     constexpr Order Ord = Order::Column;
 
+    CublasLockGuard cublasLockGuard;
+
+    int devCount = 0;
+    checkCudaErrors(cudaGetDeviceCount(&devCount));
+    std::vector<int32_t> deviceIds;
+    for(int i = 0; i < devCount; ++i) deviceIds.emplace_back(i);
+#if not NDEBUG
+    printf("Devices: {");
+        for(auto dev: deviceIds) {
+            printf("%d, ", dev);
+        }
+        printf("\b\b}\n");
+#endif
+
     // A => m x k
     // B => k x n
     // C => m x n
@@ -33,7 +47,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]]char *argv[]) {
     std::cout << "Done initializing matrices" << std::endl;
     {
         MMInnerProduct<MatrixType, Ord> mmInnerProduct;
-        mmInnerProduct.execute(matrixA, matrixB, matrixC);
+        mmInnerProduct.execute(matrixA, matrixB, matrixC, deviceIds);
     }
 
 #if VERIFY_MM
@@ -43,7 +57,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]]char *argv[]) {
 
     {
         MMVerification<MatrixType, Ord> mmVerification;
-        mmVerification.execute(matrixA, matrixB, testMatrixC);
+        mmVerification.execute(matrixA, matrixB, testMatrixC, deviceIds);
     }
     for(size_t i = 0; i < m*n; ++i) {
         if(0.01 < std::abs(testMatrixC->data()[i]-matrixC->data()[i])) {

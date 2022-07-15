@@ -27,17 +27,19 @@ private:
     virtual void executeImpl(
         const std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
         const std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
-        std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC
+        std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
+        const std::vector<int32_t> &deviceIds
     ) = 0;
 
 public:
     void execute(
         const std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
         const std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
-        std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC
+        std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
+        const std::vector<int32_t> &deviceIds
     ) {
         auto start = std::chrono::high_resolution_clock::now();
-        this->executeImpl(matrixA, matrixB, matrixC);
+        this->executeImpl(matrixA, matrixB, matrixC, deviceIds);
         auto end = std::chrono::high_resolution_clock::now();
 
         if(comm::isInitialized() and !comm::isMpiRootPid()) {
@@ -64,20 +66,16 @@ private:
     void executeImpl(
         const std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
         const std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
-        std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC
+        std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
+        const std::vector<int32_t> &deviceIds
     ) override {
         size_t m = matrixA->matrixHeight(), k = matrixA->matrixWidth(), n = matrixB->matrixWidth();
         size_t blockSize = matrixC->blockSize();
 #if HH_USE_CUDA
-        int devCount = 0;
-        checkCudaErrors(cudaGetDeviceCount(&devCount));
-        std::vector<int> deviceIds;
-        for(int i = 0; i < devCount; ++i) deviceIds.emplace_back(i);
-
         cublasXtHandle_t handle;
         checkCudaErrors(cublasXtCreate(&handle));
 
-        checkCudaErrors(cublasXtDeviceSelect(handle, deviceIds.size(), deviceIds.data()));
+        checkCudaErrors(cublasXtDeviceSelect(handle, deviceIds.size(), (int*)deviceIds.data()));
         checkCudaErrors(cublasXtSetBlockDim(handle, blockSize));
 
         MatrixType alpha = 1.0, beta = 1.0;
@@ -144,21 +142,11 @@ private:
     void executeImpl(
             const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
             const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
-            std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC
+            std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
+            const std::vector<int32_t> &deviceIds
     ) override {
         // initial values
         size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
-        int deviceCount = 0;
-        checkCudaErrors(cudaGetDeviceCount(&deviceCount));
-        std::vector<int> deviceIds(deviceCount, 0);
-        std::iota(deviceIds.begin(), deviceIds.end(), 0);
-#if not NDEBUG
-        printf("Devices: {");
-        for(auto dev: deviceIds) {
-            printf("%d, ", dev);
-        }
-        printf("\b\b}\n");
-#endif
         size_t mBlocks = std::ceil(M / blockSize) + (M % blockSize == 0 ? 0 : 1);
         size_t kBlocks = std::ceil(K / blockSize) + (K % blockSize == 0 ? 0 : 1);
         size_t nBlocks = std::ceil(N / blockSize) + (N % blockSize == 0 ? 0 : 1);
@@ -234,20 +222,11 @@ private:
     void executeImpl(
             const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
             const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
-            std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC
-        ) override {
+            std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
+            const std::vector<int32_t> &deviceIds
+    ) override {
         // initial values
         size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
-        int deviceCount = 0;
-        checkCudaErrors(cudaGetDeviceCount(&deviceCount));
-        std::vector<int> deviceIds{comm::getMpiNodeId()};
-#if not NDEBUG
-        printf("Devices: {");
-        for(auto dev: deviceIds) {
-            printf("%d, ", dev);
-        }
-        printf("\b\b}\n");
-#endif
         size_t mBlocks = std::ceil(M / blockSize) + (M % blockSize == 0 ? 0 : 1);
         size_t kBlocks = std::ceil(K / blockSize) + (K % blockSize == 0 ? 0 : 1);
         size_t nBlocks = std::ceil(N / blockSize) + (N % blockSize == 0 ? 0 : 1);
@@ -348,18 +327,13 @@ private:
     void executeImpl(
         [[maybe_unused]]const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
         [[maybe_unused]]const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
-        [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC
+        [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
+        const std::vector<int32_t> &deviceIds
     ) override {
         size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
         size_t mBlocks = std::ceil(double(M) / double(blockSize));
         size_t kBlocks = std::ceil(double(K) / double(blockSize));
         size_t nBlocks = std::ceil(double(N) / double(blockSize));
-
-
-        int deviceCount = 0;
-        checkCudaErrors(cudaGetDeviceCount(&deviceCount));
-        std::vector<int> deviceIds(deviceCount, 0);
-        std::iota(deviceIds.begin(), deviceIds.end(), 0);
 
         auto taskGraph = hh::Graph<1,
                 MatrixData<MatrixType, 'c', Ord>,       //inp1

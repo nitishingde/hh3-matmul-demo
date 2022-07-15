@@ -127,6 +127,8 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     std::vector<MatrixType> V(m*n, (comm::isMpiRootPid()? 1:0));
     auto testMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *V.data());
     {
+        comm::barrier();
+        comm::stopDaemon();
         MMCommVerification<MatrixType, Ord> mmCommVerification;
         mmCommVerification.execute(subMatA, subMatB, testMatrixC, deviceIds);
     }

@@ -47,7 +47,7 @@ public:
             return;
         }
         printf(
-            GREEN("%-32s") ": " RED("%6.3f") "s\n",
+            GREEN("%-40s") ": " RED("%6.3f") "s\n",
             this->toString().c_str(),
             double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9
         );

@@ -30,7 +30,13 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     // A => m x k
     // B => k x n
     // C => m x n
-    const size_t m = 4, k = 3, n = 4, blockSize = 2;
+    int parameterIdx = 0;
+    for(size_t i = 0; i < argc; ++i) {
+        if(strcmp(argv[i], "--params") == 0) break;
+        parameterIdx++;
+    }
+    size_t m = std::stoull(argv[parameterIdx+1]), k = std::stoull(argv[parameterIdx+2]), n = std::stoull(argv[parameterIdx+3]), blockSize = std::stoull(argv[parameterIdx+4]);
+    printf("[Debug][Process %d] M = %zu, K = %zu, N = %zu, B = %zu\n", comm::getMpiNodeId(), m, k, n, blockSize);
 
     std::vector<MatrixType> subA(m*k), subB(k*n), matC(m*n, 0);
     auto subMatA = std::make_shared<MatrixData<MatrixType, 'a', Ord>>(m, k, blockSize, *subA.data());
@@ -54,6 +60,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 #endif
     if(comm::isMpiRootPid()) {
         std::for_each(matrixC->data(), matrixC->data() + (m * n), [](MatrixType &val) { val = 1; });
+        std::cout << "[Process 0] Done initializing matrices" << std::endl;
     }
 
     {

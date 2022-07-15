@@ -39,6 +39,10 @@ public:
         auto start = std::chrono::high_resolution_clock::now();
         this->executeImpl(matrixA, matrixB, matrixC);
         auto end = std::chrono::high_resolution_clock::now();
+
+        if(comm::isInitialized() and !comm::isMpiRootPid()) {
+            return;
+        }
         printf(
             GREEN("%-32s") ": " RED("%6.3f") "s\n",
             this->toString().c_str(),

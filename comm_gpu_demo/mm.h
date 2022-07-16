@@ -26,16 +26,16 @@ template<class MatrixType, Order order>
 class MMStrategy {
 private:
     virtual void executeImpl(
-        const std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
-        const std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
+        std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
+        std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
         std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
         const std::vector<int32_t> &deviceIds
     ) = 0;
 
 public:
     void execute(
-        const std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
-        const std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
+        std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
+        std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
         std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
         const std::vector<int32_t> &deviceIds
     ) {
@@ -51,6 +51,7 @@ public:
             this->toString().c_str(),
             double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9
         );
+        fflush(stdout);
     }
 
     virtual std::string toString() const = 0;
@@ -68,8 +69,8 @@ template<class MatrixType, Order order>
 class MMVerification: public MMStrategy<MatrixType, order> {
 private:
     void executeImpl(
-        const std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
-        const std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
+        std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
+        std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
         std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
         const std::vector<int32_t> &deviceIds
     ) override {
@@ -139,12 +140,14 @@ template<class MatrixType, Order Ord>
 class MMCommVerification: public MMStrategy<MatrixType, Ord> {
 private:
     void executeImpl(
-            const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
-            const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+            std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+            std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
             std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
             const std::vector<int32_t> &deviceIds
     ) override {
         MMVerification<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
+        matrixA.reset();
+        matrixB.reset();
         std::vector<MatrixType> tempC(comm::isMpiRootPid()? matrixC->matrixWidth()*matrixC->matrixHeight(): 0, 0);
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -174,8 +177,8 @@ template<class MatrixType, Order Ord>
 class MMOuterProduct: public MMStrategy<MatrixType, Ord> {
 private:
     void executeImpl(
-            const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
-            const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+            std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+            std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
             std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
             const std::vector<int32_t> &deviceIds
     ) override {
@@ -254,8 +257,8 @@ template<class MatrixType, Order Ord>
 class MMCommOuterProduct: public MMStrategy<MatrixType, Ord> {
 private:
     void executeImpl(
-            const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
-            const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+            std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+            std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
             std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
             const std::vector<int32_t> &deviceIds
     ) override {
@@ -359,8 +362,8 @@ template<class MatrixType, Order Ord>
 class MMInnerProduct: public MMStrategy<MatrixType, Ord> {
 private:
     void executeImpl(
-        [[maybe_unused]]const std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
-        [[maybe_unused]]const std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+        [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+        [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
         [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
         const std::vector<int32_t> &deviceIds
     ) override {

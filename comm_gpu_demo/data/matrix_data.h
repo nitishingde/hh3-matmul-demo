@@ -47,16 +47,17 @@ private:
     size_t numBlocksCols_ = 0;
     size_t leadingDimension_ = 0;
     Type *matrixData_ = nullptr;
-    bool selfAllocated_ = false;
+    bool ownMemory_ = false;
 
 public:
     explicit MatrixData() = default;
 
-    explicit MatrixData(size_t matrixHeight, size_t matrixWidth, size_t blockSize, Type &matrixData):
+    explicit MatrixData(size_t matrixHeight, size_t matrixWidth, size_t blockSize, Type &matrixData, bool transferOwnerShip = false):
         matrixHeight_(matrixHeight), matrixWidth_(matrixWidth), blockSize_(blockSize),
         numBlocksRows_(std::ceil(matrixHeight_ / blockSize_) + (matrixHeight_ % blockSize_ == 0 ? 0: 1)),
         numBlocksCols_(std::ceil(matrixWidth_ / blockSize_) + (matrixWidth_ % blockSize_ == 0 ? 0: 1)),
-        matrixData_(&matrixData) {
+        matrixData_(&matrixData),
+        ownMemory_(transferOwnerShip) {
 
         if(blockSize_ == 0) {
             blockSize_ = 1;
@@ -74,7 +75,7 @@ public:
     }
 
     ~MatrixData() {
-        if(selfAllocated_ and matrixData_ != nullptr) {
+        if(ownMemory_ and matrixData_ != nullptr) {
             delete[] matrixData_;
             matrixData_ = nullptr;
         }
@@ -119,7 +120,7 @@ public:
         ar(cereal::binary_data(&numBlocksCols_, sizeof(numBlocksCols_)));
         ar(cereal::binary_data(&leadingDimension_, sizeof(leadingDimension_)));
         matrixData_ = new Type[matrixWidth_*matrixHeight_];
-        selfAllocated_ = true;
+        ownMemory_ = true;
         ar(cereal::binary_data(matrixData_, sizeInBytes()));
     }
 

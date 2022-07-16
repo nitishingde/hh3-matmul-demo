@@ -38,10 +38,9 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     size_t m = std::stoull(argv[parameterIdx+1]), k = std::stoull(argv[parameterIdx+2]), n = std::stoull(argv[parameterIdx+3]), blockSize = std::stoull(argv[parameterIdx+4]);
     printf("[Debug][Process %d] M = %zu, K = %zu, N = %zu, B = %zu\n", comm::getMpiNodeId(), m, k, n, blockSize);
 
-    std::vector<MatrixType> subA(m*k), subB(k*n), matC(m*n, 0);
-    auto subMatA = std::make_shared<MatrixData<MatrixType, 'a', Ord>>(m, k, blockSize, *subA.data());
-    auto subMatB = std::make_shared<MatrixData<MatrixType, 'b', Ord>>(k, n, blockSize, *subB.data());
-    auto matrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *matC.data());
+    auto subMatA = std::make_shared<MatrixData<MatrixType, 'a', Ord>>(m, k, blockSize, *(new MatrixType[m*k]), true);
+    auto subMatB = std::make_shared<MatrixData<MatrixType, 'b', Ord>>(k, n, blockSize, *(new MatrixType[m*k]), true);
+    auto matrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *(new MatrixType[m*k]), true);
 
     // initialize matrices
 #if not NDEBUG
@@ -131,11 +130,19 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         comm::sendMessage(2, subMatB->serialize(), 0);
     }
 #else
-    std::vector<MatrixType> V(m*n, (comm::isMpiRootPid()? 1:0));
-    auto testMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *V.data());
+    comm::barrier();
+    comm::stopDaemon();
+    std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> testMatrixC = nullptr;
+    if(comm::isMpiRootPid()) {
+        testMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *(new MatrixType[m*n]), true);
+        std::for_each(testMatrixC->data(), testMatrixC->data() + (m * n), [](MatrixType &val) { val = 1; });
+    }
+    else {
+        testMatrixC = matrixC;
+        std::for_each(testMatrixC->data(), testMatrixC->data() + (m * n), [](MatrixType &val) { val = 0; });
+    }
+
     {
-        comm::barrier();
-        comm::stopDaemon();
         MMCommVerification<MatrixType, Ord> mmCommVerification;
         mmCommVerification.execute(subMatA, subMatB, testMatrixC, deviceIds);
     }

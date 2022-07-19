@@ -43,9 +43,11 @@ public:
         this->executeImpl(matrixA, matrixB, matrixC, deviceIds);
         auto end = std::chrono::high_resolution_clock::now();
 
-        if(comm::isInitialized() and !comm::isMpiRootPid()) {
-            return;
+        int32_t flag = false, mpiNodeId = 0;
+        if(auto status = MPI_Initialized(&flag); status == MPI_SUCCESS and flag) {
+            MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
         }
+        if(mpiNodeId != 0) return;
         printf(
             GREEN("%-40s") ": " RED("%6.3f") "s\n",
             this->toString().c_str(),
@@ -145,10 +147,12 @@ private:
             std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
             const std::vector<int32_t> &deviceIds
     ) override {
+        int32_t mpiNodeId = -1;
+        MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
         MMVerification<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
         matrixA.reset();
         matrixB.reset();
-        std::vector<MatrixType> tempC(comm::isMpiRootPid()? matrixC->matrixWidth()*matrixC->matrixHeight(): 0, 0);
+        std::vector<MatrixType> tempC((mpiNodeId == 0? matrixC->matrixWidth()*matrixC->matrixHeight(): 0), 0);
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
         }
@@ -351,6 +355,36 @@ private:
 
     std::string toString() const override {
         return "MM multi node outer product";
+    }
+};
+
+template<class MatrixType, Order Ord>
+class MMMPIOuterProduct: public MMStrategy<MatrixType, Ord> {
+private:
+    void executeImpl(
+        std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+        std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+        std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
+        const std::vector<int32_t> &deviceIds
+    ) override {
+        int32_t mpiNodeId = -1;
+        MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
+        MMOuterProduct<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
+        std::vector<MatrixType> tempC((mpiNodeId == 0? matrixC->matrixWidth()*matrixC->matrixHeight(): 0), 0);
+        if constexpr(std::is_same_v<MatrixType, double>) {
+            MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        }
+        else if constexpr(std::is_same_v<MatrixType, float>) {
+            MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+        }
+        else {
+            throw std::runtime_error("Type not supported\n");
+        }
+        std::copy(tempC.begin(), tempC.end(), matrixC->data());
+    }
+
+    std::string toString() const override {
+        return "MM multi node outer product using MPI";
     }
 };
 

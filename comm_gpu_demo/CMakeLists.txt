@@ -93,3 +93,9 @@ target_link_libraries(comm_outer_prod
     PUBLIC
         hh3_matmul
 )
+
+add_executable(mpi_outer_prod mpi_outer_prod.cpp)
+target_link_libraries(mpi_outer_prod
+    PUBLIC
+        hh3_matmul
+)

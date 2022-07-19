@@ -20,7 +20,6 @@
 #ifndef HH3_MATMUL_MATRIX_BLOCK_DATA_H
 #define HH3_MATMUL_MATRIX_BLOCK_DATA_H
 
-#include <cereal/cereal.hpp>
 #include <hedgehog/hedgehog.h>
 #include <iostream>
 #include <memory>
@@ -169,37 +168,45 @@ public:
     }
 
     std::string serialize() const override {
-        // FIXME: ss.str() copies data
-        std::stringstream ss;
-        cereal::BinaryOutputArchive ar(ss);
-        ar(cereal::binary_data(&rowIdx_, sizeof(rowIdx_)));
-        ar(cereal::binary_data(&colIdx_, sizeof(colIdx_)));
-        ar(cereal::binary_data(&blockSizeHeight_, sizeof(blockSizeHeight_)));
-        ar(cereal::binary_data(&blockSizeWidth_, sizeof(blockSizeWidth_)));
+        size_t bufferSize = sizeof(rowIdx_)
+                + sizeof(colIdx_)
+                + sizeof(blockSizeHeight_)
+                + sizeof(blockSizeWidth_)
+                + sizeof(Type)*blockSizeWidth_*blockSizeHeight_;
+
+        std::string buffer(bufferSize, '\0');
+        size_t offset = 0;
+        std::memcpy(buffer.data()+offset, &rowIdx_, sizeof(rowIdx_));
+        offset += sizeof(rowIdx_);
+        std::memcpy(buffer.data()+offset, &colIdx_, sizeof(colIdx_));
+        offset += sizeof(colIdx_);
+        std::memcpy(buffer.data()+offset, &blockSizeHeight_, sizeof(blockSizeHeight_));
+        offset += sizeof(blockSizeHeight_);
+        std::memcpy(buffer.data()+offset, &blockSizeWidth_, sizeof(blockSizeWidth_));
+        offset += sizeof(blockSizeWidth_);
         if constexpr(Ord == Order::Row) {
             for (size_t i = 0; i < blockSizeHeight(); ++i) {
-                ar(cereal::binary_data(&blockData_[i*leadingDimension_], sizeof(Type)*blockSizeWidth_));
+                std::memcpy(buffer.data()+offset, &blockData_[i*leadingDimension_], sizeof(Type)*blockSizeWidth_);
+                offset += sizeof(Type)*blockSizeWidth_;
             }
         } else {
             for (size_t j = 0; j < blockSizeWidth(); ++j) {
-                for (size_t i = 0; i < blockSizeHeight(); ++i) {
-                    ar(cereal::binary_data(&blockData_[j*leadingDimension_ + i], sizeof(Type)));
-                }
+                std::memcpy(buffer.data()+offset, &blockData_[j*leadingDimension_], sizeof(Type)*blockSizeHeight_);
+                offset += sizeof(Type)*blockSizeHeight_;
             }
         }
-        return std::move(ss).str();
+        return buffer;
     }
 
     void deserialize(std::istream &&istream) override {
-        cereal::BinaryInputArchive ar(istream);
-        ar(cereal::binary_data(&rowIdx_, sizeof(rowIdx_)));
-        ar(cereal::binary_data(&colIdx_, sizeof(colIdx_)));
-        ar(cereal::binary_data(&blockSizeHeight_, sizeof(blockSizeHeight_)));
-        ar(cereal::binary_data(&blockSizeWidth_, sizeof(blockSizeWidth_)));
+        istream.read(reinterpret_cast<char *>(&rowIdx_), sizeof(rowIdx_));
+        istream.read(reinterpret_cast<char *>(&colIdx_), sizeof(colIdx_));
+        istream.read(reinterpret_cast<char *>(&blockSizeHeight_), sizeof(blockSizeHeight_));
+        istream.read(reinterpret_cast<char *>(&blockSizeWidth_), sizeof(blockSizeWidth_));
         leadingDimension_ = blockSizeHeight_;
         fullMatrixData_ = blockData_ = new Type[blockSizeWidth_*blockSizeHeight_];
         selfAllocated_ = true;
-        ar(cereal::binary_data(blockData_, sizeInBytes()));
+        istream.read(reinterpret_cast<char *>(blockData_), sizeInBytes());
     }
 
     friend std::ostream &operator<<(std::ostream &os, MatrixBlockData const &data) {

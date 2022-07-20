@@ -2,6 +2,7 @@
 #define HH3_MATMUL_UTILITY_H
 
 #include <hedgehog/hedgehog.h>
+#include <random>
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -38,5 +39,24 @@ public:
         }
     }
 };
+
+static unsigned int g_seed = 1;
+inline int fastrand() {
+    g_seed = (214013 * g_seed + 2531011);
+    return (g_seed >> 16) & 0x7FFF;
+}
+
+template <class Type>
+std::tuple<std::uniform_real_distribution<Type>, std::mt19937_64>
+MersenneTwisterRandomGenerator(Type start = 0, Type end = 10) {
+    // Mersenne Twister Random Generator
+    uint64_t timeSeed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed >> (uint64_t) 32)};
+    std::mt19937_64 rng(ss);
+    // Choose your distribution depending on the type of MatrixType
+    std::uniform_real_distribution<Type> unif(start, end);
+
+    return std::make_tuple(unif, rng);
+}
 
 #endif //HH3_MATMUL_UTILITY_H

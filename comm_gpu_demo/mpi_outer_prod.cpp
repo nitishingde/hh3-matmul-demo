@@ -1,4 +1,3 @@
-#include <random>
 #include <atomic>
 #include <thread>
 
@@ -56,15 +55,8 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     std::for_each(subMatA->data(), subMatA->data() + (m * k), [&mpiNodeId](MatrixType &val) { val = mpiNodeId+1; });
     std::for_each(subMatB->data(), subMatB->data() + (k * n), [&mpiNodeId](MatrixType &val) { val = mpiNodeId+1; });
 #else
-    // Mersenne Twister Random Generator
-    uint64_t timeSeed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed >> (uint64_t) 32)};
-    std::mt19937_64 rng(ss);
-    // Choose your distribution depending on the type of MatrixType
-    std::uniform_real_distribution<MatrixType> unif(0, 10);
-
-    std::for_each(subMatA->data(), subMatA->data() + (m * k), [&unif, &rng](MatrixType &val) { val = (MatrixType) unif(rng); });
-    std::for_each(subMatB->data(), subMatB->data() + (k * n), [&unif, &rng](MatrixType &val) { val = (MatrixType) unif(rng); });
+    std::for_each(subMatA->data(), subMatA->data() + (m * k), [](MatrixType &val) { val = (MatrixType) fastrand(); });
+    std::for_each(subMatB->data(), subMatB->data() + (k * n), [](MatrixType &val) { val = (MatrixType) fastrand(); });
 #endif
     if(isRootNode) {
         std::for_each(matrixC->data(), matrixC->data() + (m * n), [](MatrixType &val) { val = 1; });

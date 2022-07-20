@@ -1,6 +1,5 @@
 #include <atomic>
 #include <chrono>
-#include <random>
 #include <thread>
 #include "data/matrix_data.h"
 #include "mm.h"
@@ -46,16 +45,9 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     auto matrixB = std::make_shared<MatrixData<MatrixType, 'b', Ord>>(k, n, blockSize, *B.data());
     auto matrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *C.data());
 
-    // Mersenne Twister Random Generator
-    uint64_t timeSeed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed >> (uint64_t) 32)};
-    std::mt19937_64 rng(ss);
-    // Choose your distribution depending on the type of MatrixType
-    std::uniform_real_distribution<MatrixType> unif(0, 10);
-
     // initialize matrices
-    std::for_each(matrixA->data(), matrixA->data() + (m * k), [&unif, &rng](MatrixType &val) { val = (MatrixType) unif(rng); });
-    std::for_each(matrixB->data(), matrixB->data() + (k * n), [&unif, &rng](MatrixType &val) { val = (MatrixType) unif(rng); });
+    std::for_each(matrixA->data(), matrixA->data() + (m * k), [](MatrixType &val) { val = (MatrixType) fastrand(); });
+    std::for_each(matrixB->data(), matrixB->data() + (k * n), [](MatrixType &val) { val = (MatrixType) fastrand(); });
 
     std::cout << "Done initializing matrices" << std::endl;
     {

@@ -62,9 +62,12 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         std::for_each(matrixC->data(), matrixC->data() + (m * n), [](MatrixType &val) { val = 1; });
         std::cout << "[Process 0] Done initializing matrices" << std::endl;
     }
+    else {
+        std::for_each(matrixC->data(), matrixC->data() + (m * n), [](MatrixType &val) { val = 0; });
+    }
 
     {
-        MMMPIOuterProduct<MatrixType, Ord> mpiOuterProduct;
+        MPI_Barrier(MPI_COMM_WORLD);
         MM_MpiOuterProduct<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
     }
 

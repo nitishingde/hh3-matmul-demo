@@ -65,7 +65,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     {
         MMMPIOuterProduct<MatrixType, Ord> mpiOuterProduct;
-        MMMPIOuterProduct<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
+        MM_MpiOuterProduct<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
     }
 
 #if VERIFY_MM
@@ -82,7 +82,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     {
         MPI_Barrier(MPI_COMM_WORLD);
-        MMMPIVerification<MatrixType, Ord>().execute(subMatA, subMatB, testMatrixC, deviceIds);
+        MM_MpiVerification<MatrixType, Ord>().execute(subMatA, subMatB, testMatrixC, deviceIds);
     }
 
     if(isRootNode) {

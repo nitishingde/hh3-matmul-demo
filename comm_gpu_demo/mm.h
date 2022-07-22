@@ -23,7 +23,7 @@
 #include "task/matrix_row_traversal_task.h"
 
 template<class MatrixType, Order Ord>
-class MMStrategy {
+class MM_Strategy {
 private:
     virtual void executeImpl(
         std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
@@ -72,7 +72,7 @@ public:
  * @tparam order Column or Row
  */
 template<class MatrixType, Order order>
-class MMVerification: public MMStrategy<MatrixType, order> {
+class MM_Verification: public MM_Strategy<MatrixType, order> {
 private:
     void executeImpl(
         std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
@@ -141,7 +141,7 @@ private:
 };
 
 template<class MatrixType, Order Ord>
-class MMMPIVerification: public MMStrategy<MatrixType, Ord> {
+class MM_MpiVerification: public MM_Strategy<MatrixType, Ord> {
 private:
     void executeImpl(
             std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
@@ -151,7 +151,7 @@ private:
     ) override {
         int32_t mpiNodeId = -1;
         MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
-        MMVerification<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
+        MM_Verification<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
         std::vector<MatrixType> tempC((mpiNodeId == 0? matrixC->matrixWidth()*matrixC->matrixHeight(): 0), 0);
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -178,7 +178,7 @@ private:
  * @tparam order Column or Row
  */
 template<class MatrixType, Order Ord>
-class MMOuterProduct: public MMStrategy<MatrixType, Ord> {
+class MM_OuterProduct: public MM_Strategy<MatrixType, Ord> {
 private:
     void executeImpl(
             std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
@@ -258,7 +258,7 @@ private:
 };
 
 template<class MatrixType, Order Ord>
-class MMCommOuterProduct: public MMStrategy<MatrixType, Ord> {
+class MM_CommOuterProduct: public MM_Strategy<MatrixType, Ord> {
 private:
     void executeImpl(
             std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
@@ -359,7 +359,7 @@ private:
 };
 
 template<class MatrixType, Order Ord>
-class MMMPIOuterProduct: public MMStrategy<MatrixType, Ord> {
+class MM_MpiOuterProduct: public MM_Strategy<MatrixType, Ord> {
 private:
     void executeImpl(
         std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
@@ -369,7 +369,7 @@ private:
     ) override {
         int32_t mpiNodeId = -1;
         MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
-        MMOuterProduct<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
+        MM_OuterProduct<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
         std::vector<MatrixType> tempC((mpiNodeId == 0? matrixC->matrixWidth()*matrixC->matrixHeight(): 0), 0);
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -393,7 +393,7 @@ private:
  *
  */
 template<class MatrixType, Order Ord>
-class MMInnerProduct: public MMStrategy<MatrixType, Ord> {
+class MMInnerProduct: public MM_Strategy<MatrixType, Ord> {
 private:
     void executeImpl(
         [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,

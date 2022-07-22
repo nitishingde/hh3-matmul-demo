@@ -55,7 +55,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 
     {
-        MMCommOuterProduct<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
+        MM_CommOuterProduct<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
     }
 
 #if VERIFY_MM
@@ -134,7 +134,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 
     {
-        MMMPIVerification<MatrixType, Ord>().execute(subMatA, subMatB, testMatrixC, deviceIds);
+        MM_MpiVerification<MatrixType, Ord>().execute(subMatA, subMatB, testMatrixC, deviceIds);
     }
 
     if(comm::isMpiRootPid()) {

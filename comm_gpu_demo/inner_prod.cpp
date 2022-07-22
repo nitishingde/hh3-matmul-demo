@@ -38,7 +38,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]]char *argv[]) {
 
     std::cout << "Done initializing matrices" << std::endl;
     {
-        MMInnerProduct<MatrixType, Ord>().execute(matrixA, matrixB, matrixC, deviceIds);
+        MM_InnerProduct<MatrixType, Ord>().execute(matrixA, matrixB, matrixC, deviceIds);
     }
 
 #if VERIFY_MM
@@ -47,7 +47,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]]char *argv[]) {
     auto testMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *V.data());
 
     {
-        MMVerification<MatrixType, Ord>().execute(matrixA, matrixB, testMatrixC, deviceIds);
+        MM_Verification<MatrixType, Ord>().execute(matrixA, matrixB, testMatrixC, deviceIds);
     }
     for(size_t i = 0; i < m*n; ++i) {
         if(0.01 < std::abs(testMatrixC->data()[i]-matrixC->data()[i])) {

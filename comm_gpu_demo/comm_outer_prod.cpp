@@ -55,6 +55,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 
     {
+        comm::barrier();
         MM_CommOuterProduct<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
     }
 
@@ -134,6 +135,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 
     {
+        MPI_Barrier(MPI_COMM_WORLD);
         MM_MpiVerification<MatrixType, Ord>().execute(subMatA, subMatB, testMatrixC, deviceIds);
     }
 

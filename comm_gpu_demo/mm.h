@@ -22,21 +22,21 @@
 #include "task/matrix_column_traversal_task.h"
 #include "task/matrix_row_traversal_task.h"
 
-template<class MatrixType, Order order>
+template<class MatrixType, Order Ord>
 class MMStrategy {
 private:
     virtual void executeImpl(
-        std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
-        std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
-        std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
+        std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+        std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+        std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
         const std::vector<int32_t> &deviceIds
     ) = 0;
 
 public:
     void execute(
-        std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
-        std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
-        std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
+        std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+        std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+        std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
         const std::vector<int32_t> &deviceIds
     ) {
         auto start = std::chrono::high_resolution_clock::now();

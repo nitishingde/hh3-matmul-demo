@@ -71,6 +71,18 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         MM_MpiOuterProduct<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
     }
 
+    if(isRootNode) {
+        std::for_each(matrixC->data(), matrixC->data() + (m * n), [](MatrixType &val) { val = 1; });
+    }
+    else {
+        std::for_each(matrixC->data(), matrixC->data() + (m * n), [](MatrixType &val) { val = 0; });
+    }
+
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        MM_MpiOuterProduct2<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
+    }
+
 #if VERIFY_MM
     // initialize matrices for verification
     std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> testMatrixC = nullptr;

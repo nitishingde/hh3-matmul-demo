@@ -384,7 +384,47 @@ private:
     }
 
     std::string toString() const override {
-        return "MM multi node outer product using MPI";
+        return "MM multi node outer product using MPI, allocate and copy after";
+    }
+};
+
+template<class MatrixType, Order Ord>
+class MM_MpiOuterProduct2: public MM_Strategy<MatrixType, Ord> {
+private:
+    void executeImpl(
+        std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+        std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+        std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
+        const std::vector<int32_t> &deviceIds
+    ) override {
+        int32_t mpiNodeId = -1;
+        MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
+        std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> tempMatrixC = matrixC;
+        if(mpiNodeId == 0) {
+            tempMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(
+                matrixC->matrixHeight(),
+                matrixC->matrixWidth(),
+                matrixC->blockSize(),
+                *(new MatrixType[matrixC->matrixWidth()*matrixC->matrixHeight()]),
+                true
+            );
+            std::copy(matrixC->data(), matrixC->data()+matrixC->matrixWidth()*matrixC->matrixHeight(), tempMatrixC->data());
+        }
+        MM_OuterProduct<MatrixType, Ord>().executeImpl(matrixA, matrixB, tempMatrixC, deviceIds);
+
+        if constexpr(std::is_same_v<MatrixType, double>) {
+            MPI_Reduce(tempMatrixC->data(), matrixC->data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        }
+        else if constexpr(std::is_same_v<MatrixType, float>) {
+            MPI_Reduce(tempMatrixC->data(), matrixC->data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+        }
+        else {
+            throw std::runtime_error("Type not supported\n");
+        }
+    }
+
+    std::string toString() const override {
+        return "MM multi node outer product using MPI, allocate and copy before";
     }
 };
 

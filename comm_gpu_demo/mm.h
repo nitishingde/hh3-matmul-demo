@@ -66,9 +66,6 @@ public:
     virtual std::string toString() const = 0;
 };
 
-template<class MatrixType, Order order>
-class MMCommVerification;
-
 /**
  * @brief  Use this strategy to calculate matrix multiplication results for verification
  * @tparam MatrixType float or double
@@ -141,12 +138,10 @@ private:
     std::string toString() const override {
         return "MM cublasXt verification";
     }
-
-    friend class MMCommVerification<MatrixType, order>;
 };
 
 template<class MatrixType, Order Ord>
-class MMCommVerification: public MMStrategy<MatrixType, Ord> {
+class MMMPIVerification: public MMStrategy<MatrixType, Ord> {
 private:
     void executeImpl(
             std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,

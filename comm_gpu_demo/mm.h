@@ -393,7 +393,7 @@ private:
  *
  */
 template<class MatrixType, Order Ord>
-class MMInnerProduct: public MM_Strategy<MatrixType, Ord> {
+class MM_InnerProduct: public MM_Strategy<MatrixType, Ord> {
 private:
     void executeImpl(
         [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,

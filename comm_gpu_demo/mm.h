@@ -43,15 +43,22 @@ public:
         this->executeImpl(matrixA, matrixB, matrixC, deviceIds);
         auto end = std::chrono::high_resolution_clock::now();
 
-        int32_t flag = false, mpiNodeId = 0;
+        int32_t flag = false, mpiNodeId = 0, mpiNumNodes = 1;
         if(auto status = MPI_Initialized(&flag); status == MPI_SUCCESS and flag) {
             MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
+            MPI_Comm_size(MPI_COMM_WORLD, &mpiNumNodes);
         }
         if(mpiNodeId != 0) return;
+
+        size_t M = matrixC->matrixHeight(), N = matrixC->matrixWidth(), K = matrixA->matrixWidth()*mpiNumNodes;//FIXME: K
+        double time = double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9;
+        //https://forums.developer.nvidia.com/t/how-to-compute-gflops-for-gemm-blas/20218/6
+        double gflops = (M*N*(2*K+2))/(1.e9*time);
         printf(
-            GREEN("%-40s") ": " RED("%6.3f") "s\n",
+            "[ " GREEN("%-64s") " ][ " CYAN("%9.3f") " gflops ][ " RED("%8.3f") " secs ]\n",
             this->toString().c_str(),
-            double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9
+            gflops,
+            time
         );
         fflush(stdout);
     }

@@ -152,14 +152,12 @@ private:
         int32_t mpiNodeId = -1;
         MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
         MMVerification<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
-        matrixA.reset();
-        matrixB.reset();
         std::vector<MatrixType> tempC((mpiNodeId == 0? matrixC->matrixWidth()*matrixC->matrixHeight(): 0), 0);
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
         }
         else if constexpr(std::is_same_v<MatrixType, float>) {
-            MPI_Reduce(matrixC->data(), tempC.data(),matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
         }
         else {
             throw std::runtime_error("Type not supported\n");

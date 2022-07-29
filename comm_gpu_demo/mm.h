@@ -31,6 +31,7 @@ private:
         std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
         const std::vector<int32_t> &deviceIds
     ) = 0;
+    virtual std::string toString() const = 0;
 
 public:
     void execute(
@@ -62,8 +63,6 @@ public:
         );
         fflush(stdout);
     }
-
-    virtual std::string toString() const = 0;
 };
 
 /**

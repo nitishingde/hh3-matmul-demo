@@ -22,6 +22,8 @@
 #include "task/matrix_column_traversal_task.h"
 #include "task/matrix_row_traversal_task.h"
 
+#define NAME(x) #x
+
 template<class MatrixType, Order Ord>
 class MM_Strategy {
 private:
@@ -29,9 +31,11 @@ private:
         std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
         std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
         std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
-        const std::vector<int32_t> &deviceIds
+        const std::vector<int32_t> &deviceIds,
+        std::string dotFile = ""
     ) = 0;
     virtual std::string toString() const = 0;
+    virtual std::string className() const = 0;
 
 public:
     void execute(
@@ -41,7 +45,7 @@ public:
         const std::vector<int32_t> &deviceIds
     ) {
         auto start = std::chrono::high_resolution_clock::now();
-        this->executeImpl(matrixA, matrixB, matrixC, deviceIds);
+        this->executeImpl(matrixA, matrixB, matrixC, deviceIds, className());
         auto end = std::chrono::high_resolution_clock::now();
 
         int32_t flag = false, mpiNodeId = 0, mpiNumNodes = 1;
@@ -77,7 +81,8 @@ private:
         std::shared_ptr<MatrixData<MatrixType, 'a', order>> &matrixA,
         std::shared_ptr<MatrixData<MatrixType, 'b', order>> &matrixB,
         std::shared_ptr<MatrixData<MatrixType, 'c', order>> &matrixC,
-        const std::vector<int32_t> &deviceIds
+        const std::vector<int32_t> &deviceIds,
+        std::string dotFile = ""
     ) override {
         size_t m = matrixA->matrixHeight(), k = matrixA->matrixWidth(), n = matrixB->matrixWidth();
         size_t blockSize = matrixC->blockSize();
@@ -137,6 +142,10 @@ private:
     std::string toString() const override {
         return "MM cublasXt verification";
     }
+
+    std::string className() const override {
+        return NAME(MM_Verification);
+    }
 };
 
 template<class MatrixType, Order Ord>
@@ -146,7 +155,8 @@ private:
             std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
             std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
             std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
-            const std::vector<int32_t> &deviceIds
+            const std::vector<int32_t> &deviceIds,
+            std::string dotFile = ""
     ) override {
         int32_t mpiNodeId = -1;
         MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
@@ -167,6 +177,10 @@ private:
     std::string toString() const override {
         return "MM multi node cublasXt verification";
     }
+
+    std::string className() const override {
+        return NAME(MM_MpiVerification);
+    }
 };
 
 /**
@@ -183,7 +197,8 @@ private:
             std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
             std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
             std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
-            const std::vector<int32_t> &deviceIds
+            const std::vector<int32_t> &deviceIds,
+            std::string dotFile = ""
     ) override {
         // initial values
         size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
@@ -245,7 +260,7 @@ private:
 
         // create dot files for analysis
         mainGraph.createDotFile(
-            "MMOuterProduct.dot",
+            dotFile + ".dot",
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::ALL
         );
@@ -253,6 +268,10 @@ private:
 
     std::string toString() const override {
         return "MM outer product";
+    }
+
+    std::string className() const override {
+        return NAME(MM_OuterProduct);
     }
 };
 
@@ -263,7 +282,8 @@ private:
             std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
             std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
             std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
-            const std::vector<int32_t> &deviceIds
+            const std::vector<int32_t> &deviceIds,
+            std::string dotFile = ""
     ) override {
         // initial values
         size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
@@ -346,7 +366,7 @@ private:
 
         // create dot files for analysis
         mainGraph.createDotFile(
-            "MMCommOuterProduct" + std::to_string(comm::getMpiNodeId())+".dot",
+            dotFile + std::to_string(comm::getMpiNodeId()) + ".dot",
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::ALL
         );
@@ -354,6 +374,10 @@ private:
 
     std::string toString() const override {
         return "MM multi node outer product";
+    }
+
+    std::string className() const override {
+        return NAME(MM_CommOuterProduct);
     }
 };
 
@@ -364,11 +388,12 @@ private:
         std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
         std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
         std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
-        const std::vector<int32_t> &deviceIds
+        const std::vector<int32_t> &deviceIds,
+        std::string dotFile = ""
     ) override {
         int32_t mpiNodeId = -1;
         MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
-        MM_OuterProduct<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds);
+        MM_OuterProduct<MatrixType, Ord>().executeImpl(matrixA, matrixB, matrixC, deviceIds, dotFile+std::to_string(mpiNodeId));
         std::vector<MatrixType> tempC((mpiNodeId == 0? matrixC->matrixWidth()*matrixC->matrixHeight(): 0), 0);
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(matrixC->data(), tempC.data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -385,6 +410,10 @@ private:
     std::string toString() const override {
         return "MM multi node outer product using MPI, allocate and copy after";
     }
+
+    std::string className() const override {
+        return NAME(MM_MpiOuterProduct);
+    }
 };
 
 template<class MatrixType, Order Ord>
@@ -394,7 +423,8 @@ private:
         std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
         std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
         std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
-        const std::vector<int32_t> &deviceIds
+        const std::vector<int32_t> &deviceIds,
+        std::string dotFile = ""
     ) override {
         int32_t mpiNodeId = -1;
         MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
@@ -409,7 +439,7 @@ private:
             );
             std::copy(matrixC->data(), matrixC->data()+matrixC->matrixWidth()*matrixC->matrixHeight(), tempMatrixC->data());
         }
-        MM_OuterProduct<MatrixType, Ord>().executeImpl(matrixA, matrixB, tempMatrixC, deviceIds);
+        MM_OuterProduct<MatrixType, Ord>().executeImpl(matrixA, matrixB, tempMatrixC, deviceIds, dotFile+std::to_string(mpiNodeId));
 
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(tempMatrixC->data(), matrixC->data(), matrixC->matrixWidth()*matrixC->matrixHeight(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -425,6 +455,10 @@ private:
     std::string toString() const override {
         return "MM multi node outer product using MPI, allocate and copy before";
     }
+
+    std::string className() const override {
+        return NAME(MM_MpiOuterProduct2);
+    }
 };
 
 /**
@@ -438,7 +472,8 @@ private:
         [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
         [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
         [[maybe_unused]]std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
-        const std::vector<int32_t> &deviceIds
+        const std::vector<int32_t> &deviceIds,
+        std::string dotFile = ""
     ) override {
         size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
         size_t mBlocks = std::ceil(double(M) / double(blockSize));
@@ -471,7 +506,7 @@ private:
 
         // create dot files for analysis
         taskGraph.createDotFile(
-            "MMInnerProduct.dot",
+            dotFile + ".dot",
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::ALL
         );

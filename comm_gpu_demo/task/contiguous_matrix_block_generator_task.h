@@ -26,23 +26,23 @@
 template<class MatrixType, char Id, Order Ord>
 class ContiguousMatrixBlockGeneratorTask: public hh::AbstractTask<1, MatrixMetaData, MatrixBlockData<MatrixType, Id, Ord>> {
 public:
-void execute(std::shared_ptr<MatrixMetaData> matrixMetaData) override {
-auto blockSize = matrixMetaData->blockSize;
-for(size_t row = 0; row*blockSize < matrixMetaData->height; ++row) {
-for(size_t col = 0; col*blockSize < matrixMetaData->width; ++col) {
-auto blockC = std::static_pointer_cast<MatrixBlockData<MatrixType, Id, Ord>>(this->getManagedMemory());
-// TODO: if memory manager is not connected:
-// auto blockC = std::make_shared<MatrixBlockData<MatrixType, Id, Ord>>(blockSize);
-memset(blockC->blockData(), 0, sizeof(MatrixType)*matrixMetaData->blockSize*matrixMetaData->blockSize);
-blockC->rowIdx(row);
-blockC->colIdx(col);
-blockC->blockSizeHeight(std::min(blockSize, matrixMetaData->height - row*blockSize));
-blockC->blockSizeWidth(std::min(blockSize, matrixMetaData->width - col*blockSize));
-blockC->leadingDimension(blockSize);
-this->addResult(blockC);
-}
-}
-}
+    void execute(std::shared_ptr<MatrixMetaData> matrixMetaData) override {
+        auto blockSize = matrixMetaData->blockSize;
+        for(size_t row = 0; row*blockSize < matrixMetaData->height; ++row) {
+            for(size_t col = 0; col*blockSize < matrixMetaData->width; ++col) {
+                auto blockC = std::static_pointer_cast<MatrixBlockData<MatrixType, Id, Ord>>(this->getManagedMemory());
+                // TODO: if memory manager is not connected:
+                // auto blockC = std::make_shared<MatrixBlockData<MatrixType, Id, Ord>>(blockSize);
+                memset(blockC->blockData(), 0, sizeof(MatrixType)*matrixMetaData->blockSize*matrixMetaData->blockSize);
+                blockC->rowIdx(row);
+                blockC->colIdx(col);
+                blockC->blockSizeHeight(std::min(blockSize, matrixMetaData->height - row*blockSize));
+                blockC->blockSizeWidth(std::min(blockSize, matrixMetaData->width - col*blockSize));
+                blockC->leadingDimension(blockSize);
+                this->addResult(blockC);
+            }
+        }
+    }
 };
 
 

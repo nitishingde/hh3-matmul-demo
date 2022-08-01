@@ -31,6 +31,7 @@ add_library(hh3_matmul
         data/data_type.h
         data/matrix_block_data.h
         data/matrix_data.h
+        data/matrix_meta_data.h
         data/serialization.h
 
         execution_pipeline/inner_product_exec_pipeline.h
@@ -46,6 +47,7 @@ add_library(hh3_matmul
         state/partial_computation_state_manager.h
 
         task/comm_task.h
+        task/contiguous_matrix_block_generator_task.h
         task/cuda_copy_in_gpu_task.h
         task/cuda_copy_out_gpu_task.h
         task/cuda_product_task.h

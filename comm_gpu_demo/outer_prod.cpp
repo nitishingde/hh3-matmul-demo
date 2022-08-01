@@ -6,6 +6,32 @@
 
 #define VERIFY_MM 1
 
+template<class MatrixType, Order Ord>
+void verify(std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> matrixC, std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> testMatrixC) {
+    for(size_t i = 0; i < matrixC->matrixHeight()*matrixC->matrixWidth(); ++i) {
+        if(0.01 < std::abs(testMatrixC->data()[i]-matrixC->data()[i])) {
+#if not NDEBUG
+            std::cout << *matrixA;
+            std::cout << *matrixB;
+            std::cout << *matrixC;
+            std::cout << *testMatrixC;
+#endif
+            throw std::runtime_error(
+                    std::string("Matrix multiplication output is wrong!\n") +
+                    "@index = " + std::to_string(i) + "\n" +
+                    "{original = " + std::to_string(testMatrixC->data()[i]) + ", calculated = " + std::to_string(matrixC->data()[i]) + "}\n" +
+                    "diff = " + std::to_string(std::abs(testMatrixC->data()[i]-matrixC->data()[i])) + "\n"
+            );
+        }
+    }
+#if not NDEBUG
+    std::cout << *matrixA;
+    std::cout << *matrixB;
+    std::cout << *matrixC;
+    std::cout << *testMatrixC;
+#endif
+}
+
 int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     using MatrixType = double;
     constexpr Order Ord = Order::Column;
@@ -49,43 +75,32 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     std::for_each(matrixA->data(), matrixA->data() + (m * k), [](MatrixType &val) { val = (MatrixType) fastrand(); });
     std::for_each(matrixB->data(), matrixB->data() + (k * n), [](MatrixType &val) { val = (MatrixType) fastrand(); });
 
-    std::cout << "Done initializing matrices" << std::endl;
-    {
-        MM_OuterProduct<MatrixType, Ord>().execute(matrixA, matrixB, matrixC, deviceIds);
-    }
-
 #if VERIFY_MM
     // verify code
     std::vector<MatrixType> V(m*n, 1);
     auto testMatrixC = std::make_shared<MatrixData<MatrixType, 'c', Ord>>(m, n, blockSize, *V.data());
-
+    std::cout << "Done initializing matrices" << std::endl;
     {
         MM_Verification<MatrixType, Ord>().execute(matrixA, matrixB, testMatrixC, deviceIds);
     }
-    for(size_t i = 0; i < m*n; ++i) {
-        if(0.01 < std::abs(testMatrixC->data()[i]-matrixC->data()[i])) {
-#if not NDEBUG
-            std::cout << *matrixA;
-            std::cout << *matrixB;
-            std::cout << *matrixC;
-            std::cout << *testMatrixC;
-#endif
-            throw std::runtime_error(
-                std::string("Matrix multiplication output is wrong!\n") +
-                "@index = " + std::to_string(i) + "\n" +
-                "{original = " + std::to_string(testMatrixC->data()[i]) + ", calculated = " + std::to_string(matrixC->data()[i]) + "}\n" +
-                "diff = " + std::to_string(std::abs(testMatrixC->data()[i]-matrixC->data()[i])) + "\n"
-            );
-        }
-    }
-#if not NDEBUG
-    std::cout << *matrixA;
-    std::cout << *matrixB;
-    std::cout << *matrixC;
-    std::cout << *testMatrixC;
+#else
+    std::cout << "Done initializing matrices" << std::endl;
 #endif
 
+    {
+        MM_OuterProduct<MatrixType, Ord>().execute(matrixA, matrixB, matrixC, deviceIds);
+#if VERIFY_MM
+        verify(matrixC, testMatrixC);
 #endif
+    }
+
+    {
+        std::for_each(matrixC->data(), matrixC->data() + (m * n), [](MatrixType &val) { val = 1; });
+        MM_OuterProduct2<MatrixType, Ord>().execute(matrixA, matrixB, matrixC, deviceIds);
+#if VERIFY_MM
+        verify(matrixC, testMatrixC);
+#endif
+    }
 
     return 0;
 }

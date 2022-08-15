@@ -23,6 +23,7 @@
 #include "comm/comm.h"
 #include "../data/serialization.h"
 #include <atomic>
+#include <list>
 
 template<class Type>
 uint32_t getTypeId() {
@@ -110,5 +111,120 @@ public:
     }
 };
 
+template<class MatrixType, char Id, Order Ord>
+class MatrixBlockReceiverTask: public hh::AbstractTask<1, void*, MatrixBlockData<MatrixType, Id, Ord>> {
+private:
+    size_t M_ = 0;
+    size_t N_ = 0;
+    size_t blockSize_ = 0;
+    int32_t expectedCount_ = 0;
+    struct Request {
+        std::shared_ptr<MatrixBlockData<MatrixType, Id, Ord>> block_ = nullptr;
+        MPI_Request mpiRequest_ {};
+    };
+    std::list<Request> requests_;
+    std::mutex mutex_ {};
+
+private:
+    void daemon() {
+        using namespace std::chrono_literals;
+        while(!canTerminate()) {
+            std::this_thread::sleep_for(1ms);
+            std::lock_guard lc(mutex_);
+            for(auto req = requests_.begin(); req != requests_.end();) {
+                int32_t flag;
+                MPI_Status status;
+                MPI_Test(&req->mpiRequest_, &flag, &status);
+
+                if(flag) {
+                    auto block = req->block_;
+                    int32_t tag = status.MPI_TAG;
+                    block->colIdx(tag & 0xffff);
+                    tag >>= 16;
+                    block->rowIdx(tag);
+                    block->blockSizeHeight(std::min(blockSize_, M_ - block->rowIdx() * blockSize_));
+                    block->blockSizeWidth(std::min(blockSize_, N_ - block->colIdx() * blockSize_));
+                    req = requests_.erase(req);
+                    this->addResult(block);
+                }
+                else if(status.MPI_ERROR) {
+                    int errorLen;
+                    char error[256];
+                    MPI_Error_string(status.MPI_ERROR, error, &errorLen);
+                    printf("[Process 0][Error %s]\n", error);
+                }
+            }
+        }
+    }
+
+public:
+    explicit MatrixBlockReceiverTask(size_t M, size_t N, size_t blockSize, size_t expectedCount):
+        hh::AbstractTask<1, void *, MatrixBlockData<MatrixType, Id, Ord>>("MatrixBlock Receiver", 1, true),
+        M_(M), N_(N), blockSize_(blockSize),
+        expectedCount_(expectedCount) {}
+
+    void execute(std::shared_ptr<void*> data) override {
+        std::thread daemon(&MatrixBlockReceiverTask::daemon, this);
+        for(; expectedCount_; --expectedCount_) {
+            // actually collect data
+            auto block = std::static_pointer_cast<MatrixBlockData<MatrixType, Id, Ord>>(this->getManagedMemory());
+            std::lock_guard lc(mutex_);
+            requests_.template emplace_back(Request{});
+            auto &request = requests_.back();
+            request.block_ = block;
+            block->ttl(1);
+            MPI_Irecv(
+                block->blockData(),
+                blockSize_*blockSize_, MPI_DOUBLE,
+                MPI_ANY_SOURCE, MPI_ANY_TAG,
+                MPI_COMM_WORLD,
+                &request.mpiRequest_
+            );
+        }
+        daemon.join();
+    }
+
+    [[nodiscard]] bool canTerminate() const override {
+        if(expectedCount_ < 0) std::runtime_error("MatrixBlockReceiverTask::expectedCount_ < 0\n");
+        return expectedCount_ == 0 and requests_.empty();
+    }
+};
+
+template<class MatrixType, char Id, Order Ord>
+class MatrixBlockSenderTask: public hh::AbstractTask<1, MatrixBlockData<MatrixType, Id, Ord>, void*> {
+private:
+    size_t blockSize_ = 0;
+    int32_t expectedCount_ = 0;//FIXME: is it needed?
+
+public:
+    explicit MatrixBlockSenderTask(size_t numOfThreads, size_t blockSize, size_t expectedCount):
+            hh::AbstractTask<1, MatrixBlockData<MatrixType, Id, Ord>, void*>("MatrixBlock Sender", numOfThreads, false),
+            blockSize_(blockSize),
+            expectedCount_(expectedCount) {}
+
+    void execute(std::shared_ptr<MatrixBlockData<MatrixType, Id, Ord>> block) override {
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        auto tempBlock = std::static_pointer_cast<MatrixBlockData<MatrixType, Id, Ord>>(this->getManagedMemory());
+        for(int j = 0; j < block->blockSizeWidth(); ++j) {
+            std::memcpy(&tempBlock->blockData()[j*block->blockSizeHeight()], &block->blockData()[j*block->leadingDimension()], sizeof(MatrixType)*block->blockSizeHeight());
+        }
+        int32_t tag = int16_t(block->rowIdx());
+        tag <<= 16;
+        tag |= int16_t(block->colIdx());
+        MPI_Send(
+            tempBlock->blockData(),
+            blockSize_*blockSize_, MPI_DOUBLE,
+            0, tag,
+            MPI_COMM_WORLD
+        );
+        tempBlock->returnToMemoryManager();
+    }
+
+    std::shared_ptr<hh::AbstractTask<1, MatrixBlockData<MatrixType, Id, Ord>, void*>>
+    copy() override {
+        return std::make_shared<MatrixBlockSenderTask>(this->numberThreads(), blockSize_, expectedCount_);
+    }
+};
 
 #endif //HH3_MATMUL_COMM_TASK_H

@@ -485,6 +485,121 @@ private:
 };
 
 template<class MatrixType, Order Ord>
+class MM_CommOuterProduct2: public MM_Strategy<MatrixType, Ord> {
+private:
+    void executeImpl(
+            std::shared_ptr<MatrixData<MatrixType, 'a', Ord>> &matrixA,
+            std::shared_ptr<MatrixData<MatrixType, 'b', Ord>> &matrixB,
+            std::shared_ptr<MatrixData<MatrixType, 'c', Ord>> &matrixC,
+            const std::vector<int32_t> &deviceIds,
+            std::string dotFile = ""
+    ) override {
+        // initial values
+        size_t M = matrixA->matrixHeight(), K = matrixA->matrixWidth(), N = matrixB->matrixWidth(), blockSize = matrixC->blockSize();
+        size_t mBlocks = std::ceil(M / blockSize) + (M % blockSize == 0 ? 0 : 1);
+        size_t kBlocks = std::ceil(K / blockSize) + (K % blockSize == 0 ? 0 : 1);
+        size_t nBlocks = std::ceil(N / blockSize) + (N % blockSize == 0 ? 0 : 1);
+
+        int32_t flag = false, mpiNodeId = 0, mpiNumNodes = 1;
+        if(auto status = MPI_Initialized(&flag); status == MPI_SUCCESS and flag) {
+            MPI_Comm_rank(MPI_COMM_WORLD, &mpiNodeId);
+            MPI_Comm_size(MPI_COMM_WORLD, &mpiNumNodes);
+        }
+        bool isMpiRootPid = (mpiNodeId == 0);
+
+        // create nodes
+        auto mainGraph = hh::Graph<3,
+                MatrixData<MatrixType, 'a', Ord>,       //inp1
+                MatrixData<MatrixType, 'b', Ord>,       //inp2
+                MatrixData<MatrixType, 'c', Ord>,       //inp3
+                MatrixBlockData<MatrixType, 'c', Ord>,  //out1
+                void*                                   //out2
+        >("Main Graph");
+
+        auto matrixATraversalTask = std::make_shared<MatrixColumnTraversalTask<MatrixType, 'a', Ord>>();
+        auto matrixBTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, 'b', Ord>>();
+        auto matrixCTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, 'c', Ord>>();
+        auto additionTask = std::make_shared<AdditionTask<MatrixType, Ord>>(4);
+        auto matrixBlockTransformerTask = std::make_shared<MatrixBlockTransformerTask<MatrixType, 'c', 'p', Ord>>();
+
+        auto partialComputationState = std::make_shared<PartialComputationState<MatrixType, Ord>>(
+                mBlocks,
+                nBlocks,
+                mBlocks*nBlocks*(kBlocks + (isMpiRootPid? (mpiNumNodes-1): 0))
+        );
+        auto partialComputationStateManager = std::make_shared<PartialComputationStateManager<MatrixType, Ord>>(partialComputationState);
+
+        auto gpuComputationGraph = std::make_shared<GPUComputationGraph<MatrixType, Ord>>(M, K, N, blockSize);
+        auto multiGpuExecutionPipeline = std::make_shared<MultiGPUExecPipeline<MatrixType, Ord>>(gpuComputationGraph, deviceIds);
+
+        auto outputState = std::make_shared<OutputState<MatrixType, Ord>>(
+                mBlocks,
+                nBlocks,
+                kBlocks + (isMpiRootPid? (mpiNumNodes-1): 0)
+        );
+
+        // StateManager
+        auto outputBlockStateManager = std::make_shared<hh::StateManager<1,
+                MatrixBlockData<MatrixType, 'c', Ord>,
+                MatrixBlockData<MatrixType, 'c', Ord>
+        >>(outputState, "Output State Manager");
+
+        // add edges
+        mainGraph.template input<MatrixData<MatrixType, 'a', Ord>>(matrixATraversalTask);
+        mainGraph.template input<MatrixData<MatrixType, 'b', Ord>>(matrixBTraversalTask);
+        mainGraph.template input<MatrixData<MatrixType, 'c', Ord>>(matrixCTraversalTask);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(matrixCTraversalTask, partialComputationStateManager);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'a', Ord>>(matrixATraversalTask, multiGpuExecutionPipeline);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'b', Ord>>(matrixBTraversalTask, multiGpuExecutionPipeline);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'p', Ord>>(multiGpuExecutionPipeline, partialComputationStateManager);
+        mainGraph.template edge<std::pair<std::shared_ptr<MatrixBlockData<MatrixType, 'c', Ord>>, std::shared_ptr<MatrixBlockData<MatrixType, 'p', Ord>>>>(partialComputationStateManager, additionTask);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(additionTask, partialComputationStateManager);
+        mainGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(additionTask, outputBlockStateManager);
+        if(isMpiRootPid) {
+            auto receiverTask = std::make_shared<MatrixBlockReceiverTask<MatrixType, 'p', Ord>>(M, N, blockSize, mBlocks*nBlocks*(mpiNumNodes-1));
+            auto recvMM = std::make_shared<hh::StaticMemoryManager<MatrixBlockData<MatrixType, 'p', Ord>, size_t>>((mpiNumNodes-1)*2, blockSize);
+            receiverTask->connectMemoryManager(recvMM);
+            mainGraph.template edge<MatrixBlockData<MatrixType, 'p', Ord>>(receiverTask, partialComputationStateManager);
+            mainGraph.template output<MatrixBlockData<MatrixType, 'c', Ord>>(outputBlockStateManager);
+            //FIXME: end?
+        }
+        else {
+            auto senderTask = std::make_shared<MatrixBlockSenderTask<MatrixType, 'c', Ord>>(4, blockSize, mBlocks*nBlocks);
+            auto senderMM = std::make_shared<hh::StaticMemoryManager<MatrixBlockData<MatrixType, 'c', Ord>, size_t>>(4, blockSize);
+            senderTask->connectMemoryManager(senderMM);
+            mainGraph.template edge<MatrixBlockData<MatrixType, 'c', Ord>>(outputBlockStateManager, senderTask);
+        }
+
+        // execute graph
+        mainGraph.executeGraph();
+
+        // push data
+        mainGraph.pushData(matrixA);
+        mainGraph.pushData(matrixB);
+        mainGraph.pushData(matrixC);
+        mainGraph.finishPushingData();
+
+        // wait
+        mainGraph.waitForTermination();
+
+        // create dot files for analysis
+        mainGraph.createDotFile(
+                dotFile + std::to_string(mpiNodeId) + ".dot",
+                hh::ColorScheme::EXECUTION,
+                hh::StructureOptions::ALL
+        );
+    }
+
+    std::string toString() const override {
+        return "MM multi node outer product with single MPI send/recv type";
+    }
+
+    std::string className() const override {
+        return NAME(MM_CommOuterProduct2);
+    }
+};
+
+template<class MatrixType, Order Ord>
 class MM_MpiOuterProduct: public MM_Strategy<MatrixType, Ord> {
 private:
     void executeImpl(

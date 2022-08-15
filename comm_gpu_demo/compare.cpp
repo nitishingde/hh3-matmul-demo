@@ -68,6 +68,12 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     {
         reset(matrixC);
         MPI_Barrier(MPI_COMM_WORLD);
+        MM_CommOuterProduct2<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
+    }
+
+    {
+        reset(matrixC);
+        MPI_Barrier(MPI_COMM_WORLD);
         MM_MpiOuterProduct<MatrixType, Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
     }
 

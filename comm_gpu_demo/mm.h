@@ -476,7 +476,7 @@ private:
     }
 
     std::string toString() const override {
-        return "MM multi node outer product";
+        return "MM multi node outer product using comm";
     }
 
     std::string className() const override {

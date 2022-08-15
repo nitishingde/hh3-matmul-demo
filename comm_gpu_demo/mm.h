@@ -626,7 +626,7 @@ private:
     }
 
     std::string toString() const override {
-        return "MM multi node outer product using MPI, allocate and copy after";
+        return "MM multi node outer product using MPI_Reduce, allocate and copy after";
     }
 
     std::string className() const override {
@@ -671,7 +671,7 @@ private:
     }
 
     std::string toString() const override {
-        return "MM multi node outer product using MPI, allocate and copy before";
+        return "MM multi node outer product using MPI_Reduce, allocate and copy before";
     }
 
     std::string className() const override {

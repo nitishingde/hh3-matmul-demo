@@ -61,7 +61,7 @@ public:
         //https://forums.developer.nvidia.com/t/how-to-compute-gflops-for-gemm-blas/20218/6
         double gflops = (M*N*(2*K+2))/(1.e9*time);
         printf(
-            "[ " GREEN("%-64s") " ][ " CYAN("%9.3f") " gflops ][ " RED("%8.3f") " secs ]\n",
+            "[ " GREEN("%-70s") " ][ " CYAN("%9.3f") " gflops ][ " RED("%8.3f") " secs ]\n",
             this->toString().c_str(),
             gflops,
             time

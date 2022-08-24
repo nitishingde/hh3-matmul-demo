@@ -12,7 +12,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake-mo
 find_package(Hedgehog REQUIRED)
 
 # OpenBLAS
-find_package(OpenBLAS REQUIRED)
+find_package(OpenBLAS QUIET)
 
 # Cuda
 find_package(CUDA QUIET)

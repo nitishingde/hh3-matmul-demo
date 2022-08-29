@@ -37,7 +37,8 @@ template<class MatrixType, char Id, Order Ord = Order::Col>
 requires std::is_floating_point_v<MatrixType> //FIXME: use concepts
 class MatrixContainer {
 public:
-    explicit MatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize, const MPI_Comm mpiComm = MPI_COMM_WORLD): mpiComm_(mpiComm) {
+    explicit MatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize, const MPI_Comm mpiComm = MPI_COMM_WORLD):
+        contextId_(contextId), mpiComm_(mpiComm) {
         matrixMetaData_ = {
             .matrixHeight = matrixHeight,
             .matrixWidth = matrixWidth,

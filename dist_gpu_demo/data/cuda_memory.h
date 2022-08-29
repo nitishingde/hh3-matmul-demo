@@ -68,8 +68,8 @@ public:
     }
 
     // Getters/Setters
-    void* getCudaMemory() { return pCudaMemory_; }
-    void** getCudaMemoryAddress() { return &pCudaMemory_; }
+    void* cudaMemory() { return pCudaMemory_; }
+    void** cudaMemoryAddress() { return &pCudaMemory_; }
 
 private:
     bool cudaEventCreated_ = false;

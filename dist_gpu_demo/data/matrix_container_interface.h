@@ -73,6 +73,7 @@ public:
     [[nodiscard]] uint32_t matrixTileSize() const { return matrixMetaData_.tileSize; }
     [[nodiscard]] uint32_t matrixNumRowTiles() const { return matrixMetaData_.numRowTiles; }
     [[nodiscard]] uint32_t matrixNumColTiles() const { return matrixMetaData_.numColTiles; }
+    [[nodiscard]] const MPI_Comm& mpiComm() const { return mpiComm_; }
     [[nodiscard]] uint32_t nodeId() const { return nodeId_; }
     [[nodiscard]] uint32_t numNodes() const { return numNodes_; }
 

@@ -17,62 +17,27 @@
 // United States.
 
 
-#ifndef HH3_MATMUL_CUDA_MEMORY_H
-#define HH3_MATMUL_CUDA_MEMORY_H
+#ifndef HH3_MATMUL_TTL_MANAGED_MEMORY_H
+#define HH3_MATMUL_TTL_MANAGED_MEMORY_H
 
 #include <hedgehog/hedgehog.h>
 
-/**
- * Wrapper to allocate/deallocate cuda memory and have the functionality of synchronizing using streams and events.
- */
-class CudaMemory {
+class TtlManagedMemory: public hh::ManagedMemory {
 public:
-    explicit CudaMemory(uint32_t bytes) {
-        checkCudaErrors(cudaMalloc(&pCudaMemory_, bytes));
-    }
-
-    ~CudaMemory() {
-        checkCudaErrors(cudaFree(pCudaMemory_));
-        pCudaMemory_ = nullptr;
-        if(cudaEventCreated_) {
-            checkCudaErrors(cudaEventDestroy(cudaEvent_));
-            cudaEventCreated_ = false;
-        }
-    }
-
-    /**
-     * Record cudaAsync API call using stream for later synchronization.
-     *
-     * @param stream
-     */
-    void recordEvent(cudaStream_t stream) {
-        if (!cudaEventCreated_) {
-            checkCudaErrors(cudaEventCreate(&cudaEvent_));
-            cudaEventCreated_ = true;
-        }
-        checkCudaErrors(cudaEventRecord(cudaEvent_, stream));
-    }
-
-    /**
-     * Synchronize the cudaAsync API called previously.
-     */
-    void synchronizeEvent() {
-#if not NDEBUG
-        if(!cudaEventCreated_) {
-            throw std::runtime_error("cudaEvent_t was never created to be synchronized.");
-        }
-#endif
-        checkCudaErrors(cudaEventSynchronize(cudaEvent_));
+    void used() {
+        ttl_--;
     }
 
     // Getters/Setters
-    void* cudaMemory() { return pCudaMemory_; }
-    void** cudaMemoryAddress() { return &pCudaMemory_; }
+    void ttl(int32_t ttl) { ttl_ = ttl; }
+
+    bool canBeRecycled() override {
+        assert(0 <= ttl_);
+        return (ttl_ == 0);
+    }
 
 private:
-    bool cudaEventCreated_ = false;
-    cudaEvent_t cudaEvent_ = {};
-    void* pCudaMemory_     = nullptr;
+    int32_t ttl_ = 0;
 };
 
-#endif //HH3_MATMUL_CUDA_MEMORY_H
+#endif //HH3_MATMUL_TTL_MANAGED_MEMORY_H

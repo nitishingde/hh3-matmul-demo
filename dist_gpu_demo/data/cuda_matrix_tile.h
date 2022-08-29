@@ -22,33 +22,57 @@
 
 #include "cuda_memory.h"
 #include "matrix_tile.h"
+#include "ttl_managed_memory.h"
 
 /**
- * Wrapper to allocate/deallocate cuda memory for MatrixTiles
- * Inherits: CudaMemory, hh::ManagedMemory
+ * Wrapper to allocate/deallocate cuda memory for MatrixTiles.
+ * Inherits: CudaMemory to manage GPU memory.
+ * Inherits: TtlManagedMemory to enable this class be managed by hedgehog's memory manager with ttl counter.
  *
  * @tparam MatrixType
  * @tparam Id
  * @tparam Ord
  */
 template<class MatrixType, char Id, Order Ord = Order::Col>
-class CudaMatrixTile: public CudaMemory {
+class CudaMatrixTile: public CudaMemory, public TtlManagedMemory {
 public:
-    explicit CudaMatrixTile(uint32_t tileLength): CudaMemory(sizeof(MatrixType)*tileLength*tileLength) {}
+    explicit CudaMatrixTile(uint32_t tileSize): CudaMemory(sizeof(MatrixType)*tileSize*tileSize), tileSize_(tileSize) {
+        resetMatrixTileMetaData();
+    }
 
-    /**
-     * Dissociate the MatrixTile in cleanup
-     */
-    void clean() override {
-        matrixTile_ = nullptr;
+    void preProcess() override {
+        resetMatrixTileMetaData();
     }
 
     // Getters/Setters
-    std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> matrixTile() { return matrixTile_; }
-    void matrixTile(std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> matrixTile) { matrixTile_ = matrixTile; }
+    [[nodiscard]] const MatrixTileMetaData& matrixTileMetaData() const { return matrixTileMetaData_; }
+    void matrixTileMetaData(const MatrixTileMetaData &matrixTileMetaData) { matrixTileMetaData_ = matrixTileMetaData; }
+    [[nodiscard]] uint32_t rowIdx() const { return matrixTileMetaData_.rowIdx; }
+    [[nodiscard]] uint32_t colIdx() const { return matrixTileMetaData_.colIdx; }
+    [[nodiscard]] uint32_t height() const { return matrixTileMetaData_.height; }
+    [[nodiscard]] uint32_t width() const { return matrixTileMetaData_.width; }
+    [[nodiscard]] uint32_t tileSize() const { return tileSize_; }
+    [[nodiscard]] uint32_t leadingDimension() {
+        if constexpr(Ord == Order::Col) {
+            return matrixTileMetaData_.height;
+        }
+        return matrixTileMetaData_.width;
+    }
 
 private:
-    std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> matrixTile_ = nullptr;
+    void resetMatrixTileMetaData() {
+        matrixTileMetaData_ = {
+            .sourceNodeId = 0,
+            .rowIdx       = 0,
+            .colIdx       = 0,
+            .height       = tileSize_,
+            .width        = tileSize_
+        };
+    }
+
+private:
+    MatrixTileMetaData matrixTileMetaData_ = {};
+    uint32_t tileSize_                     = 0;
 };
 
 #endif //HH3_MATMUL_CUDA_MATRIX_TILE_H

@@ -72,14 +72,10 @@ public:
     }
 
     std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint32_t rowIdx, uint32_t colIdx) override {
-#if not NDEBUG
-        if(numRowTiles_ <= rowIdx) {
-            throw std::runtime_error("Row index out of bounds.");
+        if(numRowTiles_ <= rowIdx or numColTiles_ <= colIdx) {
+            return nullptr;
         }
-        if(numColTiles_ <= colIdx) {
-            throw std::runtime_error("Col index out of bounds.");
-        }
-#endif
+
         return std::make_shared<MatrixTile<MatrixType, Id, Ord>>(
             this->contextId(),
             this->nodeId(),

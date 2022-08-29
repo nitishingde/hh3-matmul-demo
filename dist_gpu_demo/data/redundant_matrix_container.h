@@ -33,7 +33,7 @@
 template<class MatrixType, char Id, Order Ord = Order::Col>
 class RedundantMatrixContainer: public MatrixContainer<MatrixType, Id, Ord> {
 public:
-    explicit RedundantMatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize,  const MPI_Comm mpiComm, const bool isSourceNode = false, MatrixType *pMatrixData = nullptr)
+    explicit RedundantMatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize, const MPI_Comm mpiComm, const bool isSourceNode = false, MatrixType *pMatrixData = nullptr)
         : MatrixContainer<MatrixType, Id, Ord>(contextId, matrixHeight, matrixWidth, tileSize, mpiComm),
           pData_(pMatrixData), isSelfAllocated_(pMatrixData == nullptr),
           isSourceNode_(isSourceNode) {

@@ -84,6 +84,35 @@ public:
     }
     [[nodiscard]] MatrixType* data() { return pData_; }
 
+    friend std::ostream& operator<<(std::ostream &os, const RedundantMatrixContainer &data) {
+        os << "Redundant Matrix Data " << Id
+           << " matrix size: (" << data.matrixHeight() << ", " << data.matrixWidth() << ")"
+           << " matrix grid size: (" << data.matrixNumRowTiles() << ", " << data.matrixNumColTiles() << ")"
+           << " matrix tile size: " << data.matrixTileSize() << " leading dimension: " << data.leadingDimension()
+           << std::endl;
+
+        if constexpr(Ord == Order::Col) {
+            for(size_t i = 0; i < data.matrixHeight(); ++i) {
+                for(size_t j = 0; j < data.matrixWidth(); ++j) {
+                    os << std::setprecision(std::numeric_limits<MatrixType>::digits10 + 1)
+                       << data.pData_[j*data.leadingDimension() + i] << " ";
+                }
+                os << std::endl;
+            }
+        } else {
+            for(size_t i = 0; i < data.matrixHeight(); ++i) {
+                for(size_t j = 0; j < data.matrixWidth(); ++j) {
+                    os << std::setprecision(std::numeric_limits<MatrixType>::digits10 + 1)
+                       << data.pData_[i*data.leadingDimension() + j] << " ";
+                }
+                os << std::endl;
+            }
+        }
+        os << std::endl;
+
+        return os;
+    }
+
 private:
     MatrixType *pData_       = nullptr;
     bool isSelfAllocated_    = true;

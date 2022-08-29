@@ -96,6 +96,37 @@ public:
     [[nodiscard]] uint32_t leadingDimension() const { return leadingDimension_; }
     [[nodiscard]] MatrixType* data() const { return pData_; }
 
+    friend std::ostream& operator<<(std::ostream &os, const ContiguousSubMatrixContainer &data) {
+        os << "Contiguous SubMatrix Data " << Id
+           << " matrix size: (" << data.matrixHeight() << ", " << data.matrixWidth() << ")"
+           << " matrix grid size: (" << data.matrixHeight() << ", " << data.matrixWidth() << ")"
+           << " sub matrix size: (" << data.subMatrixHeight() << ", " << data.subMatrixWidth() << ")"
+           << " sub matrix grid size: (" << data.subMatrixNumRowTiles() << ", " << data.subMatrixNumColTiles() << ")"
+           << " matrix/submatrix tile size: " << data.matrixTileSize() << " leading dimension: " << data.leadingDimension()
+           << std::endl;
+
+        if constexpr(Ord == Order::Col) {
+            for(size_t i = 0; i < data.matrixHeight(); ++i) {
+                for(size_t j = 0; j < data.matrixWidth(); ++j) {
+                    os << std::setprecision(std::numeric_limits<MatrixType>::digits10 + 1)
+                       << data.pData_[j*data.leadingDimension() + i] << " ";
+                }
+                os << std::endl;
+            }
+        } else {
+            for(size_t i = 0; i < data.matrixHeight(); ++i) {
+                for(size_t j = 0; j < data.matrixWidth(); ++j) {
+                    os << std::setprecision(std::numeric_limits<MatrixType>::digits10 + 1)
+                       << data.pData_[i*data.leadingDimension() + j] << " ";
+                }
+                os << std::endl;
+            }
+        }
+        os << std::endl;
+
+        return os;
+    }
+
 private:
     uint32_t height_           = 0;
     uint32_t width_            = 0;

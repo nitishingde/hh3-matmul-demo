@@ -49,14 +49,14 @@ public:
             width_ = matrixWidth;
         }
 
-        numColTiles_ = (height_+tileSize-1)/tileSize;
-        numRowTiles_ = (width_+tileSize-1)/tileSize;
+        numColTiles_ = (width_+tileSize-1)/tileSize;
+        numRowTiles_ = (height_+tileSize-1)/tileSize;
 
         if constexpr(Ord == Order::Col) {
-            leadingDimension_ = matrixHeight;
+            leadingDimension_ = height_;
         }
         else {
-            leadingDimension_ = matrixWidth;
+            leadingDimension_ = width_;
         }
 
         pData_ = new MatrixType[height_*width_];
@@ -101,12 +101,12 @@ public:
     [[nodiscard]] MatrixType* data() const { return pData_; }
 
 private:
-    uint32_t height_ = 0;
-    uint32_t width_ = 0;
-    uint32_t numRowTiles_ = 0;
-    uint32_t numColTiles_ = 0;
+    uint32_t height_           = 0;
+    uint32_t width_            = 0;
+    uint32_t numRowTiles_      = 0;
+    uint32_t numColTiles_      = 0;
     uint32_t leadingDimension_ = 0;
-    MatrixType *pData_ = nullptr;
+    MatrixType *pData_         = nullptr;
 };
 
 #endif //HH3_MATMUL_CONTIGUOUS_SUB_MATRIX_CONTAINER_H

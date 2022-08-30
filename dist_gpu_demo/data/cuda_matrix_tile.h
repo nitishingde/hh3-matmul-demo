@@ -62,11 +62,10 @@ public:
 private:
     void resetMatrixTileMetaData() {
         matrixTileMetaData_ = {
-            .sourceNodeId = 0,
-            .rowIdx       = 0,
-            .colIdx       = 0,
-            .height       = tileSize_,
-            .width        = tileSize_
+            .rowIdx = 0,
+            .colIdx = 0,
+            .height = tileSize_,
+            .width  = tileSize_
         };
     }
 

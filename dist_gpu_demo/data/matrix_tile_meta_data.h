@@ -23,11 +23,10 @@
 #include <cstdint>
 
 struct MatrixTileMetaData {
-    uint32_t sourceNodeId = 0;
-    uint32_t rowIdx       = 0;
-    uint32_t colIdx       = 0;
-    uint32_t height       = 0;
-    uint32_t width        = 0;
+    uint32_t rowIdx = 0;
+    uint32_t colIdx = 0;
+    uint32_t height = 0;
+    uint32_t width  = 0;
 };
 
 #endif //HH3_MATMUL_MATRIX_TILE_META_DATA_H

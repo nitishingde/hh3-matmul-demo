@@ -35,12 +35,7 @@ class Cyclic2dMatrixContainer: public MatrixContainer<MatrixType, Id, Ord> {
 public:
     explicit Cyclic2dMatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize, const MPI_Comm mpiComm)
         : MatrixContainer<MatrixType, Id, Ord>(contextId, matrixHeight, matrixWidth, tileSize, mpiComm) {
-#if not NDEBUG
-        // FIXME:?
-        if(mpiComm == MPI_COMM_WORLD) {
-            throw std::runtime_error("Use comm other than MPI_COMM_WORLD.");
-        }
-#endif
+        assert(mpiComm != MPI_COMM_WORLD);
         grid_.resize(this->matrixNumRowTiles(), std::vector<std::shared_ptr<MatrixTile<MatrixType, Id, Ord>>>(this->matrixNumColTiles(), nullptr));
         init();
     }

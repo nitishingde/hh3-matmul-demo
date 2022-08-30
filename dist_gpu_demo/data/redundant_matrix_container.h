@@ -41,9 +41,8 @@ public:
         int32_t sourceNode = isSourceNode? this->nodeId(): 0;
         MPI_Allreduce(&sourceNode, &sourceNode_, 1, MPI_INT32_T, MPI_SUM, this->mpiComm_);
 #if not NDEBUG
-        if(isSourceNode and sourceNode_ != this->nodeId()) {
-            throw std::runtime_error("Multiple source nodes are being set for RedundantMatrix.");
-            MPI_Abort(this->mpiComm_, EXIT_FAILURE);
+        if(isSourceNode) {
+            assert(sourceNode == this->nodeId());
         }
 #endif
         if(isSelfAllocated_) {

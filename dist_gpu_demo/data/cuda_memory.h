@@ -57,11 +57,7 @@ public:
      * Synchronize the cudaAsync API called previously.
      */
     void synchronizeEvent() {
-#if not NDEBUG
-        if(!cudaEventCreated_) {
-            throw std::runtime_error("cudaEvent_t was never created to be synchronized.");
-        }
-#endif
+        assert(cudaEventCreated_);
         checkCudaErrors(cudaEventSynchronize(cudaEvent_));
     }
 

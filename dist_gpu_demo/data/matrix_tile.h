@@ -51,10 +51,9 @@ public:
 
         if(isSelfAllocated_) {
             dataPacket_ = std::make_shared<DataPacket>(matrixContextId, dataPacketSizeInBytes());
+            *reinterpret_cast<uint32_t*>(&dataPacket_->data()[rowIdxByteOffset()]) = rowIdx;
+            *reinterpret_cast<uint32_t*>(&dataPacket_->data()[colIdxByteOffset()]) = colIdx;
             pData_ = reinterpret_cast<MatrixType*>(&dataPacket_->data()[dataByteOffset()]);
-            uint32_t *pIndexBuffer = reinterpret_cast<uint32_t*>(&dataPacket_->data()[indexByteOffset()]);
-            pIndexBuffer[0] = rowIdx;
-            pIndexBuffer[1] = colIdx;
             if constexpr(Ord == Order::Col) {
                 leadingDimension_ = matrixTileMetaData_.height;
             }
@@ -68,7 +67,7 @@ public:
         matrixTileMetaData_.height = tileSize;
         matrixTileMetaData_.width = tileSize;
         uint32_t bufferSize = (tileSize*tileSize+2)*sizeof(MatrixType);
-        dataPacket_ = std::make_shared<DataPacket>(-1, bufferSize);
+        dataPacket_ = std::make_shared<DataPacket>(-1, bufferSize);//FIXME: contextId
         pData_ = reinterpret_cast<MatrixType*>(dataPacket_->data());
     }
 
@@ -120,28 +119,27 @@ public:
         }
 
         assert(dataPacket != nullptr);
-        assert(this->serializedSizeInBytes() <= dataPacket->size());
+        assert(this->dataPacketSizeInBytes() <= dataPacket->size());
 
         if constexpr(Ord == Order::Col) {
-            for(uint32_t j = 0, offset = 0; j < matrixTileMetaData_.width; ++j) {
-                std::memcpy(dataPacket->data()+offset, &pData_[j*leadingDimension_], sizeof(MatrixType)*matrixTileMetaData_.height);
+            for(uint32_t j = 0, offset = dataByteOffset(); j < matrixTileMetaData_.width; ++j) {
+                std::memcpy(&dataPacket->data()[offset], &pData_[j*leadingDimension_], sizeof(MatrixType)*matrixTileMetaData_.height);
                 offset += (matrixTileMetaData_.height*sizeof(MatrixType));
             }
         } else {
-            for(uint32_t i = 0, offset = 0; i < matrixTileMetaData_.height; ++i) {
-                std::memcpy(dataPacket->data()+offset, &pData_[i*leadingDimension_], sizeof(MatrixType)*matrixTileMetaData_.width);
+            for(uint32_t i = 0, offset = dataByteOffset(); i < matrixTileMetaData_.height; ++i) {
+                std::memcpy(&dataPacket->data()[offset], &pData_[i*leadingDimension_], sizeof(MatrixType)*matrixTileMetaData_.width);
                 offset += (matrixTileMetaData_.width*sizeof(MatrixType));
             }
         }
 
         return nullptr;
     }
-    [[nodiscard]] uint32_t dataPacketSizeInBytes() const { return dataSize()*sizeof(MatrixType) + 2*sizeof(uint32_t); }
+    [[nodiscard]] uint32_t dataPacketSizeInBytes() const { return 2*sizeof(uint32_t) + matrixMetaData_.tileSize*matrixMetaData_.tileSize*sizeof(MatrixType); }
     void unPackDataPacket(std::shared_ptr<DataPacket> dataPacket = nullptr) {
         assert(isSelfAllocated_);//FIXME
-        auto pIndexBuffer = reinterpret_cast<uint32_t*>(&dataPacket_->data()[indexByteOffset()]);
-        uint32_t rowIdx = pIndexBuffer[0];
-        uint32_t colIdx = pIndexBuffer[1];
+        uint32_t rowIdx = *reinterpret_cast<uint32_t*>(&dataPacket_->data()[rowIdxByteOffset()]);
+        uint32_t colIdx = *reinterpret_cast<uint32_t*>(&dataPacket_->data()[colIdxByteOffset()]);
         initMetaData(dataPacket_->contextId(), rowIdx, colIdx);
         pData_ = reinterpret_cast<MatrixType*>(&dataPacket_->data()[dataByteOffset()]);
         sourceNodeId_ = -1;//FIXME
@@ -189,14 +187,15 @@ private:
             .width  = std::min(matrixMetaData_.matrixWidth - colIdx*matrixMetaData_.tileSize, matrixMetaData_.tileSize)
         };
     }
-    [[nodiscard]] constexpr uint32_t dataByteOffset() { return 0; }
-    [[nodiscard]] uint32_t indexByteOffset() { return matrixMetaData_.tileSize*matrixMetaData_.tileSize*sizeof(MatrixType);}//fixme
+    [[nodiscard]] constexpr uint32_t rowIdxByteOffset() { return 0; }
+    [[nodiscard]] constexpr uint32_t colIdxByteOffset() { return sizeof(uint32_t); }
+    [[nodiscard]] constexpr uint32_t dataByteOffset() { return 2*sizeof(uint32_t); }
 
 private:
     uint32_t matrixContextId_               = 0;//FIXME: 2 places where contextId is being stored, here and in dataPacket
     MatrixMetaData matrixMetaData_          = {};
     MatrixTileMetaData matrixTileMetaData_  = {};
-    int32_t sourceNodeId_                   = 0;
+    int32_t sourceNodeId_                   = 0;//network related
     uint32_t leadingDimension_              = 0;
     std::shared_ptr<DataPacket> dataPacket_ = nullptr;
     MatrixType *pData_                      = nullptr;

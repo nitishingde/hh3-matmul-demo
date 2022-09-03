@@ -52,6 +52,9 @@ public:
         numColTiles_ = (width_+tileSize-1)/tileSize;
         numRowTiles_ = (height_+tileSize-1)/tileSize;
 
+        colTilesRange_[0] = numColTiles_*this->nodeId_, colTilesRange_[1] = numColTiles_*(this->nodeId_+1);
+        rowTilesRange_[0] = numRowTiles_*this->nodeId_, rowTilesRange_[1] = numRowTiles_*(this->nodeId_+1);
+
         if constexpr(Ord == Order::Col) {
             leadingDimension_ = height_;
         }
@@ -72,7 +75,11 @@ public:
     }
 
     std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint32_t rowIdx, uint32_t colIdx) override {
-        if(numRowTiles_ <= rowIdx or numColTiles_ <= colIdx) {
+        if((rowIdx < rowTilesRange_[0]) or (rowTilesRange_[1] <= rowIdx)) {
+            return nullptr;
+        }
+
+        if((colIdx < colTilesRange_[0]) or (colTilesRange_[1] <= colIdx)) {
             return nullptr;
         }
 
@@ -132,6 +139,8 @@ private:
     uint32_t width_            = 0;
     uint32_t numRowTiles_      = 0;
     uint32_t numColTiles_      = 0;
+    uint32_t rowTilesRange_[2] = {0, 0};
+    uint32_t colTilesRange_[2] = {0, 0};
     uint32_t leadingDimension_ = 0;
     MatrixType *pData_         = nullptr;
 };

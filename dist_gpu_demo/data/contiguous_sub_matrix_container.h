@@ -38,22 +38,42 @@ public:
     explicit ContiguousSubMatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize, const MPI_Comm mpiComm)
         : MatrixContainer<MatrixType, Id, Ord>(contextId, matrixHeight, matrixWidth, tileSize, mpiComm) {
 
+        uint32_t totalRowTiles = this->matrixNumRowTiles();
+        uint32_t totalColTiles = this->matrixNumColTiles();
         if constexpr(subMatrixOrder == Order::Col) {
+            numColTiles_ = totalColTiles/this->numNodes();
+            uint32_t noOfNodesWith1ExtraTile = totalColTiles%this->numNodes();
+            numColTiles_ += (this->nodeId() < noOfNodesWith1ExtraTile? 1: 0);
+
             height_ = matrixHeight;
-            width_ = matrixWidth/this->numNodes();
-            width_ += (this->nodeId() < matrixWidth%this->numNodes()? 1: 0);
+            width_ = numColTiles_*tileSize;
+            if(this->nodeId() == (this->numNodes()-1)) {//adjust the last node
+                width_ -= (tileSize - (matrixWidth%tileSize));
+            }
+            numRowTiles_ = (height_+tileSize-1)/tileSize;
+
+            rowTilesRange_[0] = 0;
+            rowTilesRange_[1] = totalRowTiles;
+            colTilesRange_[0] = (totalColTiles/this->numNodes())*this->nodeId() + std::min(this->nodeId(), noOfNodesWith1ExtraTile);
+            colTilesRange_[1] = colTilesRange_[0]+numColTiles_;
         }
         else {
-            height_ = matrixHeight/this->numNodes();
-            height_ += (this->nodeId() < matrixHeight%this->numNodes()? 1: 0);
+            numRowTiles_ = totalRowTiles/this->numNodes();
+            uint32_t noOfNodesWith1ExtraTile = totalRowTiles%this->numNodes();
+            numRowTiles_ += (this->nodeId() < noOfNodesWith1ExtraTile? 1: 0);
+
+            height_ = numRowTiles_*tileSize;
+            if(this->nodeId() == (this->numNodes()-1)) {//adjust the last node
+                height_ -= (tileSize - (matrixHeight%tileSize));
+            }
             width_ = matrixWidth;
+            numColTiles_ = (width_+tileSize-1)/tileSize;
+
+            rowTilesRange_[0] = (totalRowTiles/this->numNodes())*this->nodeId() + std::min(this->nodeId(), noOfNodesWith1ExtraTile);
+            rowTilesRange_[1] = rowTilesRange_[0]+numRowTiles_;
+            colTilesRange_[0] = 0;
+            colTilesRange_[1] = totalColTiles;
         }
-
-        numColTiles_ = (width_+tileSize-1)/tileSize;
-        numRowTiles_ = (height_+tileSize-1)/tileSize;
-
-        colTilesRange_[0] = numColTiles_*this->nodeId_, colTilesRange_[1] = numColTiles_*(this->nodeId_+1);
-        rowTilesRange_[0] = numRowTiles_*this->nodeId_, rowTilesRange_[1] = numRowTiles_*(this->nodeId_+1);
 
         if constexpr(Ord == Order::Col) {
             leadingDimension_ = height_;
@@ -100,6 +120,8 @@ public:
     [[nodiscard]] uint32_t subMatrixWidth() const { return width_; }
     [[nodiscard]] uint32_t subMatrixNumRowTiles() const { return numRowTiles_; }
     [[nodiscard]] uint32_t subMatrixNumColTiles() const { return numColTiles_; }
+    [[nodiscard]] std::tuple<uint32_t, uint32_t> subMatrixRowTileRange() const { return std::make_tuple(rowTilesRange_[0], rowTilesRange_[1]); }
+    [[nodiscard]] std::tuple<uint32_t, uint32_t> subMatrixColTileRange() const { return std::make_tuple(colTilesRange_[0], colTilesRange_[1]); }
     [[nodiscard]] uint32_t leadingDimension() const { return leadingDimension_; }
     [[nodiscard]] MatrixType* data() const { return pData_; }
     [[nodiscard]] uint32_t dataSize() const { return height_*width_; }

@@ -82,6 +82,7 @@ public:
         return this->matrixWidth();
     }
     [[nodiscard]] MatrixType* data() { return pData_; }
+    [[nodiscard]] uint32_t dataSize() { return this->matrixHeight()*this->matrixWidth(); }
 
     friend std::ostream& operator<<(std::ostream &os, const RedundantMatrixContainer &data) {
         os << "Redundant Matrix Data " << Id

@@ -102,6 +102,7 @@ public:
     [[nodiscard]] uint32_t subMatrixNumColTiles() const { return numColTiles_; }
     [[nodiscard]] uint32_t leadingDimension() const { return leadingDimension_; }
     [[nodiscard]] MatrixType* data() const { return pData_; }
+    [[nodiscard]] uint32_t dataSize() const { return height_*width_; }
 
     friend std::ostream& operator<<(std::ostream &os, const ContiguousSubMatrixContainer &data) {
         os << "Contiguous SubMatrix Data " << Id

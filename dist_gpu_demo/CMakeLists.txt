@@ -56,3 +56,9 @@ target_link_libraries(test_data
     PUBLIC
         hh3_matmul_dist
 )
+
+add_executable(test_cublas test_cublas.cpp mmd.h)
+target_link_libraries(test_cublas
+    PUBLIC
+        hh3_matmul_dist
+)

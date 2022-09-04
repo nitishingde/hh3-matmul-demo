@@ -15,7 +15,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(TCLAP)
 
-add_library(hh3_matmul_dist
+add_library(dist_matmul
     utility.h
 
     data/contiguous_sub_matrix_container.h
@@ -29,21 +29,21 @@ add_library(hh3_matmul_dist
     data/redundant_matrix_container.h
 )
 
-set_target_properties(hh3_matmul_dist PROPERTIES LINKER_LANGUAGE CXX)
+set_target_properties(dist_matmul PROPERTIES LINKER_LANGUAGE CXX)
 
-target_compile_definitions(hh3_matmul_dist
+target_compile_definitions(dist_matmul
     PUBLIC
         HH_USE_CUDA
 )
 
-target_include_directories(hh3_matmul_dist
+target_include_directories(dist_matmul
     PUBLIC
         ${CUDA_INCLUDE_DIRS}
         ${Hedgehog_INCLUDE_DIRS}
         ${TCLAP_SOURCE_DIR}/include/
 )
 
-target_link_libraries(hh3_matmul_dist
+target_link_libraries(dist_matmul
     PUBLIC
         ${CUDA_CUBLAS_LIBRARIES}
         ${CUDA_LIBRARIES}
@@ -51,14 +51,14 @@ target_link_libraries(hh3_matmul_dist
         MPI::MPI_C
 )
 
-add_executable(test_data test_data.cpp)
-target_link_libraries(test_data
+add_executable(dist_test_data test_data.cpp)
+target_link_libraries(dist_test_data
     PUBLIC
-        hh3_matmul_dist
+        dist_matmul
 )
 
-add_executable(test_cublas test_cublas.cpp mmd.h)
-target_link_libraries(test_cublas
+add_executable(dist_test_cublas test_cublas.cpp mmd.h)
+target_link_libraries(dist_test_cublas
     PUBLIC
-        hh3_matmul_dist
+        dist_matmul
 )

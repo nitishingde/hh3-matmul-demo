@@ -10,6 +10,15 @@
 #include "data/contiguous_sub_matrix_container.h"
 #include "data/cyclic2d_matrix_container.h"
 #include "data/redundant_matrix_container.h"
+#include "execution_pipeline/outer_product_exec_pipeline.h"
+#include "graph/outer_product_cuda_graph.h"
+#include "state/outer_product_computation_state.h"
+#include "state/outer_product_computation_state_manager.h"
+#include "state/outer_product_output_state.h"
+#include "task/accumulate_task.h"
+#include "task/comm_tasks.h"
+#include "task/matrix_col_traversal_task.h"
+#include "task/matrix_row_traversal_task.h"
 
 template<class MatrixType, char IdA, char IdB, char IdC, Order Ord>
 class MMD_Strategy {
@@ -141,6 +150,122 @@ private:
 
     [[nodiscard]] std::string className() const override {
         return NAME(MMD_VerifyCublas);
+    }
+};
+
+template<class MatrixType, char IdA, char IdB, char IdC, Order Ord>
+class MMD_MpiOuterProductCyclic2d: public MMD_Strategy<MatrixType, IdA, IdB, IdC, Ord> {
+private:
+    void executeImpl(
+        std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
+        std::shared_ptr<MatrixContainer<MatrixType, IdB, Ord>> matrixB,
+        std::shared_ptr<MatrixContainer<MatrixType, IdC, Ord>> matrixC,
+        const std::vector<int32_t> &deviceIds,
+        std::string dotFile
+    ) override {
+        constexpr char ProdId = 'p';
+        auto subA = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Col, MatrixType, IdA, Ord>>(matrixA);
+        auto subB = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Row, MatrixType, IdB, Ord>>(matrixB);
+        auto matC = std::static_pointer_cast<Cyclic2dMatrixContainer<MatrixType, IdC, Ord>>(matrixC);
+
+        const uint32_t mTiles   = matrixC->matrixNumRowTiles();
+        const uint32_t kTiles   = matrixA->matrixNumColTiles();
+        const uint32_t nTiles   = matrixC->matrixNumColTiles();
+        const uint32_t tileSize = matrixC->matrixTileSize();
+
+        uint32_t myTiles = mTiles*nTiles;
+        myTiles = (myTiles/getNumNodes()) + ((matrixC->nodeId() < (myTiles%matrixC->numNodes()))? 1: 0);//TODO: verify calculations
+
+        // create nodes
+        auto localGraph = hh::Graph<3,
+            MatrixContainer<MatrixType, IdA, Ord>,
+            MatrixContainer<MatrixType, IdB, Ord>,
+            MatrixContainer<MatrixType, IdC, Ord>,
+            void*
+        >("Local Graph "+std::to_string(getNodeId()));
+
+        auto matrixATraversalTask = std::make_shared<MatrixColTraversalTask<MatrixType, IdA, Ord>>();
+        auto matrixBTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdB, Ord>>();
+        auto matrixCTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdC, Ord>>();
+        auto accumulateTask       = std::make_shared<AccumulateTask<MatrixType, IdC, ProdId, Ord>>(4);
+        auto recyclerTask         = std::make_shared<TtlManagedMemoryRecyclerTask>();
+        auto senderTask           = std::make_shared<Cyclic2dSenderTask<MatrixType, IdC, Ord>>(8, mTiles*nTiles-myTiles);
+        auto receiverTask         = std::make_shared<Cyclic2dReceiverTask<MatrixType, ProdId, Ord>>(myTiles*(getNumNodes()-1));
+
+        auto memoryManager = std::make_shared<hh::StaticMemoryManager<MatrixTile<MatrixType, ProdId, Ord>, uint32_t>>(8, tileSize);
+        receiverTask->connectMemoryManager(memoryManager);
+
+        auto cudaGraph = std::make_shared<OuterProductCudaGraph<MatrixType, IdA, IdB, ProdId, Ord>>(mTiles, kTiles, nTiles, tileSize);
+        auto execPipeline = std::make_shared<OuterProductExecPipeline<MatrixType, IdA, IdB, ProdId, Ord>>(cudaGraph, deviceIds);
+
+        auto computationState        = std::make_shared<OuterProductComputationState<MatrixType, IdC, ProdId, Ord>>(
+            mTiles,
+            nTiles,
+            mTiles*nTiles*subA->subMatrixNumColTiles() + myTiles*(getNumNodes()-1)
+        );
+        auto computationStateManager = std::make_shared<OuterProductComputationStateManager<MatrixType, IdC, ProdId, Ord>>(computationState);
+        auto outputState             = std::make_shared<OuterProductOutputState<MatrixType, IdC, Ord>>(mTiles, nTiles, subA->subMatrixNumColTiles());//FIXME
+        auto outputStateManager      = std::make_shared<hh::StateManager<1,
+            MatrixTile<MatrixType, IdC, Ord>,
+            MatrixTile<MatrixType, IdC, Ord>
+        >>(outputState, "Output State Manager", false);
+
+        // add edges
+        localGraph.template input<MatrixContainer<MatrixType, IdA, Ord>>(matrixATraversalTask);
+        localGraph.template input<MatrixContainer<MatrixType, IdB, Ord>>(matrixBTraversalTask);
+        localGraph.template input<MatrixContainer<MatrixType, IdC, Ord>>(matrixCTraversalTask);
+        localGraph.template edge<MatrixTile<MatrixType, IdA, Ord>>(matrixATraversalTask, execPipeline);
+        localGraph.template edge<MatrixTile<MatrixType, IdB, Ord>>(matrixBTraversalTask, execPipeline);
+        localGraph.template edge<MatrixTile<MatrixType, IdC, Ord>>(matrixCTraversalTask, computationStateManager);
+        localGraph.template edge<MatrixTile<MatrixType, ProdId, Ord>>(execPipeline, computationStateManager);
+        localGraph.template edge<MatrixTile<MatrixType, ProdId, Ord>>(receiverTask, computationStateManager);
+        localGraph.template edge<std::pair<std::shared_ptr<MatrixTile<MatrixType, IdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>>(
+            computationStateManager,
+            accumulateTask
+        );
+        localGraph.template edge<MatrixTile<MatrixType, IdC, Ord>>(accumulateTask, computationStateManager);
+        localGraph.template edge<TtlManagedMemory>(accumulateTask, recyclerTask);
+        localGraph.template edge<MatrixTile<MatrixType, IdC, Ord>>(accumulateTask, outputStateManager);
+        localGraph.template edge<MatrixTile<MatrixType, IdC, Ord>>(outputStateManager, senderTask);
+
+        // execute graph
+        localGraph.executeGraph();
+
+        // push data
+        localGraph.pushData(matrixA);
+        localGraph.pushData(matrixB);
+        localGraph.pushData(matrixC);
+        localGraph.finishPushingData();
+
+        // wait
+        localGraph.waitForTermination();
+
+        // create dot files for analysis
+        localGraph.createDotFile(
+            dotFile + std::to_string(getNodeId()) + ".dot",
+            hh::ColorScheme::EXECUTION,
+            hh::StructureOptions::ALL
+        );
+    }
+
+    [[nodiscard]] std::string strategy() const override {
+        return "OuterProduct";
+    }
+
+    [[nodiscard]] std::string matTypeA() const override {
+        return "Sub";
+    }
+
+    [[nodiscard]] std::string matTypeB() const override {
+        return "Sub";
+    }
+
+    [[nodiscard]] std::string matTypeC() const override {
+        return "Cyclic2d";
+    }
+
+    [[nodiscard]] std::string className() const override {
+        return NAME(MMD_MpiOuterProductCyclic2d);
     }
 };
 

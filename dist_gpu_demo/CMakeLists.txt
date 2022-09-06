@@ -27,6 +27,23 @@ add_library(dist_matmul
     data/matrix_order.h
     data/matrix_tile.h
     data/redundant_matrix_container.h
+
+    execution_pipeline/outer_product_exec_pipeline.h
+
+    graph/outer_product_cuda_graph.h
+
+    state/outer_product_computation_state.h
+    state/outer_product_computation_state_manager.h
+    state/outer_product_cuda_state.h
+
+    task/accumulate_task.h
+    task/comm_tasks.h
+    task/cuda_copy_in_gpu_task.h
+    task/cuda_copy_out_gpu_task.h
+    task/cuda_product_task.h
+    task/matrix_col_traversal_task.h
+    task/matrix_row_traversal_task.h
+    task/ttl_managed_memory_recycler_task.h
 )
 
 set_target_properties(dist_matmul PROPERTIES LINKER_LANGUAGE CXX)
@@ -59,6 +76,12 @@ target_link_libraries(dist_test_data
 
 add_executable(dist_test_cublas test_cublas.cpp mmd.h)
 target_link_libraries(dist_test_cublas
+    PUBLIC
+        dist_matmul
+)
+
+add_executable(dist_mpi_outer_prod_cyclic2d mpi_outer_prod_cyclic2d.cpp mmd.h)
+target_link_libraries(dist_mpi_outer_prod_cyclic2d
     PUBLIC
         dist_matmul
 )

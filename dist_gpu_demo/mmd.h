@@ -98,7 +98,7 @@ private:
 
         MatrixType alpha = 1.0, beta = 1.0;
 
-        if constexpr (std::is_same<MatrixType, double>::value) {
+        if constexpr(std::is_same<MatrixType, double>::value) {
             checkCudaErrors(cublasXtDgemm(
                 handle, CUBLAS_OP_N, CUBLAS_OP_N,
                 m, n, k, (double *) (&alpha),

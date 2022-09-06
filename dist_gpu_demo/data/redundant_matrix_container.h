@@ -66,7 +66,7 @@ public:
             this->contextId(),
             sourceNode_,
             rowIdx, colIdx,
-            leadingDimension(), pData_
+            leadingDimension(), &pData_[colIdx*leadingDimension()*this->matrixTileSize() + rowIdx*this->matrixTileSize()]
         );
     }
 

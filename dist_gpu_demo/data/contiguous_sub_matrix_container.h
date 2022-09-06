@@ -47,7 +47,7 @@ public:
 
             height_ = matrixHeight;
             width_ = numColTiles_*tileSize;
-            if(this->nodeId() == (this->numNodes()-1)) {//adjust the last node
+            if(this->nodeId() == (this->numNodes()-1) and matrixWidth%tileSize) {//adjust the last node, FIXME: ugly
                 width_ -= (tileSize - (matrixWidth%tileSize));
             }
             numRowTiles_ = (height_+tileSize-1)/tileSize;
@@ -63,7 +63,7 @@ public:
             numRowTiles_ += (this->nodeId() < noOfNodesWith1ExtraTile? 1: 0);
 
             height_ = numRowTiles_*tileSize;
-            if(this->nodeId() == (this->numNodes()-1)) {//adjust the last node
+            if(this->nodeId() == (this->numNodes()-1) and matrixHeight%tileSize) {//adjust the last node, FIXME: ugly
                 height_ -= (tileSize - (matrixHeight%tileSize));
             }
             width_ = matrixWidth;
@@ -103,11 +103,14 @@ public:
             return nullptr;
         }
 
+        int i = rowIdx - rowTilesRange_[0];
+        int j = colIdx - colTilesRange_[0];
+        if constexpr(Ord == Order::Row) assert(false);//FIXME
         return std::make_shared<MatrixTile<MatrixType, Id, Ord>>(
             this->contextId(),
             this->nodeId(),
             rowIdx, colIdx,
-            leadingDimension_, pData_
+            leadingDimension_, &pData_[j*leadingDimension_*this->matrixTileSize() + i*this->matrixTileSize()]
         );
     }
 

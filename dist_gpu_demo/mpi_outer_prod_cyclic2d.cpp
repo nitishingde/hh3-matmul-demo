@@ -8,10 +8,11 @@
 
 template<Order SubMatrixOrder, class MatrixType, char Id, Order Ord>
 void reset(std::shared_ptr<ContiguousSubMatrixContainer<SubMatrixOrder, MatrixType, Id, Ord>> subMat) {
+    MatrixType i = 0;
     std::for_each(
         subMat->data(),
         subMat->data() + subMat->subMatrixHeight()*subMat->subMatrixWidth(),
-        [](MatrixType &val) { val = fastrand()%10; }
+        [&i](MatrixType &val) { val = i++; }
     );
 }
 
@@ -37,8 +38,17 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     reset(subMatB);
 
     auto matrixC = std::make_shared<Cyclic2dMatrixContainer<MatrixType, 'c', Ord>>(2, M, N, tileSize, matrixComm);
+    for(uint32_t i = 0; i < matrixC->matrixNumColTiles(); ++i) {
+        for(uint32_t j = 0; j < matrixC->matrixNumRowTiles(); ++j) {
+            if(auto tile = matrixC->getTile(i, j); tile != nullptr) {
+                std::memset(tile->data(), 0, sizeof(MatrixType)*tile->dataSize());
+            }
+        }
+    }
+    printf("Matrices initialized\n");
 
     {
+        MPI_Barrier(MPI_COMM_WORLD);
         MMD_MpiOuterProductCyclic2d<MatrixType, 'a', 'b', 'c', Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
 #if not NDEBUG
         if(isRootNodeId()) {
@@ -69,22 +79,22 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     {
         std::memset(redundantMatrixC->data(), 0, sizeof(MatrixType)*M*N);
+        MPI_Barrier(MPI_COMM_WORLD);
         MMD_VerifyCublas<MatrixType, 'a', 'b', 'c', Ord>().execute(subMatA, subMatB, redundantMatrixC, deviceIds);
     }
 
     MPI_Bcast(redundantMatrixC->data(), M*N, std::is_same_v<MatrixType, double>? MPI_DOUBLE: MPI_FLOAT, 0, redundantMatrixC->mpiComm());
-    if(getNodeId() == 1)
     for(uint32_t i = 0; i < redundantMatrixC->matrixNumRowTiles(); ++i) {
         for(uint32_t j = 0; j < redundantMatrixC->matrixNumColTiles(); ++j) {
             if(auto tile = matrixC->getTile(i, j); tile->sourceNodeId() != getNodeId()) continue;
             else if(*tile != *redundantMatrixC->getTile(i, j)) {
+                std::cout << "[Error] tile @[" + std::to_string(i) + ", " + std::to_string(j) + "] don't match.\n";
 #if not NDEBUG
-                if(isRootNodeId()) {
-                    std::cout << *redundantMatrixC->getTile(i, j);
-                    std::cout << *tile;
-                }
+                std::cout << GREEN("Actual  : ") << *redundantMatrixC->getTile(i, j);
+                std::cout <<   RED("Computed: ") << *tile;
+#else
+                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 #endif
-                std::cout<<"[Error] tile @["+std::to_string(i)+", "+std::to_string(j)+"] don't match.\n";
             }
         }
     }

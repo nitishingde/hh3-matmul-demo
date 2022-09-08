@@ -37,6 +37,11 @@ public:
         ttlManagedMemory->used();
         ttlManagedMemory->returnToMemoryManager();
     }
+
+    std::shared_ptr<hh::AbstractTask<1, TtlManagedMemory, void*>>
+    copy() override {
+        return std::make_shared<TtlManagedMemoryRecyclerTask>();
+    }
 };
 
 #endif //HH3_MATMUL_MANAGED_MEMORY_RECYCLER_TASK_H

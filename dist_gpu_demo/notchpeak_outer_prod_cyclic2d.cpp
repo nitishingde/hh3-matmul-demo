@@ -27,7 +27,12 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     MPI_Barrier(matrixComm);
 
     auto [M, K, N, tileSize] = parseArgs(argc, argv);
-    std::vector<int32_t> deviceIds = {getNodeId()};
+    int32_t devCount = 0;
+    cudaGetDeviceCount(&devCount);
+    std::vector<int32_t> deviceIds;
+    deviceIds.reserve(8);
+    for(int32_t i = 0; i < devCount; ++i) deviceIds.emplace_back(i);
+    printf("[Process %d] GPUs = %zu\n", getNodeId(), deviceIds.size());
     printf("[Process %d] M = %d, K = %d, N = %d, tileSize = %d\n", getNodeId(), M, K, N, tileSize);
     auto subMatA = std::make_shared<ContiguousSubMatrixContainer<Order::Col, MatrixType, 'a', Ord>>(0, M, K, tileSize, matrixComm);
     auto subMatB = std::make_shared<ContiguousSubMatrixContainer<Order::Row, MatrixType, 'b', Ord>>(1, K, N, tileSize, matrixComm);

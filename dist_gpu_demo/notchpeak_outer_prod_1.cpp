@@ -53,7 +53,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     {
         MPI_Barrier(MPI_COMM_WORLD);
-        MMD_MpiOuterProductCyclic2d<MatrixType, 'a', 'b', 'c', Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
+        MMD_MpiOuterProduct1<MatrixType, 'a', 'b', 'c', Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
     }
 
     for(uint32_t i = 0; i < matrixC->matrixNumColTiles(); ++i) {

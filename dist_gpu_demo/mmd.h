@@ -61,7 +61,7 @@ public:
         //https://forums.developer.nvidia.com/t/how-to-compute-gflops-for-gemm-blas/20218/6
         double gflops = (M*N*(2*K+2))/(1.e9*time);
         printf(
-            "[ " GREEN("MMD") " ][ Strategy = " GREEN("%-12s") " ][ A = " GREEN("%-9s") " ][ B = " GREEN("%-9s") " ][ C = " GREEN("%-9s") " ][ " CYAN("%9.3f") " gflops ][ " RED("%8.3f") " secs ]\n",
+            "[ " GREEN("MMD") " ][ Strategy = " GREEN("%-12s") " ][ A = " GREEN("%-13s") " ][ B = " GREEN("%-13s") " ][ C = " GREEN("%-13s") " ][ " CYAN("%9.3f") " gflops ][ " RED("%8.3f") " secs ]\n",
             strategy().c_str(),
             matTypeA().c_str(),
             matTypeB().c_str(),
@@ -154,7 +154,7 @@ private:
 };
 
 template<class MatrixType, char IdA, char IdB, char IdC, Order Ord>
-class MMD_MpiOuterProductCyclic2d: public MMD_Strategy<MatrixType, IdA, IdB, IdC, Ord> {
+class MMD_MpiOuterProduct1: public MMD_Strategy<MatrixType, IdA, IdB, IdC, Ord> {
 private:
     void executeImpl(
         std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
@@ -195,7 +195,7 @@ private:
         auto memoryManager = std::make_shared<hh::StaticMemoryManager<MatrixTile<MatrixType, ProdId, Ord>, uint32_t>>(8, tileSize);
         receiverTask->connectMemoryManager(memoryManager);
 
-        auto cudaGraph = std::make_shared<OuterProductCudaGraph<MatrixType, IdA, IdB, ProdId, Ord>>(mTiles, kTiles, nTiles, tileSize);
+        auto cudaGraph    = std::make_shared<OuterProductCudaGraph<MatrixType, IdA, IdB, ProdId, Ord>>(mTiles, kTiles, nTiles, tileSize);
         auto execPipeline = std::make_shared<OuterProductExecPipeline<MatrixType, IdA, IdB, ProdId, Ord>>(cudaGraph, deviceIds);
 
         auto computationState        = std::make_shared<OuterProductComputationState<MatrixType, IdC, ProdId, Ord>>(
@@ -204,7 +204,7 @@ private:
             mTiles*nTiles*subA->subMatrixNumColTiles() + myTiles*(getNumNodes()-1)
         );
         auto computationStateManager = std::make_shared<OuterProductComputationStateManager<MatrixType, IdC, ProdId, Ord>>(computationState);
-        auto outputState             = std::make_shared<OuterProductOutputState<MatrixType, IdC, Ord>>(mTiles, nTiles, subA->subMatrixNumColTiles());//FIXME
+        auto outputState             = std::make_shared<OuterProductOutputState<MatrixType, IdC, Ord>>(mTiles, nTiles, subA->subMatrixNumColTiles());
         auto outputStateManager      = std::make_shared<hh::StateManager<1,
             MatrixTile<MatrixType, IdC, Ord>,
             MatrixTile<MatrixType, IdC, Ord>
@@ -253,11 +253,11 @@ private:
     }
 
     [[nodiscard]] std::string matTypeA() const override {
-        return "Sub";
+        return "ContiguousSub";
     }
 
     [[nodiscard]] std::string matTypeB() const override {
-        return "Sub";
+        return "ContiguousSub";
     }
 
     [[nodiscard]] std::string matTypeC() const override {

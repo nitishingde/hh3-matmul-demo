@@ -59,7 +59,7 @@ public:
         size_t M = matrixC->matrixHeight(), N = matrixC->matrixWidth(), K = matrixA->matrixWidth();
         double time = double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9;
         //https://forums.developer.nvidia.com/t/how-to-compute-gflops-for-gemm-blas/20218/6
-        double gflops = (M*N*(2*K+2))/(1.e9*time);
+        double gflops = (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time);
         printf(
             "[ " GREEN("MMD") " ][ Strategy = " GREEN("%-12s") " ][ A = " GREEN("%-13s") " ][ B = " GREEN("%-13s") " ][ C = " GREEN("%-13s") " ][ " CYAN("%9.3f") " gflops ][ " RED("%8.3f") " secs ]\n",
             strategy().c_str(),

@@ -83,6 +83,7 @@ private:
         const std::vector<int32_t> &deviceIds,
         std::string dotFile
     ) override {
+        assert((std::is_same_v<MatrixType, double> or std::is_same_v<MatrixType, float>));
 
         auto subA = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Col, MatrixType, IdA, Ord>>(matrixA);
         auto subB = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Row, MatrixType, IdB, Ord>>(matrixB);
@@ -106,7 +107,8 @@ private:
                 (double *) subB->data(), subB->leadingDimension(),
                 (double *) (&beta), (double *) matC->data(), matC->leadingDimension()
             ));
-        } else {
+        }
+        else {
             checkCudaErrors(cublasXtSgemm(
                 handle, CUBLAS_OP_N, CUBLAS_OP_N,
                 m, n, k, (float *) (&alpha),
@@ -123,25 +125,22 @@ private:
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(matC->data(), tempC.data(), m*n, MPI_DOUBLE, MPI_SUM, 0, matC->mpiComm());
         }
-        else if constexpr(std::is_same_v<MatrixType, float>) {
-            MPI_Reduce(matC->data(), tempC.data(), m*n, MPI_FLOAT, MPI_SUM, 0, matC->mpiComm());
-        }
         else {
-            throw std::runtime_error("Type not supported\n");
+            MPI_Reduce(matC->data(), tempC.data(), m*n, MPI_FLOAT, MPI_SUM, 0, matC->mpiComm());
         }
         std::memcpy(matC->data(), tempC.data(), sizeof(MatrixType)*tempC.size());
     }
 
     [[nodiscard]] std::string strategy() const override {
-        return "CublasXt";
+        return "CublasXt+MPI";
     }
 
     [[nodiscard]] std::string matTypeA() const override {
-        return "Sub";
+        return "ContiguousSub";
     }
 
     [[nodiscard]] std::string matTypeB() const override {
-        return "Sub";
+        return "ContiguousSub";
     }
 
     [[nodiscard]] std::string matTypeC() const override {

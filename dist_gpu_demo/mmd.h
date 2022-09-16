@@ -19,6 +19,7 @@
 #include "task/comm_tasks.h"
 #include "task/matrix_col_traversal_task.h"
 #include "task/matrix_row_traversal_task.h"
+#include <cblas.h>
 
 template<class MatrixType, char IdA, char IdB, char IdC, Order Ord>
 class MMD_Strategy {
@@ -133,6 +134,75 @@ private:
 
     [[nodiscard]] std::string strategy() const override {
         return "CublasXt+MPI";
+    }
+
+    [[nodiscard]] std::string matTypeA() const override {
+        return "ContiguousSub";
+    }
+
+    [[nodiscard]] std::string matTypeB() const override {
+        return "ContiguousSub";
+    }
+
+    [[nodiscard]] std::string matTypeC() const override {
+        return "Redundant";
+    }
+
+    [[nodiscard]] std::string className() const override {
+        return NAME(MMD_VerifyCublas);
+    }
+};
+
+template<class MatrixType, char IdA, char IdB, char IdC, Order Ord>
+class MMD_VerifyOpenblas: public MMD_Strategy<MatrixType, IdA, IdB, IdC, Ord> {
+private:
+    void executeImpl(
+        std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
+        std::shared_ptr<MatrixContainer<MatrixType, IdB, Ord>> matrixB,
+        std::shared_ptr<MatrixContainer<MatrixType, IdC, Ord>> matrixC,
+        const std::vector<int32_t> &deviceIds,
+        std::string dotFile
+    ) override {
+        assert((std::is_same_v<MatrixType, double> or std::is_same_v<MatrixType, float>));
+
+        auto subA = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Col, MatrixType, IdA, Ord>>(matrixA);
+        auto subB = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Row, MatrixType, IdB, Ord>>(matrixB);
+        auto matC = std::static_pointer_cast<RedundantMatrixContainer<MatrixType, IdC, Ord>>(matrixC);
+        size_t m = matC->matrixHeight(), k = subA->subMatrixWidth(), n = matC->matrixWidth();
+        size_t tileSize = matC->matrixTileSize();
+
+        if constexpr(std::is_same<MatrixType, double>::value) {
+            cblas_dgemm(
+                CblasColMajor, CblasNoTrans, CblasNoTrans,
+                m, n, k, 1,
+                (double *) subA->data(), subA->leadingDimension(),
+                (double *) subB->data(), subB->leadingDimension(), 1,
+                (double *) matC->data(), matC->leadingDimension()
+            );
+        }
+        else {
+            cblas_sgemm(
+                CblasColMajor, CblasNoTrans, CblasNoTrans,
+                m, n, k, 1,
+                (float *) subA->data(), subA->leadingDimension(),
+                (float *) subB->data(), subB->leadingDimension(), 1,
+                (float *) matC->data(), matC->leadingDimension()
+            );
+        }
+
+        std::vector<MatrixType> tempC((isRootNodeId()? m*n: 0));
+        if constexpr(std::is_same_v<MatrixType, double>) {
+            MPI_Reduce(matC->data(), tempC.data(), m*n, MPI_DOUBLE, MPI_SUM, 0, matC->mpiComm());
+        }
+        else {
+            MPI_Reduce(matC->data(), tempC.data(), m*n, MPI_FLOAT, MPI_SUM, 0, matC->mpiComm());
+        }
+
+        std::memcpy(matC->data(), tempC.data(), sizeof(MatrixType)*tempC.size());
+    }
+
+    [[nodiscard]] std::string strategy() const override {
+        return "OpenBlas+MPI";
     }
 
     [[nodiscard]] std::string matTypeA() const override {

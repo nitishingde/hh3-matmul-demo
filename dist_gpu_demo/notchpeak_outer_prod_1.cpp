@@ -10,7 +10,7 @@
 #define DUMP_DATA  false
 
 int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
-    using MatrixType = double;
+    using MatrixType = float;
     constexpr Order Ord = Order::Col;
     using namespace std::chrono_literals;
 

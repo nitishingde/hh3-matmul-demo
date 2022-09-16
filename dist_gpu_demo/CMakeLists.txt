@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts")
 
 find_package(MPI REQUIRED)
+find_package(OpenBLAS REQUIRED PATHS /home/sci/nitish/.local)#FIXME
 
 include(FetchContent)
 
@@ -54,6 +55,7 @@ target_include_directories(dist_matmul
     PUBLIC
         ${CUDA_INCLUDE_DIRS}
         ${Hedgehog_INCLUDE_DIRS}
+        ${OpenBLAS_INCLUDE_DIRS}
         ${TCLAP_SOURCE_DIR}/include/
 )
 target_link_libraries(dist_matmul
@@ -62,6 +64,7 @@ target_link_libraries(dist_matmul
         ${CUDA_LIBRARIES}
         ${Hedgehog_LIBRARIES}
         MPI::MPI_C
+        ${OpenBLAS_LIBRARIES}
 )
 
 add_executable(dist_test_data test_data.cpp)

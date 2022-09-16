@@ -122,6 +122,12 @@ private:
         checkCudaErrors(cudaDeviceSynchronize());
         checkCudaErrors(cublasXtDestroy(handle));
 
+        // free up space
+        matrixA = nullptr;
+        matrixB = nullptr;
+        subA = nullptr;
+        subB = nullptr;
+
         std::vector<MatrixType> tempC((isRootNodeId()? m*n: 0));
         if constexpr(std::is_same_v<MatrixType, double>) {
             MPI_Reduce(matC->data(), tempC.data(), m*n, MPI_DOUBLE, MPI_SUM, 0, matC->mpiComm());
@@ -189,6 +195,12 @@ private:
                 (float *) matC->data(), matC->leadingDimension()
             );
         }
+
+        // free up space
+        matrixA = nullptr;
+        matrixB = nullptr;
+        subA = nullptr;
+        subB = nullptr;
 
         std::vector<MatrixType> tempC((isRootNodeId()? m*n: 0));
         if constexpr(std::is_same_v<MatrixType, double>) {

@@ -45,21 +45,17 @@ add_library(dist_matmul
     task/matrix_row_traversal_task.h
     task/ttl_managed_memory_recycler_task.h
 )
-
 set_target_properties(dist_matmul PROPERTIES LINKER_LANGUAGE CXX)
-
 target_compile_definitions(dist_matmul
     PUBLIC
         HH_USE_CUDA
 )
-
 target_include_directories(dist_matmul
     PUBLIC
         ${CUDA_INCLUDE_DIRS}
         ${Hedgehog_INCLUDE_DIRS}
         ${TCLAP_SOURCE_DIR}/include/
 )
-
 target_link_libraries(dist_matmul
     PUBLIC
         ${CUDA_CUBLAS_LIBRARIES}

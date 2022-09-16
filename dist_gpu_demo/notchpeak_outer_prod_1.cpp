@@ -2,58 +2,12 @@
 #include "data/cyclic2d_matrix_container.h"
 #include "data/redundant_matrix_container.h"
 #include "data/contiguous_sub_matrix_container.h"
+#include "matrix_init.h"
 #include "mmd.h"
 #include <cstdio>
 
 #define VERIFY_MMD true
 #define DUMP_DATA  false
-
-template<Order SubMatrixOrder, class MatrixType, char Id, Order Ord>
-void init(std::shared_ptr<ContiguousSubMatrixContainer<SubMatrixOrder, MatrixType, Id, Ord>> subMat) {
-    std::for_each(
-        subMat->data(),
-        subMat->data() + subMat->subMatrixHeight()*subMat->subMatrixWidth(),
-        [](MatrixType &val) { val = fastrand()%10; }
-    );
-}
-
-template<class MatrixType, char Id, Order Ord>
-void init(std::shared_ptr<Cyclic2dMatrixContainer<MatrixType, Id, Ord>> cyclic2dMatrix) {
-    for(uint32_t i = 0; i < cyclic2dMatrix->matrixNumColTiles(); ++i) {
-        for(uint32_t j = 0; j < cyclic2dMatrix->matrixNumRowTiles(); ++j) {
-            if(auto tile = cyclic2dMatrix->getTile(i, j); (tile != nullptr) and (tile->sourceNodeId() == getNodeId())) {
-                std::for_each(tile->data(), tile->data()+tile->dataSize(), [](MatrixType &val) { val = getNodeId(); });
-            }
-        }
-    }
-}
-
-template<class MatrixType, char Id, Order Ord>
-void init(std::shared_ptr<RedundantMatrixContainer<MatrixType, Id, Ord>> redundantMatrix) {
-    if(isRootNodeId()) {
-        for(uint32_t idx = 0; idx < redundantMatrix->matrixNumRowTiles()*redundantMatrix->matrixNumColTiles(); ++idx) {
-            uint32_t rowIdx = idx/redundantMatrix->matrixNumColTiles(), colIdx = idx%redundantMatrix->matrixNumColTiles();
-            if(auto tile = redundantMatrix->getTile(rowIdx, colIdx); tile != nullptr) {
-                if constexpr(Ord == Order::Col) {
-                    uint32_t value = idx%getNumNodes();
-                    for(uint32_t jj = 0; jj < tile->width(); ++jj) {
-                        std::for_each(
-                            &tile->data()[jj*tile->leadingDimension()],
-                            &tile->data()[jj*tile->leadingDimension()+tile->height()],
-                            [value](MatrixType &val) { val = value; }
-                        );
-                    }
-                }
-                else {
-                    throw;
-                }
-            }
-        }
-    }
-    else {
-        std::memset(redundantMatrix->data(), 0, redundantMatrix->dataSize()*sizeof(MatrixType));
-    }
-}
 
 int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     using MatrixType = double;
@@ -71,6 +25,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     int32_t devCount = 0;
     cudaGetDeviceCount(&devCount);
+    devCount--;
     std::vector<int32_t> deviceIds;
     deviceIds.reserve(8);
     for(int32_t i = 0; i < devCount; ++i) deviceIds.emplace_back(i);

@@ -104,6 +104,9 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 
     MPI_Bcast(redundantMatrixC->data(), M*N, std::is_same_v<MatrixType, double>? MPI_DOUBLE: MPI_FLOAT, 0, redundantMatrixC->mpiComm());
+    MPI_Barrier(MPI_COMM_WORLD);
+    if(isRootNodeId()) printf("Verifying solution.\n");
+
     for(uint32_t i = 0; i < redundantMatrixC->matrixNumRowTiles(); ++i) {
         for(uint32_t j = 0; j < redundantMatrixC->matrixNumColTiles(); ++j) {
             if(auto tile = matrixC->getTile(i, j); tile->sourceNodeId() != getNodeId()) continue;

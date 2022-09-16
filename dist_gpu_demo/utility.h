@@ -92,7 +92,7 @@ private:
 
 // Argument parser -------------------------------------------------------------------------------------------------- //
 
-std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> parseArgs(int argc, char **argv) {
+std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, std::string> parseArgs(int argc, char **argv) {
     try {
         TCLAP::CmdLine cmd("Command description message", ' ', "1.0");
 
@@ -104,13 +104,15 @@ std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> parseArgs(int argc, char **ar
         cmd.add(argN);
         TCLAP::ValueArg<int32_t> argT("T", "tileSize", "tile size",                           false,  8192, "non negative integer value");
         cmd.add(argT);
+        TCLAP::ValueArg<std::string> argP("P", "path", "scratch/tmp dir path",                false,  "./", "dir path");
+        cmd.add(argP);
 
         cmd.parse(argc, argv);
-        return {argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue()};
+        return {argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argP.getValue()};
     }
     catch (TCLAP::ArgException e) {
         fprintf(stderr, "[Error] %s for arg %s\n", e.error().c_str(), e.argId().c_str());
-        return {32768, 32768, 32768, 8192};
+        return {32768, 32768, 32768, 8192, "./"};
     }
 }
 

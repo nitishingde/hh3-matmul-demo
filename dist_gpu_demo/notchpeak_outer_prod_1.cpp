@@ -5,7 +5,8 @@
 #include "mmd.h"
 #include <cstdio>
 
-#define VERIFY_MM 1
+#define VERIFY_MMD true
+#define DUMP_DATA  false
 
 template<Order SubMatrixOrder, class MatrixType, char Id, Order Ord>
 void init(std::shared_ptr<ContiguousSubMatrixContainer<SubMatrixOrder, MatrixType, Id, Ord>> subMat) {
@@ -65,7 +66,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm);
     MPI_Barrier(matrixComm);
 
-    auto [M, K, N, tileSize] = parseArgs(argc, argv);
+    auto [M, K, N, tileSize, path] = parseArgs(argc, argv);
     printf("[Process %d] M = %d, K = %d, N = %d, tileSize = %d\n", getNodeId(), M, K, N, tileSize);
 
     int32_t devCount = 0;
@@ -91,7 +92,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         MMD_MpiOuterProduct1<MatrixType, 'a', 'b', 'c', Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
     }
 
-#if VERIFY_MM
+#if VERIFY_MMD
     auto redundantMatrixC = std::make_shared<RedundantMatrixContainer<MatrixType, 'c', Ord>>(3, M, N, tileSize, matrixComm, isRootNodeId());
     init(redundantMatrixC);
 
@@ -117,10 +118,11 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 #endif
 
+#if DUMP_DATA
     for(uint32_t i = 0; i < matrixC->matrixNumColTiles(); ++i) {
         for(uint32_t j = 0; j < matrixC->matrixNumRowTiles(); ++j) {
             if(auto tile = matrixC->getTile(i, j); tile->sourceNodeId() == getNodeId()) {
-                std::string fileName = "matrix_tile_"+std::to_string(i)+"_"+std::to_string(j)+".dat";
+                std::string fileName = path+"/matrix_tile_"+std::to_string(i)+"_"+std::to_string(j)+".dat";
                 printf("[Process %d] Writing to file %s\n", getNodeId(), fileName.c_str());
                 auto pFile = fopen(fileName.c_str(), "w");
                 fwrite(tile->data(), sizeof(MatrixType), tile->dataSize(), pFile);
@@ -128,6 +130,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
             }
         }
     }
+#endif
 
     MPI_Comm_free(&matrixComm);
 

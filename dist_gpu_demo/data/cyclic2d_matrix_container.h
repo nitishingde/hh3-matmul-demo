@@ -64,6 +64,16 @@ public:
         return typeid(Cyclic2dMatrixContainer).hash_code();
     }
 
+    void shrink() {
+        for(uint32_t i = 0; i < grid_.size(); ++i) {
+            for(uint32_t j = 0; j < grid_[0].size(); ++j) {
+                if(auto tile = grid_[i][j]; (tile == nullptr) or (tile->sourceNodeId() != this->nodeId())) {
+                    grid_[i][j] = nullptr;
+                }
+            }
+        }
+    }
+
 private:
     std::vector<std::vector<std::shared_ptr<MatrixTile<MatrixType, Id, Ord>>>> grid_ = {};
 };

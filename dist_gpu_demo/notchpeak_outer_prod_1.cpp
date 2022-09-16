@@ -90,6 +90,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     {
         MPI_Barrier(MPI_COMM_WORLD);
         MMD_MpiOuterProduct1<MatrixType, 'a', 'b', 'c', Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
+        matrixC->shrink();
     }
 
 #if VERIFY_MMD
@@ -109,7 +110,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     for(uint32_t i = 0; i < redundantMatrixC->matrixNumRowTiles(); ++i) {
         for(uint32_t j = 0; j < redundantMatrixC->matrixNumColTiles(); ++j) {
-            if(auto tile = matrixC->getTile(i, j); tile->sourceNodeId() != getNodeId()) continue;
+            if(auto tile = matrixC->getTile(i, j); tile == nullptr or tile->sourceNodeId() != getNodeId()) continue;
             else if(*tile != *redundantMatrixC->getTile(i, j)) {
                 std::cerr << "[Error] tile @[" + std::to_string(i) + ", " + std::to_string(j) + "] don't match.\n";
 #if not NDEBUG

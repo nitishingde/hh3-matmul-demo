@@ -60,7 +60,6 @@ public:
     }
 
     virtual bool init() = 0;//FIXME: needed?
-    /**
     virtual std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint64_t rowIdx, uint64_t colIdx) = 0;
     virtual uint64_t typeId() = 0;
 

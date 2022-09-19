@@ -37,7 +37,7 @@ template<class MatrixType, char Id, Order Ord = Order::Col>
 requires std::is_floating_point_v<MatrixType> //FIXME: use concepts
 class MatrixContainer {
 public:
-    explicit MatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize, const MPI_Comm mpiComm = MPI_COMM_WORLD):
+    explicit MatrixContainer(const uint32_t contextId, const uint64_t matrixHeight, const uint64_t matrixWidth, const uint64_t tileSize, const MPI_Comm mpiComm = MPI_COMM_WORLD):
         contextId_(contextId), mpiComm_(mpiComm) {
         matrixMetaData_ = {
             .matrixHeight = matrixHeight,
@@ -60,19 +60,20 @@ public:
     }
 
     virtual bool init() = 0;//FIXME: needed?
-    virtual std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint32_t rowIdx, uint32_t colIdx) = 0;
-    virtual uint32_t typeId() = 0;
+    /**
+    virtual std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint64_t rowIdx, uint64_t colIdx) = 0;
+    virtual uint64_t typeId() = 0;
 
     // Getters/Setters
     [[nodiscard]] uint32_t contextId() { return contextId_; }
     [[nodiscard]] MatrixMetaData matrixMetaData() const { return matrixMetaData_; }
-    [[nodiscard]] uint32_t matrixHeight() const { return matrixMetaData_.matrixHeight; }
-    [[nodiscard]] uint32_t matrixWidth() const { return matrixMetaData_.matrixWidth; }
-//    [[nodiscard]] uint32_t matrixTileHeight() const { return matrixMetaData_.tileHeight; }
-//    [[nodiscard]] uint32_t matrixTileWidth() const { return matrixMetaData_.tileWidth; }
-    [[nodiscard]] uint32_t matrixTileSize() const { return matrixMetaData_.tileSize; }
-    [[nodiscard]] uint32_t matrixNumRowTiles() const { return matrixMetaData_.numRowTiles; }
-    [[nodiscard]] uint32_t matrixNumColTiles() const { return matrixMetaData_.numColTiles; }
+    [[nodiscard]] uint64_t matrixHeight() const { return matrixMetaData_.matrixHeight; }
+    [[nodiscard]] uint64_t matrixWidth() const { return matrixMetaData_.matrixWidth; }
+//    [[nodiscard]] uint64_t matrixTileHeight() const { return matrixMetaData_.tileHeight; }
+//    [[nodiscard]] uint64_t matrixTileWidth() const { return matrixMetaData_.tileWidth; }
+    [[nodiscard]] uint64_t matrixTileSize() const { return matrixMetaData_.tileSize; }
+    [[nodiscard]] uint64_t matrixNumRowTiles() const { return matrixMetaData_.numRowTiles; }
+    [[nodiscard]] uint64_t matrixNumColTiles() const { return matrixMetaData_.numColTiles; }
     [[nodiscard]] const MPI_Comm& mpiComm() const { return mpiComm_; }
     [[nodiscard]] uint32_t nodeId() const { return nodeId_; }
     [[nodiscard]] uint32_t numNodes() const { return numNodes_; }

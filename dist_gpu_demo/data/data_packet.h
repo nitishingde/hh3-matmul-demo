@@ -28,7 +28,7 @@
  */
 class DataPacket: public hh::ManagedMemory {
 public:
-    explicit DataPacket(uint32_t contextId, uint32_t bufferSize): contextId_(contextId), bufferSize_(bufferSize) {
+    explicit DataPacket(uint32_t contextId, uint64_t bufferSize): contextId_(contextId), bufferSize_(bufferSize) {
         pBufferData_ = new uint8_t[bufferSize];
     }
 
@@ -45,13 +45,13 @@ public:
     [[nodiscard]] uint32_t contextId() { return contextId_; }
     void contextId(uint32_t contextId) { contextId_ = contextId; }
     [[nodiscard]] uint8_t* data() { return pBufferData_; }
-    [[nodiscard]] uint32_t size() { return bufferSize_; }
+    [[nodiscard]] uint64_t size() { return bufferSize_; }
     void setToRecycle() { canBeRecycled_ = true; }
 
 private:
     uint32_t contextId_   = 0;
     uint8_t *pBufferData_ = nullptr;
-    uint32_t bufferSize_  = 0;
+    uint64_t bufferSize_  = 0;
     bool canBeRecycled_   = false;
 };
 

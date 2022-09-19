@@ -16,12 +16,12 @@ int main(int argc, char **argv) {
     MPI_Barrier(matrixComm);
 
     auto subMatA = std::make_shared<ContiguousSubMatrixContainer<Order::Col, MatrixType, 'A', Ord>>(0, 75, 78, 8, matrixComm);
-    for(uint32_t i = 0; i < subMatA->subMatrixWidth()*subMatA->subMatrixHeight(); ++i) {
+    for(uint64_t i = 0; i < subMatA->subMatrixWidth()*subMatA->subMatrixHeight(); ++i) {
         subMatA->data()[i] = i;
     }
 
     auto subMatB = std::make_shared<ContiguousSubMatrixContainer<Order::Row, MatrixType, 'B', Ord>>(1, 78, 75, 8, matrixComm);
-    for(uint32_t i = 0; i < subMatB->subMatrixWidth()*subMatB->subMatrixHeight(); ++i) {
+    for(uint64_t i = 0; i < subMatB->subMatrixWidth()*subMatB->subMatrixHeight(); ++i) {
         subMatB->data()[i] = i;
     }
 

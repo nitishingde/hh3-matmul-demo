@@ -26,7 +26,7 @@
 template<class MatrixType, char Id, Order Ord>
 class Cyclic2dReceiverTask: public hh::AbstractTask<1, void*, MatrixTile<MatrixType, Id, Ord>> {
 public:
-    explicit Cyclic2dReceiverTask(int32_t expectedCount):
+    explicit Cyclic2dReceiverTask(uint64_t expectedCount):
         hh::AbstractTask<1, void *, MatrixTile<MatrixType, Id, Ord>>("Cyclic2d Receiver Task", 1, true),
         expectedCount_(expectedCount) {}
 
@@ -84,7 +84,7 @@ private:
     }
 
 private:
-    int32_t expectedCount_ = 0;
+    int64_t expectedCount_ = 0;
     struct Request {
         std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> tile_ = nullptr;
         MPI_Request mpiRequest_ {};
@@ -96,7 +96,7 @@ private:
 template<class MatrixType, char Id, Order Ord>
 class Cyclic2dSenderTask: public hh::AbstractTask<1, MatrixTile<MatrixType, Id, Ord>, void*> {
 public:
-    explicit Cyclic2dSenderTask(size_t numOfThreads, size_t expectedCount):
+    explicit Cyclic2dSenderTask(uint32_t numOfThreads, uint64_t expectedCount):
             hh::AbstractTask<1, MatrixTile<MatrixType, Id, Ord>, void*>("Cyclic2d Sender Task", numOfThreads, false),
             expectedCount_(expectedCount) {}
 
@@ -115,7 +115,7 @@ public:
     }
 
 private:
-    int32_t expectedCount_ = 0;//FIXME: is it needed?
+    int64_t expectedCount_ = 0;//FIXME: is it needed?
 };
 
 

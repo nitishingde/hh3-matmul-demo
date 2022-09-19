@@ -23,13 +23,11 @@
 #include <cstdint>
 
 struct MatrixMetaData {
-    uint32_t matrixHeight = 0;
-    uint32_t matrixWidth  = 0;
-//    uint32_t tileHeight   = 0;
-//    uint32_t tileWidth    = 0;
-    uint32_t tileSize     = 0;
-    uint32_t numRowTiles  = 0;
-    uint32_t numColTiles  = 0;
+    uint64_t matrixHeight = 0;
+    uint64_t matrixWidth  = 0;
+    uint64_t tileSize     = 0;
+    uint64_t numRowTiles  = 0;
+    uint64_t numColTiles  = 0;
 };
 
 #endif //HH3_MATMUL_MATRIX_META_DATA_H

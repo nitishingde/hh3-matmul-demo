@@ -249,12 +249,12 @@ private:
         auto subB = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Row, MatrixType, IdB, Ord>>(matrixB);
         auto matC = std::static_pointer_cast<Cyclic2dMatrixContainer<MatrixType, IdC, Ord>>(matrixC);
 
-        const uint32_t mTiles   = matrixC->matrixNumRowTiles();
-        const uint32_t kTiles   = matrixA->matrixNumColTiles();
-        const uint32_t nTiles   = matrixC->matrixNumColTiles();
-        const uint32_t tileSize = matrixC->matrixTileSize();
+        const uint64_t mTiles   = matrixC->matrixNumRowTiles();
+        const uint64_t kTiles   = matrixA->matrixNumColTiles();
+        const uint64_t nTiles   = matrixC->matrixNumColTiles();
+        const uint64_t tileSize = matrixC->matrixTileSize();
 
-        uint32_t myTiles = mTiles*nTiles;
+        uint64_t myTiles = mTiles*nTiles;
         myTiles = (myTiles/getNumNodes()) + ((matrixC->nodeId() < (myTiles%matrixC->numNodes()))? 1: 0);//TODO: verify calculations
 
         // create nodes
@@ -273,7 +273,7 @@ private:
         auto senderTask           = std::make_shared<Cyclic2dSenderTask<MatrixType, IdC, Ord>>(8, mTiles*nTiles-myTiles);
         auto receiverTask         = std::make_shared<Cyclic2dReceiverTask<MatrixType, ProdId, Ord>>(myTiles*(getNumNodes()-1));
 
-        auto memoryManager = std::make_shared<hh::StaticMemoryManager<MatrixTile<MatrixType, ProdId, Ord>, uint32_t>>(8, tileSize);
+        auto memoryManager = std::make_shared<hh::StaticMemoryManager<MatrixTile<MatrixType, ProdId, Ord>, uint64_t>>(8, tileSize);
         receiverTask->connectMemoryManager(memoryManager);
 
         auto cudaGraph    = std::make_shared<OuterProductCudaGraph<MatrixType, IdA, IdB, ProdId, Ord>>(mTiles, kTiles, nTiles, tileSize);

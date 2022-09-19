@@ -63,8 +63,8 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     if(isRootNodeId()) printf("Verifying solution.\n");
 
-    for(uint32_t i = 0; i < redundantMatrixC->matrixNumRowTiles(); ++i) {
-        for(uint32_t j = 0; j < redundantMatrixC->matrixNumColTiles(); ++j) {
+    for(uint64_t i = 0; i < redundantMatrixC->matrixNumRowTiles(); ++i) {
+        for(uint64_t j = 0; j < redundantMatrixC->matrixNumColTiles(); ++j) {
             if(auto tile = matrixC->getTile(i, j); tile == nullptr or tile->sourceNodeId() != getNodeId()) continue;
             else if(*tile != *redundantMatrixC->getTile(i, j)) {
                 std::cerr << "[Error] tile @[" + std::to_string(i) + ", " + std::to_string(j) + "] don't match.\n";
@@ -78,8 +78,8 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 #endif
 
 #if DUMP_DATA
-    for(uint32_t i = 0; i < matrixC->matrixNumColTiles(); ++i) {
-        for(uint32_t j = 0; j < matrixC->matrixNumRowTiles(); ++j) {
+    for(uint64_t i = 0; i < matrixC->matrixNumColTiles(); ++i) {
+        for(uint64_t j = 0; j < matrixC->matrixNumRowTiles(); ++j) {
             if(auto tile = matrixC->getTile(i, j); tile->sourceNodeId() == getNodeId()) {
                 std::string fileName = path+"/matrix_tile_"+std::to_string(i)+"_"+std::to_string(j)+".dat";
                 printf("[Process %d] Writing to file %s\n", getNodeId(), fileName.c_str());

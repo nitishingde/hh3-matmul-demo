@@ -30,7 +30,7 @@ class CudaCopyOutGpuTask:
         TtlManagedMemory                        //out2
     > {
 public:
-    explicit CudaCopyOutGpuTask(size_t threadCount):
+    explicit CudaCopyOutGpuTask(uint32_t threadCount):
         hh::AbstractCUDATask<1, CudaMatrixTile<MatrixType, Id, Ord>, MatrixTile<MatrixType, Id, Ord>, TtlManagedMemory>(
             "Cuda Copy out GPU Task",
             threadCount,

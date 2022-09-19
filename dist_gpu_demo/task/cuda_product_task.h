@@ -33,7 +33,7 @@ private:
     cublasHandle_t handle_{};
 
 public:
-    explicit CudaProductTask(size_t threadCount):
+    explicit CudaProductTask(uint32_t threadCount):
         hh::AbstractCUDATask<1, InputTilePair, CudaMatrixTile<MatrixType, OutId, Ord>, TtlManagedMemory>(
             "Cuda Product Task",
             threadCount,

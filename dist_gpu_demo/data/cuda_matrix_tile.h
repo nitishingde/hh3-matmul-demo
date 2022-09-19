@@ -36,7 +36,7 @@
 template<class MatrixType, char Id, Order Ord = Order::Col>
 class CudaMatrixTile: public CudaMemory, public TtlManagedMemory {
 public:
-    explicit CudaMatrixTile(uint32_t tileSize): CudaMemory(sizeof(MatrixType)*tileSize*tileSize), tileSize_(tileSize) {
+    explicit CudaMatrixTile(uint64_t tileSize): CudaMemory(sizeof(MatrixType)*tileSize*tileSize), tileSize_(tileSize) {
         resetMatrixTileMetaData();
     }
 
@@ -47,12 +47,12 @@ public:
     // Getters/Setters
     [[nodiscard]] const MatrixTileMetaData& matrixTileMetaData() const { return matrixTileMetaData_; }
     void matrixTileMetaData(const MatrixTileMetaData &matrixTileMetaData) { matrixTileMetaData_ = matrixTileMetaData; }
-    [[nodiscard]] uint32_t rowIdx() const { return matrixTileMetaData_.rowIdx; }
-    [[nodiscard]] uint32_t colIdx() const { return matrixTileMetaData_.colIdx; }
-    [[nodiscard]] uint32_t height() const { return matrixTileMetaData_.height; }
-    [[nodiscard]] uint32_t width() const { return matrixTileMetaData_.width; }
-    [[nodiscard]] uint32_t tileSize() const { return tileSize_; }
-    [[nodiscard]] uint32_t leadingDimension() {
+    [[nodiscard]] uint64_t rowIdx() const { return matrixTileMetaData_.rowIdx; }
+    [[nodiscard]] uint64_t colIdx() const { return matrixTileMetaData_.colIdx; }
+    [[nodiscard]] uint64_t height() const { return matrixTileMetaData_.height; }
+    [[nodiscard]] uint64_t width() const { return matrixTileMetaData_.width; }
+    [[nodiscard]] uint64_t tileSize() const { return tileSize_; }
+    [[nodiscard]] uint64_t leadingDimension() {
         if constexpr(Ord == Order::Col) {
             return matrixTileMetaData_.height;
         }
@@ -71,7 +71,7 @@ private:
 
 private:
     MatrixTileMetaData matrixTileMetaData_ = {};
-    uint32_t tileSize_                     = 0;
+    uint64_t tileSize_                     = 0;
 };
 
 #endif //HH3_MATMUL_CUDA_MATRIX_TILE_H

@@ -33,7 +33,7 @@
 template<class MatrixType, char Id, Order Ord = Order::Col>
 class RedundantMatrixContainer: public MatrixContainer<MatrixType, Id, Ord> {
 public:
-    explicit RedundantMatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize, const MPI_Comm mpiComm, const bool isSourceNode = false, MatrixType *pMatrixData = nullptr)
+    explicit RedundantMatrixContainer(const uint32_t contextId, const uint64_t matrixHeight, const uint64_t matrixWidth, const uint64_t tileSize, const MPI_Comm mpiComm, const bool isSourceNode = false, MatrixType *pMatrixData = nullptr)
         : MatrixContainer<MatrixType, Id, Ord>(contextId, matrixHeight, matrixWidth, tileSize, mpiComm),
           pData_(pMatrixData), isSelfAllocated_(pMatrixData == nullptr),
           isSourceNode_(isSourceNode) {
@@ -61,7 +61,7 @@ public:
         return false;
     }
 
-    std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint32_t rowIdx, uint32_t colIdx) override {
+    std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint64_t rowIdx, uint64_t colIdx) override {
         return std::make_shared<MatrixTile<MatrixType, Id, Ord>>(
             this->contextId(),
             sourceNode_,
@@ -70,19 +70,19 @@ public:
         );
     }
 
-    uint32_t typeId() override {
+    uint64_t typeId() override {
         return typeid(RedundantMatrixContainer).hash_code();
     }
 
     // Getters/Setters
-    [[nodiscard]] uint32_t leadingDimension() const {
+    [[nodiscard]] uint64_t leadingDimension() const {
         if constexpr(Ord == Order::Col) {
             return this->matrixHeight();
         }
         return this->matrixWidth();
     }
     [[nodiscard]] MatrixType* data() { return pData_; }
-    [[nodiscard]] uint32_t dataSize() { return this->matrixHeight()*this->matrixWidth(); }
+    [[nodiscard]] uint64_t dataSize() { return this->matrixHeight()*this->matrixWidth(); }
 
     friend std::ostream& operator<<(std::ostream &os, const RedundantMatrixContainer &data) {
         os << "Redundant Matrix Data " << Id

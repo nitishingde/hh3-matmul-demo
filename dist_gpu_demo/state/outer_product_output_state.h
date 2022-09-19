@@ -30,14 +30,14 @@ class OuterProductOutputState:
         MatrixTile<MatrixType, OutIdC, Ord>   //out1
     > {
 public:
-    OuterProductOutputState(uint32_t mTiles, uint32_t nTiles, int32_t const &ttl):
+    OuterProductOutputState(uint64_t mTiles, uint64_t nTiles, int32_t ttl):
         ttl_(std::vector<int32_t>(mTiles*nTiles, ttl)),
         mTiles_(mTiles), nTiles_(nTiles) {}
 
     virtual ~OuterProductOutputState() = default;
 
     void execute(std::shared_ptr<MatrixTile<MatrixType, OutIdC, Ord>> matrixTile) override {
-        uint32_t idx = matrixTile->rowIdx()*nTiles_ + matrixTile->colIdx();
+        uint64_t idx = matrixTile->rowIdx()*nTiles_ + matrixTile->colIdx();
         --ttl_[idx];
         if(ttl_[idx] == 0) {
             this->addResult(matrixTile);
@@ -45,8 +45,8 @@ public:
     }
 
     friend std::ostream &operator<<(std::ostream &os, OuterProductOutputState const &state) {
-        for(size_t i = 0; i < state.gridHeightTTL_; ++i){
-            for(size_t j = 0; j < state.gridWidthTTL_; ++j) {
+        for(uint64_t i = 0; i < state.gridHeightTTL_; ++i){
+            for(uint64_t j = 0; j < state.gridWidthTTL_; ++j) {
                 os << state.ttl_[i*state.gridWidthTTL_ + j] << " ";
             }
             os << std::endl;
@@ -56,8 +56,8 @@ public:
 
 private:
     std::vector<int32_t>  ttl_ = {};
-    uint32_t mTiles_           = 0;
-    uint32_t nTiles_           = 0;
+    uint64_t mTiles_           = 0;
+    uint64_t nTiles_           = 0;
 };
 
 #endif //HH3_MATMUL_OUTER_PRODUCT_OUTPUT_STATE_H

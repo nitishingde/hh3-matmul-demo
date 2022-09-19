@@ -92,17 +92,17 @@ private:
 
 // Argument parser -------------------------------------------------------------------------------------------------- //
 
-std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, std::string> parseArgs(int argc, char **argv) {
+std::tuple<uint64_t, uint64_t, uint64_t, uint64_t, std::string> parseArgs(int argc, char **argv) {
     try {
         TCLAP::CmdLine cmd("Command description message", ' ', "1.0");
 
-        TCLAP::ValueArg<int32_t> argM("M", "mdim", "height of matrix A / height of matrix C", false, 32768, "non negative integer value");
+        TCLAP::ValueArg<uint64_t> argM("M", "mdim", "height of matrix A / height of matrix C", false, 32768, "non negative integer value");
         cmd.add(argM);
-        TCLAP::ValueArg<int32_t> argK("K", "kdim", "width of matrix A / height of matrix B",  false, 32768, "non negative integer value");
+        TCLAP::ValueArg<uint64_t> argK("K", "kdim", "width of matrix A / height of matrix B",  false, 32768, "non negative integer value");
         cmd.add(argK);
-        TCLAP::ValueArg<int32_t> argN("N", "ndim", "width of matrix B / width of matrix C",   false, 32768, "non negative integer value");
+        TCLAP::ValueArg<uint64_t> argN("N", "ndim", "width of matrix B / width of matrix C",   false, 32768, "non negative integer value");
         cmd.add(argN);
-        TCLAP::ValueArg<int32_t> argT("T", "tileSize", "tile size",                           false,  8192, "non negative integer value");
+        TCLAP::ValueArg<uint64_t> argT("T", "tileSize", "tile size",                           false,  8192, "non negative integer value");
         cmd.add(argT);
         TCLAP::ValueArg<std::string> argP("P", "path", "scratch/tmp dir path",                false,  "./", "dir path");
         cmd.add(argP);

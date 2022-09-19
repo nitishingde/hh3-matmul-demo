@@ -27,7 +27,7 @@
  */
 class CudaMemory {
 public:
-    explicit CudaMemory(uint32_t bytes) {
+    explicit CudaMemory(uint64_t bytes) {
         checkCudaErrors(cudaMalloc(&pCudaMemory_, bytes));
     }
 

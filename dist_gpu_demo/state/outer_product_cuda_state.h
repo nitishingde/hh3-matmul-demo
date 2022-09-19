@@ -31,7 +31,7 @@ class OuterProductCudaState:
         std::pair<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>, std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>>   //out1
     > {
 public:
-    OuterProductCudaState(uint32_t mTiles, uint32_t kTiles, uint32_t nTiles): mTiles_(mTiles), kTiles_(kTiles), nTiles_(nTiles) {
+    OuterProductCudaState(uint64_t mTiles, uint64_t kTiles, uint64_t nTiles): mTiles_(mTiles), kTiles_(kTiles), nTiles_(nTiles) {
         gridMatrixA_ = std::vector<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>>(mTiles_*kTiles_, nullptr);
         gridMatrixB_ = std::vector<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>>(nTiles_*kTiles_, nullptr);
         ttlA_ = std::vector<int32_t>(mTiles_*kTiles_, nTiles_);
@@ -43,8 +43,8 @@ public:
     void execute(std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>> tileA) override {
         tileA->ttl(nTiles_);
         matrixA(tileA);
-        uint32_t iA = tileA->rowIdx()*kTiles_ + tileA->colIdx();
-        for(size_t jB = 0; jB < nTiles_; ++jB) {
+        uint64_t iA = tileA->rowIdx()*kTiles_ + tileA->colIdx();
+        for(uint64_t jB = 0; jB < nTiles_; ++jB) {
             if(auto tileB = matrixB(tileA->colIdx(), jB); tileB != nullptr) {
                 ttlA_[iA]--;
                 if(ttlA_[iA] == 0) {
@@ -61,8 +61,8 @@ public:
     void execute(std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>> tileB) override {
         tileB->ttl(mTiles_);
         matrixB(tileB);
-        uint32_t jB = tileB->rowIdx()*nTiles_ + tileB->colIdx();
-        for(size_t iA = 0; iA < mTiles_; ++iA) {
+        uint64_t jB = tileB->rowIdx()*nTiles_ + tileB->colIdx();
+        for(uint64_t iA = 0; iA < mTiles_; ++iA) {
             if(auto tileA = matrixA(iA, tileB->rowIdx()); tileA != nullptr) {
                 ttlB_[jB]--;
                 if(ttlB_[jB] == 0) {
@@ -77,8 +77,8 @@ public:
     }
 
 private:
-    [[nodiscard]] std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>> matrixA(size_t i, size_t j) {
-        uint32_t idx = i*kTiles_ + j;
+    [[nodiscard]] std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>> matrixA(uint64_t i, uint64_t j) {
+        uint64_t idx = i*kTiles_ + j;
         if(auto res = gridMatrixA_[idx]; res != nullptr) {
             ttlA_[idx] = ttlA_[idx] - 1;
             if (ttlA_[idx] == 0) {
@@ -90,8 +90,8 @@ private:
         return nullptr;
     }
 
-    [[nodiscard]] std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>> matrixB(size_t i, size_t j) {
-        uint32_t idx = i*nTiles_ + j;
+    [[nodiscard]] std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>> matrixB(uint64_t i, uint64_t j) {
+        uint64_t idx = i*nTiles_ + j;
         if(auto res = gridMatrixB_[idx]; res != nullptr) {
             ttlB_[idx] = ttlB_[idx] - 1;
             if(ttlB_[idx] == 0) {
@@ -112,9 +112,9 @@ private:
     }
 
 private:
-    uint32_t mTiles_                                                                   = 0;
-    uint32_t kTiles_                                                                   = 0;
-    uint32_t nTiles_                                                                   = 0;
+    uint64_t mTiles_                                                                   = 0;
+    uint64_t kTiles_                                                                   = 0;
+    uint64_t nTiles_                                                                   = 0;
     std::vector<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>> gridMatrixA_ = {};
     std::vector<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>> gridMatrixB_ = {};
     std::vector<int32_t> ttlA_                                                         = {};

@@ -51,10 +51,10 @@ public:
 
         // memory managers
         // FIXME: ((mTiles + nTiles + productTask->numberThreads()) * tileSize * tileSize * 8) / 2^30 <= VRAM
-        auto cudaMatrixTileAMemoryManager = std::make_shared<hh::StaticMemoryManager<CudaMatrixTile<MatrixType, InpIdA, Ord>, uint32_t>>(mTiles, tileSize);
-        auto cudaMatrixTileBMemoryManager = std::make_shared<hh::StaticMemoryManager<CudaMatrixTile<MatrixType, InpIdB, Ord>, uint32_t>>(nTiles, tileSize);
-        auto cudaMatrixTilePMemoryManager = std::make_shared<hh::StaticMemoryManager<CudaMatrixTile<MatrixType, OutId, Ord>, uint32_t>>(productThreads, tileSize);
-        auto matrixTilePMemoryManager     = std::make_shared<hh::StaticMemoryManager<MatrixTile<MatrixType, OutId, Ord>, uint32_t>>(productThreads, tileSize);
+        auto cudaMatrixTileAMemoryManager = std::make_shared<hh::StaticMemoryManager<CudaMatrixTile<MatrixType, InpIdA, Ord>, uint64_t>>(mTiles, tileSize);
+        auto cudaMatrixTileBMemoryManager = std::make_shared<hh::StaticMemoryManager<CudaMatrixTile<MatrixType, InpIdB, Ord>, uint64_t>>(nTiles, tileSize);
+        auto cudaMatrixTilePMemoryManager = std::make_shared<hh::StaticMemoryManager<CudaMatrixTile<MatrixType, OutId, Ord>, uint64_t>>(productThreads, tileSize);
+        auto matrixTilePMemoryManager     = std::make_shared<hh::StaticMemoryManager<MatrixTile<MatrixType, OutId, Ord>, uint64_t>>(productThreads, tileSize);
 
         // connect the memory manager
         copyInATask->connectMemoryManager(cudaMatrixTileAMemoryManager);

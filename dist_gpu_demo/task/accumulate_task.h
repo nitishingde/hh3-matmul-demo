@@ -35,7 +35,7 @@ private:
     using InputTilePair = std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>;
 
 public:
-    explicit AccumulateTask(size_t threadCount):
+    explicit AccumulateTask(uint32_t threadCount):
         hh::AbstractTask<1,
             InputTilePair,
             MatrixTile<MatrixType, InpIdC, Ord>,
@@ -51,15 +51,15 @@ public:
         assert(tileC->height() == tileP->height());
 #endif
         if constexpr(Ord == Order::Col) {
-            for(size_t j = 0; j < tileC->width(); ++j) {
-                for(size_t i = 0; i < tileC->height(); ++i) {
+            for(uint64_t j = 0; j < tileC->width(); ++j) {
+                for(uint64_t i = 0; i < tileC->height(); ++i) {
                     tileC->data()[j*tileC->leadingDimension() + i] += tileP->data()[j*tileP->leadingDimension() + i];
                 }
             }
         }
         else {
-            for(size_t i = 0; i < tileC->height(); ++i) {
-                for(size_t j = 0; j < tileC->width(); ++j) {
+            for(uint64_t i = 0; i < tileC->height(); ++i) {
+                for(uint64_t j = 0; j < tileC->width(); ++j) {
                     tileC->data()[i*tileC->leadingDimension() + j] += tileP->data()[i*tileP->leadingDimension() + j];
                 }
             }

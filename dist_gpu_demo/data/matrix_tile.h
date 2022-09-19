@@ -42,8 +42,8 @@ public:
     explicit MatrixTile(
         uint32_t matrixContextId,
         uint32_t sourceNodeId,
-        uint32_t rowIdx, uint32_t colIdx,
-        uint32_t leadingDimension = 0, MatrixType *pTileData = nullptr
+        uint64_t rowIdx, uint64_t colIdx,
+        uint64_t leadingDimension = 0, MatrixType *pTileData = nullptr
     ): sourceNodeId_(sourceNodeId),
        leadingDimension_(leadingDimension), pData_(pTileData), isSelfAllocated_(pTileData == nullptr) {
 
@@ -51,8 +51,8 @@ public:
 
         if(isSelfAllocated_) {
             dataPacket_ = std::make_shared<DataPacket>(matrixContextId, dataPacketSizeInBytes());
-            *reinterpret_cast<uint32_t*>(&dataPacket_->data()[rowIdxByteOffset()]) = rowIdx;
-            *reinterpret_cast<uint32_t*>(&dataPacket_->data()[colIdxByteOffset()]) = colIdx;
+            *reinterpret_cast<uint64_t*>(&dataPacket_->data()[rowIdxByteOffset()]) = rowIdx;
+            *reinterpret_cast<uint64_t*>(&dataPacket_->data()[colIdxByteOffset()]) = colIdx;
             pData_ = reinterpret_cast<MatrixType*>(&dataPacket_->data()[dataByteOffset()]);
             if constexpr(Ord == Order::Col) {
                 leadingDimension_ = matrixTileMetaData_.height;
@@ -63,10 +63,10 @@ public:
         }
     }
 
-    explicit MatrixTile(uint32_t tileSize): leadingDimension_(tileSize), isSelfAllocated_(true) {
+    explicit MatrixTile(uint64_t tileSize): leadingDimension_(tileSize), isSelfAllocated_(true) {
         matrixTileMetaData_.height = tileSize;
         matrixTileMetaData_.width = tileSize;
-        uint32_t bufferSize = (tileSize*tileSize+2)*sizeof(MatrixType);
+        uint64_t bufferSize = (tileSize*tileSize+2)*sizeof(MatrixType);
         dataPacket_ = std::make_shared<DataPacket>(-1, bufferSize);//FIXME: contextId
         pData_ = reinterpret_cast<MatrixType*>(dataPacket_->data());
     }
@@ -82,8 +82,8 @@ public:
         if(colIdx() != other.colIdx()) return true;
 
         if constexpr(Ord == Order::Col) {
-            for(uint32_t j = 0; j < this->width(); ++j) {
-                for(uint32_t i = 0; i < this->height(); ++i) {
+            for(uint64_t j = 0; j < this->width(); ++j) {
+                for(uint64_t i = 0; i < this->height(); ++i) {
                     if(0.01 < std::abs(data()[j*leadingDimension()+i] - other.data()[j*other.leadingDimension()+i])) {
                         return true;
                     }
@@ -104,13 +104,13 @@ public:
     [[nodiscard]] const MatrixTileMetaData& matrixTileMetaData() const { return matrixTileMetaData_; }
     void matrixTileMetaData(const MatrixTileMetaData &matrixTileMetaData) { matrixTileMetaData_ = matrixTileMetaData; }
     [[nodiscard]] int32_t sourceNodeId() const { return sourceNodeId_; }
-    [[nodiscard]] uint32_t rowIdx() const { return matrixTileMetaData_.rowIdx; }
-    [[nodiscard]] uint32_t colIdx() const { return matrixTileMetaData_.colIdx; }
-    [[nodiscard]] uint32_t height() const { return matrixTileMetaData_.height; }
-    [[nodiscard]] uint32_t width() const { return matrixTileMetaData_.width; }
-    [[nodiscard]] uint32_t leadingDimension() const { return leadingDimension_; }
+    [[nodiscard]] uint64_t rowIdx() const { return matrixTileMetaData_.rowIdx; }
+    [[nodiscard]] uint64_t colIdx() const { return matrixTileMetaData_.colIdx; }
+    [[nodiscard]] uint64_t height() const { return matrixTileMetaData_.height; }
+    [[nodiscard]] uint64_t width() const { return matrixTileMetaData_.width; }
+    [[nodiscard]] uint64_t leadingDimension() const { return leadingDimension_; }
     [[nodiscard]] MatrixType* data() const { return pData_; }
-    [[nodiscard]] uint32_t dataSize() const { return matrixTileMetaData_.height*matrixTileMetaData_.width; }
+    [[nodiscard]] uint64_t dataSize() const { return matrixTileMetaData_.height*matrixTileMetaData_.width; }
     [[nodiscard]] std::shared_ptr<DataPacket>& dataPacket() { return dataPacket_; }
 
     [[nodiscard]] std::shared_ptr<DataPacket> packDataPacket(std::shared_ptr<DataPacket> dataPacket = nullptr) const {
@@ -122,12 +122,12 @@ public:
         assert(this->dataPacketSizeInBytes() <= dataPacket->size());
 
         if constexpr(Ord == Order::Col) {
-            for(uint32_t j = 0, offset = dataByteOffset(); j < matrixTileMetaData_.width; ++j) {
+            for(uint64_t j = 0, offset = dataByteOffset(); j < matrixTileMetaData_.width; ++j) {
                 std::memcpy(&dataPacket->data()[offset], &pData_[j*leadingDimension_], sizeof(MatrixType)*matrixTileMetaData_.height);
                 offset += (matrixTileMetaData_.height*sizeof(MatrixType));
             }
         } else {
-            for(uint32_t i = 0, offset = dataByteOffset(); i < matrixTileMetaData_.height; ++i) {
+            for(uint64_t i = 0, offset = dataByteOffset(); i < matrixTileMetaData_.height; ++i) {
                 std::memcpy(&dataPacket->data()[offset], &pData_[i*leadingDimension_], sizeof(MatrixType)*matrixTileMetaData_.width);
                 offset += (matrixTileMetaData_.width*sizeof(MatrixType));
             }
@@ -135,11 +135,11 @@ public:
 
         return nullptr;
     }
-    [[nodiscard]] uint32_t dataPacketSizeInBytes() const { return 2*sizeof(uint32_t) + matrixMetaData_.tileSize*matrixMetaData_.tileSize*sizeof(MatrixType); }
+    [[nodiscard]] uint64_t dataPacketSizeInBytes() const { return 2*sizeof(uint64_t) + matrixMetaData_.tileSize*matrixMetaData_.tileSize*sizeof(MatrixType); }
     void unPackDataPacket(std::shared_ptr<DataPacket> dataPacket = nullptr) {
         assert(isSelfAllocated_);//FIXME
-        uint32_t rowIdx = *reinterpret_cast<uint32_t*>(&dataPacket_->data()[rowIdxByteOffset()]);
-        uint32_t colIdx = *reinterpret_cast<uint32_t*>(&dataPacket_->data()[colIdxByteOffset()]);
+        uint64_t rowIdx = *reinterpret_cast<uint64_t*>(&dataPacket_->data()[rowIdxByteOffset()]);
+        uint64_t colIdx = *reinterpret_cast<uint64_t*>(&dataPacket_->data()[colIdxByteOffset()]);
         initMetaData(dataPacket_->contextId(), rowIdx, colIdx);
         pData_ = reinterpret_cast<MatrixType*>(&dataPacket_->data()[dataByteOffset()]);
         sourceNodeId_ = -1;//FIXME
@@ -158,15 +158,15 @@ public:
         os << "Tile: (" << data.height() << ", " << data.width() << ") leadingDimension = " << data.leadingDimension() << " sourceNodeId = " << data.sourceNodeId() << std::endl;
 
         if constexpr(Ord == Order::Col) {
-            for(size_t i = 0; i < data.height(); ++i) {
-                for(size_t j = 0; j < data.width(); ++j) {
+            for(uint64_t i = 0; i < data.height(); ++i) {
+                for(uint64_t j = 0; j < data.width(); ++j) {
                     os << data.data()[j*data.leadingDimension() + i] << " ";
                 }
                 os << std::endl;
             }
         } else {
-            for(size_t i = 0; i < data.height(); ++i) {
-                for(size_t j = 0; j < data.width(); ++j) {
+            for(uint64_t i = 0; i < data.height(); ++i) {
+                for(uint64_t j = 0; j < data.width(); ++j) {
                     os << data.data()[i*data.leadingDimension() + j] << " ";
                 }
                 os << std::endl;
@@ -177,7 +177,7 @@ public:
     }
 
 private:
-    void initMetaData(uint32_t matrixContextId, uint32_t rowIdx, uint32_t colIdx) {
+    void initMetaData(uint32_t matrixContextId, uint64_t rowIdx, uint64_t colIdx) {
         matrixContextId_= matrixContextId;
         matrixMetaData_ = getContext<MatrixMetaData>(matrixContextId);
         matrixTileMetaData_ = {
@@ -187,16 +187,16 @@ private:
             .width  = std::min(matrixMetaData_.matrixWidth - colIdx*matrixMetaData_.tileSize, matrixMetaData_.tileSize)
         };
     }
-    [[nodiscard]] constexpr uint32_t rowIdxByteOffset() { return 0; }
-    [[nodiscard]] constexpr uint32_t colIdxByteOffset() { return sizeof(uint32_t); }
-    [[nodiscard]] constexpr uint32_t dataByteOffset() { return 2*sizeof(uint32_t); }
+    [[nodiscard]] constexpr uint64_t rowIdxByteOffset() { return 0; }
+    [[nodiscard]] constexpr uint64_t colIdxByteOffset() { return sizeof(uint64_t); }
+    [[nodiscard]] constexpr uint64_t dataByteOffset() { return 2*sizeof(uint64_t); }
 
 private:
     uint32_t matrixContextId_               = 0;//FIXME: 2 places where contextId is being stored, here and in dataPacket
     MatrixMetaData matrixMetaData_          = {};
     MatrixTileMetaData matrixTileMetaData_  = {};
     int32_t sourceNodeId_                   = 0;//network related
-    uint32_t leadingDimension_              = 0;
+    uint64_t leadingDimension_              = 0;
     std::shared_ptr<DataPacket> dataPacket_ = nullptr;
     MatrixType *pData_                      = nullptr;
     bool isSelfAllocated_                   = true;

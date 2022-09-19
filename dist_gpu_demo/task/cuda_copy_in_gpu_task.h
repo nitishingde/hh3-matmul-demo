@@ -29,7 +29,7 @@ class CudaCopyInGpuTask:
         CudaMatrixTile<MatrixType, Id, Ord> //out1
     > {
 public:
-    explicit CudaCopyInGpuTask(size_t threadCount):
+    explicit CudaCopyInGpuTask(uint32_t threadCount):
         hh::AbstractCUDATask<1, MatrixTile<MatrixType, Id, Ord>, CudaMatrixTile<MatrixType, Id, Ord>>(
             "Cuda Copy in GPU Task",
             threadCount,

@@ -39,8 +39,8 @@ public:
         ) {}
 
     void execute(std::shared_ptr<MatrixContainer<MatrixType, Id, Ord>> matrix) override {
-        for(size_t row = 0; row < matrix->matrixNumRowTiles(); ++row) {
-            for(size_t col = 0; col < matrix->matrixNumColTiles(); ++col) {
+        for(uint64_t row = 0; row < matrix->matrixNumRowTiles(); ++row) {
+            for(uint64_t col = 0; col < matrix->matrixNumColTiles(); ++col) {
                 if(auto tile = matrix->getTile(row, col); tile != nullptr) {
                     this->addResult(std::move(tile));
                 }

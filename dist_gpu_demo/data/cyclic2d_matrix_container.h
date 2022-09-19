@@ -33,7 +33,7 @@
 template<class MatrixType, char Id, Order Ord = Order::Col>
 class Cyclic2dMatrixContainer: public MatrixContainer<MatrixType, Id, Ord> {
 public:
-    explicit Cyclic2dMatrixContainer(const uint32_t contextId, const uint32_t matrixHeight, const uint32_t matrixWidth, const uint32_t tileSize, const MPI_Comm mpiComm)
+    explicit Cyclic2dMatrixContainer(const uint32_t contextId, const uint64_t matrixHeight, const uint64_t matrixWidth, const uint64_t tileSize, const MPI_Comm mpiComm)
         : MatrixContainer<MatrixType, Id, Ord>(contextId, matrixHeight, matrixWidth, tileSize, mpiComm) {
         assert(mpiComm != MPI_COMM_WORLD);
         grid_.resize(this->matrixNumRowTiles(), std::vector<std::shared_ptr<MatrixTile<MatrixType, Id, Ord>>>(this->matrixNumColTiles(), nullptr));
@@ -44,8 +44,8 @@ public:
 
     bool init() override {
         // TODO: populate only the relevant MatrixTiles
-        for(uint32_t idx = 0; idx < this->matrixNumRowTiles()*this->matrixNumColTiles(); ++idx) {
-            uint32_t rowIdx = idx/this->matrixNumColTiles(), colIdx = idx%this->matrixNumColTiles();
+        for(uint64_t idx = 0; idx < this->matrixNumRowTiles()*this->matrixNumColTiles(); ++idx) {
+            uint64_t rowIdx = idx/this->matrixNumColTiles(), colIdx = idx%this->matrixNumColTiles();
             auto tile = std::make_shared<MatrixTile<MatrixType, Id, Ord>>(
                 this->contextId(),
                 idx%this->numNodes(),
@@ -56,17 +56,17 @@ public:
         return true;
     }
 
-    std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint32_t rowIdx, uint32_t colIdx) override {
+    std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> getTile(uint64_t rowIdx, uint64_t colIdx) override {
         return grid_[rowIdx][colIdx];
     }
 
-    uint32_t typeId() override {
+    uint64_t typeId() override {
         return typeid(Cyclic2dMatrixContainer).hash_code();
     }
 
     void shrink() {
-        for(uint32_t i = 0; i < grid_.size(); ++i) {
-            for(uint32_t j = 0; j < grid_[0].size(); ++j) {
+        for(uint64_t i = 0; i < grid_.size(); ++i) {
+            for(uint64_t j = 0; j < grid_[0].size(); ++j) {
                 if(auto tile = grid_[i][j]; (tile == nullptr) or (tile->sourceNodeId() != this->nodeId())) {
                     grid_[i][j] = nullptr;
                 }

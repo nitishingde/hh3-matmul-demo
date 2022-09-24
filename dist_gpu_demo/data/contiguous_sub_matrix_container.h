@@ -41,36 +41,28 @@ public:
         uint64_t totalRowTiles = this->matrixNumRowTiles();
         uint64_t totalColTiles = this->matrixNumColTiles();
         if constexpr(subMatrixOrder == Order::Col) {
-            numColTiles_ = totalColTiles/this->numNodes();
+            uint64_t numColTiles = totalColTiles/this->numNodes();
             uint64_t noOfNodesWith1ExtraTile = totalColTiles%this->numNodes();
-            numColTiles_ += (this->nodeId() < noOfNodesWith1ExtraTile? 1: 0);
+            numColTiles += (this->nodeId() < noOfNodesWith1ExtraTile? 1: 0);
 
             height_ = matrixHeight;
-            width_ = numColTiles_*tileSize;
-            if(this->nodeId() == (this->numNodes()-1) and matrixWidth%tileSize) {//adjust the last node, FIXME: ugly
-                width_ -= (tileSize - (matrixWidth%tileSize));
-            }
-            numRowTiles_ = (height_+tileSize-1)/tileSize;
+            width_ = !this->isLastNodeId()? numColTiles*tileSize: matrixWidth-((totalColTiles-numColTiles)*tileSize);
 
             rowTilesRange_[0] = 0;
             rowTilesRange_[1] = totalRowTiles;
             colTilesRange_[0] = (totalColTiles/this->numNodes())*this->nodeId() + std::min(uint64_t(this->nodeId()), noOfNodesWith1ExtraTile);
-            colTilesRange_[1] = colTilesRange_[0]+numColTiles_;
+            colTilesRange_[1] = colTilesRange_[0]+numColTiles;
         }
         else {
-            numRowTiles_ = totalRowTiles/this->numNodes();
+            uint64_t numRowTiles = totalRowTiles/this->numNodes();
             uint64_t noOfNodesWith1ExtraTile = totalRowTiles%this->numNodes();
-            numRowTiles_ += (this->nodeId() < noOfNodesWith1ExtraTile? 1: 0);
+            numRowTiles += (this->nodeId() < noOfNodesWith1ExtraTile? 1: 0);
 
-            height_ = numRowTiles_*tileSize;
-            if(this->nodeId() == (this->numNodes()-1) and matrixHeight%tileSize) {//adjust the last node, FIXME: ugly
-                height_ -= (tileSize - (matrixHeight%tileSize));
-            }
+            height_ = !this->isLastNodeId()? numRowTiles*tileSize: matrixHeight-((totalRowTiles-numRowTiles)*tileSize);
             width_ = matrixWidth;
-            numColTiles_ = (width_+tileSize-1)/tileSize;
 
             rowTilesRange_[0] = (totalRowTiles/this->numNodes())*this->nodeId() + std::min(uint64_t(this->nodeId()), noOfNodesWith1ExtraTile);
-            rowTilesRange_[1] = rowTilesRange_[0]+numRowTiles_;
+            rowTilesRange_[1] = rowTilesRange_[0]+numRowTiles;
             colTilesRange_[0] = 0;
             colTilesRange_[1] = totalColTiles;
         }
@@ -103,8 +95,8 @@ public:
             return nullptr;
         }
 
-        int i = rowIdx - rowTilesRange_[0];
-        int j = colIdx - colTilesRange_[0];
+        uint64_t i = rowIdx - rowTilesRange_[0];
+        uint64_t j = colIdx - colTilesRange_[0];
         if constexpr(Ord == Order::Row) assert(false);//FIXME
         return std::make_shared<MatrixTile<MatrixType, Id, Ord>>(
             this->contextId(),
@@ -121,8 +113,8 @@ public:
     // Getters/Setters
     [[nodiscard]] uint64_t subMatrixHeight() const { return height_; }
     [[nodiscard]] uint64_t subMatrixWidth() const { return width_; }
-    [[nodiscard]] uint64_t subMatrixNumRowTiles() const { return numRowTiles_; }
-    [[nodiscard]] uint64_t subMatrixNumColTiles() const { return numColTiles_; }
+    [[nodiscard]] uint64_t subMatrixNumRowTiles() const { return rowTilesRange_[1]-rowTilesRange_[0]; }
+    [[nodiscard]] uint64_t subMatrixNumColTiles() const { return colTilesRange_[1]-colTilesRange_[0]; }
     [[nodiscard]] std::tuple<uint64_t, uint64_t> subMatrixRowTileRange() const { return std::make_tuple(rowTilesRange_[0], rowTilesRange_[1]); }
     [[nodiscard]] std::tuple<uint64_t, uint64_t> subMatrixColTileRange() const { return std::make_tuple(colTilesRange_[0], colTilesRange_[1]); }
     [[nodiscard]] uint64_t leadingDimension() const { return leadingDimension_; }
@@ -163,8 +155,6 @@ public:
 private:
     uint64_t height_           = 0;
     uint64_t width_            = 0;
-    uint64_t numRowTiles_      = 0;
-    uint64_t numColTiles_      = 0;
     uint64_t rowTilesRange_[2] = {0, 0};
     uint64_t colTilesRange_[2] = {0, 0};
     uint64_t leadingDimension_ = 0;

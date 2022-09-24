@@ -76,6 +76,8 @@ public:
     [[nodiscard]] const MPI_Comm& mpiComm() const { return mpiComm_; }
     [[nodiscard]] uint32_t nodeId() const { return nodeId_; }
     [[nodiscard]] uint32_t numNodes() const { return numNodes_; }
+    [[nodiscard]] bool isRootNodeId() const { return nodeId_ == 0; }
+    [[nodiscard]] bool isLastNodeId() const { return nodeId_ == (numNodes_-1); }
 
 protected:
     uint32_t contextId_            = 0;

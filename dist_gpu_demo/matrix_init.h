@@ -18,8 +18,13 @@ template<class MatrixType, char Id, Order Ord>
 void init(std::shared_ptr<Cyclic2dMatrixContainer<MatrixType, Id, Ord>> cyclic2dMatrix) {
     for(uint32_t i = 0; i < cyclic2dMatrix->matrixNumColTiles(); ++i) {
         for(uint32_t j = 0; j < cyclic2dMatrix->matrixNumRowTiles(); ++j) {
-            if(auto tile = cyclic2dMatrix->getTile(i, j); (tile != nullptr) and (tile->sourceNodeId() == getNodeId())) {
-                std::for_each(tile->data(), tile->data()+tile->dataSize(), [](MatrixType &val) { val = getNodeId(); });
+            if(auto tile = cyclic2dMatrix->getTile(i, j); tile != nullptr) {
+                if(tile->sourceNodeId() == getNodeId()) {
+                    std::for_each(tile->data(), tile->data()+tile->dataSize(), [](MatrixType &val) { val = getNodeId(); });
+                }
+                else {
+                    std::for_each(tile->data(), tile->data()+tile->dataSize(), [](MatrixType &val) { val = 0; });
+                }
             }
         }
     }

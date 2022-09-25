@@ -21,7 +21,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     MPI_Barrier(matrixComm);
 
     auto [M, K, N, tileSize, path] = parseArgs(argc, argv);
-    printf("[Process %d] M = %d, K = %d, N = %d, tileSize = %d\n", getNodeId(), M, K, N, tileSize);
+    printf("[Process %d] M = %lu, K = %lu, N = %lu, tileSize = %lu\n", getNodeId(), M, K, N, tileSize);
 
     int32_t devCount = 0;
     cudaGetDeviceCount(&devCount);

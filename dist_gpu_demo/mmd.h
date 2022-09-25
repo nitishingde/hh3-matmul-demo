@@ -25,11 +25,11 @@ template<class MatrixType, char IdA, char IdB, char IdC, Order Ord>
 class MMD_Strategy {
 private:
     virtual void executeImpl(
-            std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
-            std::shared_ptr<MatrixContainer<MatrixType, IdB, Ord>> matrixB,
-            std::shared_ptr<MatrixContainer<MatrixType, IdC, Ord>> matrixC,
-            const std::vector<int32_t> &deviceIds,
-            std::string dotFile
+        std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
+        std::shared_ptr<MatrixContainer<MatrixType, IdB, Ord>> matrixB,
+        std::shared_ptr<MatrixContainer<MatrixType, IdC, Ord>> matrixC,
+        const std::vector<int32_t> &deviceIds,
+        std::string dotFile
     ) = 0;
     [[nodiscard]] virtual std::string strategy() const = 0;
     [[nodiscard]] virtual std::string matTypeA() const = 0;
@@ -39,10 +39,10 @@ private:
 
 public:
     void execute(
-            std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
-            std::shared_ptr<MatrixContainer<MatrixType, IdB, Ord>> matrixB,
-            std::shared_ptr<MatrixContainer<MatrixType, IdC, Ord>> matrixC,
-            const std::vector<int32_t> &deviceIds
+        std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
+        std::shared_ptr<MatrixContainer<MatrixType, IdB, Ord>> matrixB,
+        std::shared_ptr<MatrixContainer<MatrixType, IdC, Ord>> matrixC,
+        const std::vector<int32_t> &deviceIds
     ) {
 #if not NDEBUG
         int32_t isMpiInitialized = false;

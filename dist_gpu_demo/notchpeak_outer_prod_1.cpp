@@ -59,7 +59,10 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         subMatB = nullptr;
     }
 
-    MPI_Bcast(redundantMatrixC->data(), M*N, std::is_same_v<MatrixType, double>? MPI_DOUBLE: MPI_FLOAT, 0, redundantMatrixC->mpiComm());
+    MPI_Datatype datatype;
+    MPI_Type_contiguous(int32_t(M), std::is_same_v<MatrixType, double>? MPI_DOUBLE: MPI_FLOAT, &datatype);
+    MPI_Type_commit(&datatype);
+    MPI_Bcast(redundantMatrixC->data(), int32_t(N), datatype, 0, redundantMatrixC->mpiComm());
     MPI_Barrier(MPI_COMM_WORLD);
     if(isRootNodeId()) printf("Verifying solution.\n");
 

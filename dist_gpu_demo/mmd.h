@@ -89,8 +89,8 @@ private:
         auto subA = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Col, MatrixType, IdA, Ord>>(matrixA);
         auto subB = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Row, MatrixType, IdB, Ord>>(matrixB);
         auto matC = std::static_pointer_cast<RedundantMatrixContainer<MatrixType, IdC, Ord>>(matrixC);
-        size_t m = matC->matrixHeight(), k = subA->subMatrixWidth(), n = matC->matrixWidth();
-        size_t tileSize = matC->matrixTileSize();
+        uint64_t m = matC->matrixHeight(), k = subA->subMatrixWidth(), n = matC->matrixWidth();
+        uint64_t tileSize = matC->matrixTileSize();
 
         cublasXtHandle_t handle;
         checkCudaErrors(cublasXtCreate(&handle));
@@ -128,14 +128,23 @@ private:
         subA = nullptr;
         subB = nullptr;
 
-        std::vector<MatrixType> tempC((isRootNodeId()? m*n: 0));
-        if constexpr(std::is_same_v<MatrixType, double>) {
-            MPI_Reduce(matC->data(), tempC.data(), m*n, MPI_DOUBLE, MPI_SUM, 0, matC->mpiComm());
+        uint64_t len = std::min(m*n, uint64_t(INT32_MAX));
+        std::vector<MatrixType> tempC((isRootNodeId()? len: 0));
+        for(uint64_t idx = 0, limit = m*n; idx < limit; idx += len) {
+            len = (((idx+len) <= limit)? len: limit-idx);
+            MPI_Reduce(
+                &matC->data()[idx],
+                tempC.data(),
+                len,
+                std::is_same_v<MatrixType, double>? MPI_DOUBLE: MPI_FLOAT,
+                MPI_SUM,
+                0,
+                matC->mpiComm()
+            );
+            if(isRootNodeId()) {
+                std::memcpy(&matC->data()[idx], tempC.data(), sizeof(MatrixType)*len);
+            }
         }
-        else {
-            MPI_Reduce(matC->data(), tempC.data(), m*n, MPI_FLOAT, MPI_SUM, 0, matC->mpiComm());
-        }
-        std::memcpy(matC->data(), tempC.data(), sizeof(MatrixType)*tempC.size());
     }
 
     [[nodiscard]] std::string strategy() const override {

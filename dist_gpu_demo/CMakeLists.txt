@@ -17,7 +17,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(TCLAP)
 
 add_library(dist_matmul
-    matrix_init.h
+    matrix_utility.h
     utility.h
 
     data/contiguous_sub_matrix_container.h

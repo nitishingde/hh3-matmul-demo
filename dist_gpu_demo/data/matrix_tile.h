@@ -64,9 +64,9 @@ public:
     }
 
     explicit MatrixTile(uint64_t tileSize): leadingDimension_(tileSize), isSelfAllocated_(true) {
-        matrixTileMetaData_.height = tileSize;
-        matrixTileMetaData_.width = tileSize;
-        uint64_t bufferSize = (tileSize*tileSize+2)*sizeof(MatrixType);
+        matrixTileMetaData_.height = matrixTileMetaData_.width = tileSize;
+        matrixMetaData_.tileSize = tileSize;
+        uint64_t bufferSize = dataPacketSizeInBytes();// FIXME: ugly, need to set matrixMetaData_.tileSize first
         dataPacket_ = std::make_shared<DataPacket>(-1, bufferSize);//FIXME: contextId
         pData_ = reinterpret_cast<MatrixType*>(dataPacket_->data());
     }

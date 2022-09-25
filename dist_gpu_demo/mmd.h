@@ -245,6 +245,10 @@ private:
 
 template<class MatrixType, char IdA, char IdB, char IdC, Order Ord>
 class MMD_MpiOuterProduct1: public MMD_Strategy<MatrixType, IdA, IdB, IdC, Ord> {
+public:
+    explicit MMD_MpiOuterProduct1(size_t productThreads = 4, size_t commThreads = 8)
+        : productThreads_(productThreads), commThreads_(commThreads) {}
+
 private:
     void executeImpl(
         std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
@@ -277,15 +281,15 @@ private:
         auto matrixATraversalTask = std::make_shared<MatrixColTraversalTask<MatrixType, IdA, Ord>>();
         auto matrixBTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdB, Ord>>();
         auto matrixCTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdC, Ord>>();
-        auto accumulateTask       = std::make_shared<AccumulateTask<MatrixType, IdC, ProdId, Ord>>(4);
+        auto accumulateTask       = std::make_shared<AccumulateTask<MatrixType, IdC, ProdId, Ord>>(productThreads_);
         auto recyclerTask         = std::make_shared<TtlManagedMemoryRecyclerTask>();
-        auto senderTask           = std::make_shared<Cyclic2dSenderTask<MatrixType, IdC, Ord>>(8, mTiles*nTiles-myTiles);
+        auto senderTask           = std::make_shared<Cyclic2dSenderTask<MatrixType, IdC, Ord>>(commThreads_, mTiles*nTiles-myTiles);
         auto receiverTask         = std::make_shared<Cyclic2dReceiverTask<MatrixType, ProdId, Ord>>(myTiles*(getNumNodes()-1));
 
-        auto memoryManager = std::make_shared<hh::StaticMemoryManager<MatrixTile<MatrixType, ProdId, Ord>, uint64_t>>(8, tileSize);
+        auto memoryManager = std::make_shared<hh::StaticMemoryManager<MatrixTile<MatrixType, ProdId, Ord>, uint64_t>>(commThreads_, tileSize);
         receiverTask->connectMemoryManager(memoryManager);
 
-        auto cudaGraph    = std::make_shared<OuterProductCudaGraph<MatrixType, IdA, IdB, ProdId, Ord>>(mTiles, kTiles, nTiles, tileSize);
+        auto cudaGraph    = std::make_shared<OuterProductCudaGraph<MatrixType, IdA, IdB, ProdId, Ord>>(mTiles, kTiles, nTiles, tileSize, productThreads_);
         auto execPipeline = std::make_shared<OuterProductExecPipeline<MatrixType, IdA, IdB, ProdId, Ord>>(cudaGraph, deviceIds);
 
         auto computationState        = std::make_shared<OuterProductComputationState<MatrixType, IdC, ProdId, Ord>>(
@@ -355,8 +359,12 @@ private:
     }
 
     [[nodiscard]] std::string className() const override {
-        return NAME(MMD_MpiOuterProductCyclic2d);
+        return NAME(MMD_MpiOuterProduct1);
     }
+
+private:
+    size_t productThreads_ = 0;
+    size_t commThreads_    = 0;
 };
 
 #endif //HH3_MATMUL_MMD_H

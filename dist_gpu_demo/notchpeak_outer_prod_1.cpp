@@ -20,7 +20,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm);
     MPI_Barrier(matrixComm);
 
-    auto [M, K, N, tileSize, path] = parseArgs(argc, argv);
+    auto [M, K, N, tileSize, productThreads, commThreads, path] = parseArgs(argc, argv);
     printf("[Process %d] M = %lu, K = %lu, N = %lu, tileSize = %lu\n", getNodeId(), M, K, N, tileSize);
 
     int32_t devCount = 0;
@@ -44,7 +44,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     {
         MPI_Barrier(MPI_COMM_WORLD);
-        MMD_MpiOuterProduct1<MatrixType, 'a', 'b', 'c', Ord>().execute(subMatA, subMatB, matrixC, deviceIds);
+        MMD_MpiOuterProduct1<MatrixType, 'a', 'b', 'c', Ord>(productThreads, commThreads).execute(subMatA, subMatB, matrixC, deviceIds);
         matrixC->shrink();
     }
 

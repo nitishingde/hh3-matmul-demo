@@ -36,11 +36,10 @@ class OuterProductCudaGraph:
         MatrixTile<MatrixType, OutId, Ord>      //out1
     > {
 public:
-    OuterProductCudaGraph(size_t mTiles, size_t kTiles, size_t nTiles, size_t tileSize):
+    OuterProductCudaGraph(uint64_t mTiles, uint64_t kTiles, uint64_t nTiles, uint64_t tileSize, size_t productThreads):
         hh::Graph<2, MatrixTile<MatrixType, InpIdA, Ord>, MatrixTile<MatrixType, InpIdB, Ord>, MatrixTile<MatrixType, OutId, Ord>>("GPU Computation Graph") {
 
         using InputBlockPair  = std::pair<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>, std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>>;
-        size_t productThreads = 4;
 
         // cuda tasks
         auto copyInATask  = std::make_shared<CudaCopyInGpuTask<MatrixType, InpIdA, Ord>>(1);

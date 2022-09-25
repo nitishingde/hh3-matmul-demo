@@ -92,7 +92,8 @@ private:
 
 // Argument parser -------------------------------------------------------------------------------------------------- //
 
-std::tuple<uint64_t, uint64_t, uint64_t, uint64_t, std::string> parseArgs(int argc, char **argv) {
+std::tuple<uint64_t, uint64_t, uint64_t, uint64_t, size_t, size_t, std::string>
+parseArgs(int argc, char **argv) {
     try {
         TCLAP::CmdLine cmd("Command description message", ' ', "1.0");
 
@@ -104,15 +105,19 @@ std::tuple<uint64_t, uint64_t, uint64_t, uint64_t, std::string> parseArgs(int ar
         cmd.add(argN);
         TCLAP::ValueArg<uint64_t> argT("T", "tileSize", "tile size",                           false,  8192, "non negative integer value");
         cmd.add(argT);
-        TCLAP::ValueArg<std::string> argP("P", "path", "scratch/tmp dir path",                false,  "./", "dir path");
-        cmd.add(argP);
+        TCLAP::ValueArg<size_t> argProd("p", "prod", "product threads",                        false,  4,    "non negative integer value");
+        cmd.add(argProd);
+        TCLAP::ValueArg<size_t> argComm("c", "comm", "comm threads",                           false,  8,    "non negative integer value");
+        cmd.add(argComm);
+        TCLAP::ValueArg<std::string> argPath("P", "path", "scratch/tmp dir path",              false,  "./", "dir path");
+        cmd.add(argPath);
 
         cmd.parse(argc, argv);
-        return {argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argP.getValue()};
+        return {argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argProd.getValue(), argComm.getValue(), argPath.getValue()};
     }
     catch (TCLAP::ArgException e) {
         fprintf(stderr, "[Error] %s for arg %s\n", e.error().c_str(), e.argId().c_str());
-        return {32768, 32768, 32768, 8192, "./"};
+        return {32768, 32768, 32768, 8192, 4, 8, "./"};
     }
 }
 

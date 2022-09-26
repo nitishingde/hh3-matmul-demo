@@ -275,6 +275,13 @@ private:
         const uint64_t nTiles   = matrixC->matrixNumColTiles();
         const uint64_t tileSize = matrixC->matrixTileSize();
 
+        const uint64_t kTilesOnNode = subA->subMatrixNumColTiles();
+        std::vector<int32_t> devices;
+        devices.reserve(kTilesOnNode);
+        for(int32_t i = 0; i < kTilesOnNode and i < deviceIds.size(); ++i) {
+            devices.template emplace_back(deviceIds[i]);
+        }
+
         uint64_t myTiles = mTiles*nTiles;
         myTiles = (myTiles/getNumNodes()) + ((matrixC->nodeId() < (myTiles%matrixC->numNodes()))? 1: 0);//TODO: verify calculations
 
@@ -298,7 +305,7 @@ private:
         receiverTask->connectMemoryManager(memoryManager);
 
         auto cudaGraph    = std::make_shared<OuterProductCudaGraph<MatrixType, IdA, IdB, ProdId, Ord>>(mTiles, kTiles, nTiles, tileSize, productThreads_);
-        auto execPipeline = std::make_shared<OuterProductExecPipeline<MatrixType, IdA, IdB, ProdId, Ord>>(cudaGraph, deviceIds);
+        auto execPipeline = std::make_shared<OuterProductExecPipeline<MatrixType, IdA, IdB, ProdId, Ord>>(cudaGraph, devices);
 
         auto computationState        = std::make_shared<OuterProductComputationState<MatrixType, IdC, ProdId, Ord>>(
             mTiles,

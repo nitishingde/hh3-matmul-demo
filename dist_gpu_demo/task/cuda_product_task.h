@@ -25,8 +25,7 @@
 template<class MatrixType, char InpIdA, char InpIdB, char OutId, Order Ord>
 class CudaProductTask: public hh::AbstractCUDATask<1,
         std::pair<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>, std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>>,  //inp1
-        CudaMatrixTile<MatrixType, OutId, Ord>,                                                                                         //out1
-        TtlManagedMemory                                                                                                                //out2
+        CudaMatrixTile<MatrixType, OutId, Ord>                                                                                          //out1
     > {
 private:
     using InputTilePair = std::pair<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>, std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>>;
@@ -34,7 +33,7 @@ private:
 
 public:
     explicit CudaProductTask(uint32_t threadCount):
-        hh::AbstractCUDATask<1, InputTilePair, CudaMatrixTile<MatrixType, OutId, Ord>, TtlManagedMemory>(
+        hh::AbstractCUDATask<1, InputTilePair, CudaMatrixTile<MatrixType, OutId, Ord>>(
             "Cuda Product Task",
             threadCount,
             false,
@@ -69,7 +68,7 @@ public:
         cudaTileB->synchronizeEvent();
 
         if constexpr(Ord == Order::Col) {
-            if constexpr (std::is_same_v<MatrixType, float>) {
+            if constexpr(std::is_same_v<MatrixType, float>) {
                 checkCudaErrors(cublasSgemm_v2(
                     handle_, CUBLAS_OP_N, CUBLAS_OP_N,
                     cudaTileA->height(), cudaTileB->width(), cudaTileA->width(), &alpha,
@@ -99,7 +98,7 @@ public:
         cudaTileB->returnToMemoryManager();
     }
 
-    std::shared_ptr<hh::AbstractTask<1, InputTilePair, CudaMatrixTile<MatrixType, OutId, Ord>, TtlManagedMemory>>
+    std::shared_ptr<hh::AbstractTask<1, InputTilePair, CudaMatrixTile<MatrixType, OutId, Ord>>>
     copy() override {
         return std::make_shared<CudaProductTask>(this->numberThreads());
     }

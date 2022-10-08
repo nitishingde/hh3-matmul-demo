@@ -28,8 +28,7 @@ template<class MatrixType, char InpIdC, char ProdId, Order Ord>
 class AccumulateTask:
     public hh::AbstractTask<1,
         std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>,  //inp1
-        MatrixTile<MatrixType, InpIdC, Ord>,                                                                                    //out1
-        TtlManagedMemory                                                                                                        //out2
+        MatrixTile<MatrixType, InpIdC, Ord>                                                                                     //out1
     > {
 private:
     using InputTilePair = std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>;
@@ -38,8 +37,7 @@ public:
     explicit AccumulateTask(uint32_t threadCount):
         hh::AbstractTask<1,
             InputTilePair,
-            MatrixTile<MatrixType, InpIdC, Ord>,
-            TtlManagedMemory
+            MatrixTile<MatrixType, InpIdC, Ord>
         >("Accumulate Task", threadCount, false) {}
 
     void execute(std::shared_ptr<InputTilePair> tilePair) override {
@@ -66,10 +64,10 @@ public:
         }
 
         this->addResult(tileC);
-        if(tileP->isMemoryManagerConnected()) tileP->returnToMemoryManager();
+        tileP->returnToMemoryManager();
     }
 
-    std::shared_ptr<hh::AbstractTask<1, InputTilePair, MatrixTile<MatrixType, InpIdC, Ord>, TtlManagedMemory>>
+    std::shared_ptr<hh::AbstractTask<1, InputTilePair, MatrixTile<MatrixType, InpIdC, Ord>>>
     copy() override {
         return std::make_shared<AccumulateTask>(this->numberThreads());
     };

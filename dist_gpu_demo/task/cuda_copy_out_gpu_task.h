@@ -26,12 +26,11 @@ template<class MatrixType, char Id, Order Ord>
 class CudaCopyOutGpuTask:
     public hh::AbstractCUDATask<1,
         CudaMatrixTile<MatrixType, Id, Ord>,    //inp1
-        MatrixTile<MatrixType, Id, Ord>,        //out1
-        TtlManagedMemory                        //out2
+        MatrixTile<MatrixType, Id, Ord>         //out1
     > {
 public:
     explicit CudaCopyOutGpuTask(uint32_t threadCount):
-        hh::AbstractCUDATask<1, CudaMatrixTile<MatrixType, Id, Ord>, MatrixTile<MatrixType, Id, Ord>, TtlManagedMemory>(
+        hh::AbstractCUDATask<1, CudaMatrixTile<MatrixType, Id, Ord>, MatrixTile<MatrixType, Id, Ord>>(
             "Cuda Copy out GPU Task",
             threadCount,
             false,
@@ -50,10 +49,10 @@ public:
         ));
 
         this->addResult(matrixTile);
-        this->addResult(std::dynamic_pointer_cast<TtlManagedMemory>(cudaMatrixTile));
+        cudaMatrixTile->returnToMemoryManager();
     }
 
-    std::shared_ptr<hh::AbstractTask<1, CudaMatrixTile<MatrixType, Id, Ord>, MatrixTile<MatrixType, Id, Ord>, TtlManagedMemory>>
+    std::shared_ptr<hh::AbstractTask<1, CudaMatrixTile<MatrixType, Id, Ord>, MatrixTile<MatrixType, Id, Ord>>>
     copy() override {
         return std::make_shared<CudaCopyOutGpuTask>(this->numberThreads());
     }

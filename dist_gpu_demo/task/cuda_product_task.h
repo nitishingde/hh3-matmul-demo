@@ -95,8 +95,8 @@ public:
         checkCudaErrors(cudaStreamSynchronize(this->stream()));
 
         this->addResult(cudaTileP);
-        this->addResult(std::dynamic_pointer_cast<TtlManagedMemory>(cudaTileA));
-        this->addResult(std::dynamic_pointer_cast<TtlManagedMemory>(cudaTileB));
+        cudaTileA->returnToMemoryManager();
+        cudaTileB->returnToMemoryManager();
     }
 
     std::shared_ptr<hh::AbstractTask<1, InputTilePair, CudaMatrixTile<MatrixType, OutId, Ord>, TtlManagedMemory>>

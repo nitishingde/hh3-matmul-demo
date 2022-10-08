@@ -297,7 +297,6 @@ private:
         auto matrixBTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdB, Ord>>();
         auto matrixCTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdC, Ord>>();
         auto accumulateTask       = std::make_shared<AccumulateTask<MatrixType, IdC, ProdId, Ord>>(productThreads_);
-        auto recyclerTask         = std::make_shared<TtlManagedMemoryRecyclerTask>();
         auto senderTask           = std::make_shared<Cyclic2dSenderTask<MatrixType, IdC, Ord>>(commThreads_, mTiles*nTiles-myTiles);
         auto receiverTask         = std::make_shared<Cyclic2dReceiverTask<MatrixType, ProdId, Ord>>(myTiles*(getNumNodes()-1));
 
@@ -333,7 +332,6 @@ private:
             accumulateTask
         );
         localGraph.template edge<MatrixTile<MatrixType, IdC, Ord>>(accumulateTask, computationStateManager);
-        localGraph.template edge<TtlManagedMemory>(accumulateTask, recyclerTask);
         localGraph.template edge<MatrixTile<MatrixType, IdC, Ord>>(accumulateTask, outputStateManager);
         localGraph.template edge<MatrixTile<MatrixType, IdC, Ord>>(outputStateManager, senderTask);
 

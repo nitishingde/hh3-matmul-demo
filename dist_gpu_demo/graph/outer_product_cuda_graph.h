@@ -25,7 +25,6 @@
 #include "../task/cuda_copy_in_gpu_task.h"
 #include "../task/cuda_copy_out_gpu_task.h"
 #include "../task/cuda_product_task.h"
-#include "../task/ttl_managed_memory_recycler_task.h"
 #include <hedgehog/hedgehog.h>
 
 template<class MatrixType, char InpIdA, char InpIdB, char OutId, Order Ord>
@@ -46,7 +45,6 @@ public:
         auto copyInBTask  = std::make_shared<CudaCopyInGpuTask<MatrixType, InpIdB, Ord>>(1);
         auto productTask  = std::make_shared<CudaProductTask<MatrixType, InpIdA, InpIdB, OutId, Ord>>(productThreads);
         auto copyOutTask  = std::make_shared<CudaCopyOutGpuTask<MatrixType, OutId, Ord>>(productThreads);
-        auto recyclerTask = std::make_shared<TtlManagedMemoryRecyclerTask>();
 
         // memory managers
         // FIXME: ((mTiles + nTiles + productTask->numberThreads()) * tileSize * tileSize * 8) / 2^30 <= VRAM
@@ -74,8 +72,6 @@ public:
         this->template edge<CudaMatrixTile<MatrixType, InpIdB, Ord>>(copyInBTask, cudaStateManager);
         this->template edge<InputBlockPair>(cudaStateManager, productTask);
         this->template edge<CudaMatrixTile<MatrixType, OutId, Ord>>(productTask, copyOutTask);
-        this->template edge<TtlManagedMemory>(productTask, recyclerTask);
-        this->template edge<TtlManagedMemory>(copyOutTask, recyclerTask);
         this->template output<MatrixTile<MatrixType, OutId, Ord>>(copyOutTask);
     }
 };

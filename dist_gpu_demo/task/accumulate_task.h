@@ -66,7 +66,7 @@ public:
         }
 
         this->addResult(tileC);
-        this->addResult(std::dynamic_pointer_cast<TtlManagedMemory>(tileP));
+        if(tileP->isMemoryManagerConnected()) tileP->returnToMemoryManager();
     }
 
     std::shared_ptr<hh::AbstractTask<1, InputTilePair, MatrixTile<MatrixType, InpIdC, Ord>, TtlManagedMemory>>

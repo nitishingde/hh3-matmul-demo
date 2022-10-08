@@ -24,16 +24,16 @@
 
 class TtlManagedMemory: public hh::ManagedMemory {
 public:
-    void used() {
-        ttl_--;
-    }
-
     // Getters/Setters
     void ttl(int32_t ttl) { ttl_ = ttl; }
 
     bool canBeRecycled() override {
         assert(0 <= ttl_);
         return (ttl_ == 0);
+    }
+
+    void postProcess() override {
+        ttl_--;
     }
 
 private:

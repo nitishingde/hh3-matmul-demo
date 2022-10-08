@@ -80,8 +80,8 @@ target_link_libraries(dist_test_cublas
         dist_matmul
 )
 
-add_executable(dist_mpi_outer_prod_cyclic2d mpi_outer_prod_cyclic2d.cpp mmd.h)
-target_link_libraries(dist_mpi_outer_prod_cyclic2d
+add_executable(cibc_outer_prod_1 cibc_outer_prod_1.cpp mmd.h)
+target_link_libraries(cibc_outer_prod_1
     PUBLIC
         dist_matmul
 )

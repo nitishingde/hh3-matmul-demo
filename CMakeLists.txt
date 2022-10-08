@@ -15,8 +15,8 @@ find_package(Hedgehog REQUIRED)
 find_package(OpenBLAS QUIET)
 
 # Cuda
-find_package(CUDA QUIET)
-find_package(NVTX QUIET)
+find_package(CUDA REQUIRED)
+find_package(NVTX REQUIRED)
 
 if (CUDA_FOUND)
 	message(STATUS "CUDA found")

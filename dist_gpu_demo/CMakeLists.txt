@@ -45,7 +45,6 @@ add_library(dist_matmul
     task/cuda_product_task.h
     task/matrix_col_traversal_task.h
     task/matrix_row_traversal_task.h
-    task/ttl_managed_memory_recycler_task.h
 )
 set_target_properties(dist_matmul PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_definitions(dist_matmul

@@ -25,11 +25,20 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
 
     int32_t devCount = 0;
     cudaGetDeviceCount(&devCount);
-    devCount--;
     std::vector<int32_t> deviceIds;
     deviceIds.reserve(8);
-    for(int32_t i = 0; i < devCount; ++i) deviceIds.emplace_back(i);
-    printf("[Process %d] GPUs = %zu\n", getNodeId(), deviceIds.size());
+    for(int32_t i = 0; i < devCount; ++i) {
+        deviceIds.emplace_back(i);
+        cudaDeviceProp cudaDeviceProp{};
+        cudaGetDeviceProperties(&cudaDeviceProp, i);
+        printf("[Process %d][GPU %d/%d][%s][RAM = %zuGB][#AyncEngines = %d]\n",
+           getNodeId(),
+           i, devCount,
+           cudaDeviceProp.name,
+           cudaDeviceProp.totalGlobalMem/(1<<30),
+           cudaDeviceProp.asyncEngineCount
+        );
+    }
 
     auto subMatA = std::make_shared<ContiguousSubMatrixContainer<Order::Col, MatrixType, 'a', Ord>>(0, M, K, tileSize, matrixComm);
     auto subMatB = std::make_shared<ContiguousSubMatrixContainer<Order::Row, MatrixType, 'b', Ord>>(1, K, N, tileSize, matrixComm);

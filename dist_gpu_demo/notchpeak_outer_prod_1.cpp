@@ -33,11 +33,11 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         cudaDeviceProp cudaDeviceProp{};
         cudaGetDeviceProperties(&cudaDeviceProp, i);
         printf("[Process %d][GPU %d/%d][%s][RAM = %zuGB][#AyncEngines = %d]\n",
-           getNodeId(),
-           i, devCount,
-           cudaDeviceProp.name,
-           cudaDeviceProp.totalGlobalMem/(1<<30),
-           cudaDeviceProp.asyncEngineCount
+            getNodeId(),
+            i, devCount,
+            cudaDeviceProp.name,
+            cudaDeviceProp.totalGlobalMem/(1<<30),
+            cudaDeviceProp.asyncEngineCount
         );
     }
 

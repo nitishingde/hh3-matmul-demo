@@ -15,6 +15,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     using namespace std::chrono_literals;
 
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv);
+    CublasGlobalLockGuard cublasGlobalLockGuard;
 
     MPI_Comm matrixComm;
     MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm);

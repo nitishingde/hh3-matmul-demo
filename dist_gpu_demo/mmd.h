@@ -298,7 +298,7 @@ private:
         auto matrixATraversalTask = std::make_shared<MatrixColTraversalTask<MatrixType, IdA, Ord>>();
         auto matrixBTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdB, Ord>>();
         auto matrixCTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdC, Ord>>();
-        auto accumulateTask       = std::make_shared<AccumulateTask<MatrixType, IdC, ProdId, NetId, Ord>>(productThreads_);
+        auto accumulateTask       = std::make_shared<AccumulateTask<MatrixType, IdC, ProdId, NetId, Ord>>(devices.size()*productThreads_);
         auto senderTask           = std::make_shared<Cyclic2dSenderTask<MatrixType, IdC, Ord>>(commThreads_, mTiles*nTiles-myTiles);
         auto receiverTask         = std::make_shared<Cyclic2dReceiverTask<MatrixType, ProdId, Ord>>(myTiles*(getNumNodes()-1));
 
@@ -432,7 +432,7 @@ private:
             MatrixType, IdC, ProdId, NetId, Ord,
             MatrixTile<MatrixType, IdC, Ord>,
             UnifiedMatrixTile<MatrixType, ProdId, Ord>
-        >>(productThreads_);
+        >>(devices.size()*productThreads_);
         auto senderTask           = std::make_shared<Cyclic2dSenderTask<MatrixType, IdC, Ord>>(commThreads_, mTiles*nTiles-myTiles);
         auto receiverTask         = std::make_shared<Cyclic2dReceiverTask<MatrixType, NetId, Ord>>(myTiles*(getNumNodes()-1));
 

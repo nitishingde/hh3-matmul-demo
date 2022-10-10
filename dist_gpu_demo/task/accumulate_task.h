@@ -24,53 +24,77 @@
 #include "../data/matrix_tile.h"
 #include <hedgehog/hedgehog.h>
 
-template<class MatrixType, char InpIdC, char ProdId, Order Ord>
+template<class MatrixType, char InpIdC, char ProdId, char NetId, Order Ord,
+    class MatrixTileC = MatrixTile<MatrixType, InpIdC, Ord>,
+    class MatrixTileP = MatrixTile<MatrixType, ProdId, Ord>,
+    class MatrixTileN = MatrixTile<MatrixType, NetId, Ord>
+>
 class AccumulateTask:
-    public hh::AbstractTask<1,
-        std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>,  //inp1
-        MatrixTile<MatrixType, InpIdC, Ord>                                                                                     //out1
+    public hh::AbstractTask<2,
+        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>, //inp1
+        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>, //inp2
+        MatrixTileC                                                            //out1
     > {
 private:
-    using InputTilePair = std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>;
+    using InputTilePair1 = std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>;
+    using InputTilePair2 = std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>;
 
 public:
     explicit AccumulateTask(uint32_t threadCount):
-        hh::AbstractTask<1,
-            InputTilePair,
+        hh::AbstractTask<2,
+            InputTilePair1,
+            InputTilePair2,
             MatrixTile<MatrixType, InpIdC, Ord>
         >("Accumulate Task", threadCount, false) {}
 
-    void execute(std::shared_ptr<InputTilePair> tilePair) override {
+    void execute(std::shared_ptr<InputTilePair1> tilePair) override {
         auto tileC = tilePair->first;
         auto tileP = tilePair->second;
 
-#if not NDEBUG
         assert(tileC->width() == tileP->width());
         assert(tileC->height() == tileP->height());
-#endif
-        if constexpr(Ord == Order::Col) {
-            for(uint64_t j = 0; j < tileC->width(); ++j) {
-                for(uint64_t i = 0; i < tileC->height(); ++i) {
-                    tileC->data()[j*tileC->leadingDimension() + i] += tileP->data()[j*tileP->leadingDimension() + i];
-                }
-            }
-        }
-        else {
-            for(uint64_t i = 0; i < tileC->height(); ++i) {
-                for(uint64_t j = 0; j < tileC->width(); ++j) {
-                    tileC->data()[i*tileC->leadingDimension() + j] += tileP->data()[i*tileP->leadingDimension() + j];
-                }
-            }
-        }
+
+        accumulate(tileC->data(), tileC->leadingDimension(), tileP->data(), tileP->leadingDimension(), tileC->width(), tileC->height());
 
         this->addResult(tileC);
         tileP->returnToMemoryManager();
     }
 
-    std::shared_ptr<hh::AbstractTask<1, InputTilePair, MatrixTile<MatrixType, InpIdC, Ord>>>
+    void execute(std::shared_ptr<InputTilePair2> tilePair) override {
+        auto tileC = tilePair->first;
+        auto tileP = tilePair->second;
+
+        assert(tileC->width() == tileP->width());
+        assert(tileC->height() == tileP->height());
+
+        accumulate(tileC->data(), tileC->leadingDimension(), tileP->data(), tileP->leadingDimension(), tileC->width(), tileC->height());
+
+        this->addResult(tileC);
+        tileP->returnToMemoryManager();
+    }
+
+    std::shared_ptr<hh::AbstractTask<2, InputTilePair1, InputTilePair2, MatrixTile<MatrixType, InpIdC, Ord>>>
     copy() override {
         return std::make_shared<AccumulateTask>(this->numberThreads());
     };
+
+private:
+    void accumulate(MatrixType *dataC, uint64_t leadingDimensionC, MatrixType *dataP, uint64_t leadingDimensionP, uint64_t tileWidth, uint64_t tileHeight) {
+        if constexpr(Ord == Order::Col) {
+            if(leadingDimensionC == tileHeight and leadingDimensionP == tileHeight) {
+                std::transform(dataC, dataC+tileWidth*tileHeight, dataP, dataC, std::plus<MatrixType>());
+                return;
+            }
+            for(uint64_t j = 0; j < tileWidth; ++j) {
+                for(uint64_t i = 0; i < tileHeight; ++i) {
+                    dataC[j*leadingDimensionC + i] += dataP[j*leadingDimensionP + i];
+                }
+            }
+        }
+        else {
+            throw std::runtime_error("Order::Row not supported for accumulate task.");
+        }
+    }
 };
 
 #endif //HH3_MATMUL_ACCUMULATE_TASK_H

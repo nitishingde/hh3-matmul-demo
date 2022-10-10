@@ -22,18 +22,22 @@
 
 #include "../data/cuda_matrix_tile.h"
 
-template<class MatrixType, char InpIdA, char InpIdB, char OutId, Order Ord>
+template<class MatrixType, char InpIdA, char InpIdB, char OutId, Order Ord,
+    class CudaTileA = CudaMatrixTile<MatrixType, InpIdA, Ord>,
+    class CudaTileB = CudaMatrixTile<MatrixType, InpIdB, Ord>,
+    class CudaTileP = CudaMatrixTile<MatrixType, OutId, Ord>
+>
 class CudaProductTask: public hh::AbstractCUDATask<1,
-        std::pair<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>, std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>>,  //inp1
-        CudaMatrixTile<MatrixType, OutId, Ord>                                                                                          //out1
+        std::pair<std::shared_ptr<CudaTileA>, std::shared_ptr<CudaTileB>>,  //inp1
+        CudaTileP                                                           //out1
     > {
 private:
-    using InputTilePair = std::pair<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>, std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>>;
+    using InputTilePair = std::pair<std::shared_ptr<CudaTileA>, std::shared_ptr<CudaTileB>>;
     cublasHandle_t handle_{};
 
 public:
     explicit CudaProductTask(uint32_t threadCount):
-        hh::AbstractCUDATask<1, InputTilePair, CudaMatrixTile<MatrixType, OutId, Ord>>(
+    hh::AbstractCUDATask<1, InputTilePair, CudaTileP>(
             "Cuda Product Task",
             threadCount,
             false,
@@ -55,7 +59,7 @@ public:
 
         MatrixType alpha = 1., beta = 0.;
 
-        auto cudaTileP = std::static_pointer_cast<CudaMatrixTile<MatrixType, OutId, Ord>>(this->getManagedMemory());
+        auto cudaTileP = std::static_pointer_cast<CudaTileP>(this->getManagedMemory());
         cudaTileP->matrixTileMetaData(MatrixTileMetaData{
             .rowIdx = cudaTileA->rowIdx(),
             .colIdx = cudaTileB->colIdx(),
@@ -76,7 +80,7 @@ public:
                     (float *) cudaTileB->cudaMemory(), cudaTileB->leadingDimension(), &beta,
                     (float *) cudaTileP->cudaMemory(), cudaTileP->leadingDimension()
                 ));
-            } else if constexpr (std::is_same_v<MatrixType, double>) {
+            } else if constexpr(std::is_same_v<MatrixType, double>) {
                 checkCudaErrors(cublasDgemm_v2(
                     handle_, CUBLAS_OP_N, CUBLAS_OP_N,
                     cudaTileA->height(), cudaTileB->width(), cudaTileA->width(), &alpha,
@@ -98,7 +102,7 @@ public:
         cudaTileB->returnToMemoryManager();
     }
 
-    std::shared_ptr<hh::AbstractTask<1, InputTilePair, CudaMatrixTile<MatrixType, OutId, Ord>>>
+    std::shared_ptr<hh::AbstractTask<1, InputTilePair, CudaTileP>>
     copy() override {
         return std::make_shared<CudaProductTask>(this->numberThreads());
     }

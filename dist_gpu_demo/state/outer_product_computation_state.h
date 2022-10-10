@@ -23,25 +23,40 @@
 #include "../data/matrix_tile.h"
 #include <hedgehog/hedgehog.h>
 
-template<class MatrixType, char InpIdC, char ProdId, Order Ord>
+template<class MatrixType, char InpIdC, char ProdId, char NetId, Order Ord,
+    class MatrixTileC = MatrixTile<MatrixType, InpIdC, Ord>,
+    class MatrixTileP = MatrixTile<MatrixType, ProdId, Ord>,
+    class MatrixTileN = MatrixTile<MatrixType, NetId, Ord>
+>
 class OuterProductComputationState:
-    public hh::State<2,
-        MatrixTile<MatrixType, InpIdC, Ord>,                                                                                    //inp1
-        MatrixTile<MatrixType, ProdId, Ord>,                                                                                    //inp2
-        std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>   //out1
+    public hh::State<3,
+        MatrixTileC,                                                           //inp1
+        MatrixTileP,                                                           //inp2
+        MatrixTileN,                                                           //inp3
+        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>, //out1
+        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>  //out1
     > {
 public:
     explicit OuterProductComputationState(uint64_t gridHeightResults, uint64_t gridWidthResults, int32_t ttl): gridHeightResults_(gridHeightResults), gridWidthResults_(gridWidthResults), ttl_(ttl) {
-        gridPartialProduct_ = std::vector<std::vector<std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>>(gridHeightResults_ * gridWidthResults_);
-        gridMatrixC_ = std::vector<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>>(gridHeightResults_ * gridWidthResults_, nullptr);
+        gridPartialProductP_ = std::vector<std::vector<std::shared_ptr<MatrixTileP>>>(gridHeightResults_ * gridWidthResults_);
+        //FIXME: don't allocate if unnecessary
+        gridPartialProductN_ = std::vector<std::vector<std::shared_ptr<MatrixTileN>>>(gridHeightResults_ * gridWidthResults_);
+        gridMatrixC_ = std::vector<std::shared_ptr<MatrixTileC>>(gridHeightResults_ * gridWidthResults_, nullptr);
     }
 
-    void execute(std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>> tileC) override {
+    void execute(std::shared_ptr<MatrixTileC> tileC) override {
         auto i = tileC->rowIdx(), j = tileC->colIdx();
         if(isPartialProductTilePAvailable(i, j)) {
-            this->addResult(std::make_shared<std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>>(
+            this->addResult(std::make_shared<std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>>(
                 tileC,
                 partialProductTileP(i, j)
+            ));
+            --ttl_;
+        }
+        else if(isPartialProductTileNAvailable(i, j)) {
+            this->addResult(std::make_shared<std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>>(
+                tileC,
+                partialProductTileN(i, j)
             ));
             --ttl_;
         }
@@ -50,11 +65,11 @@ public:
         }
     }
 
-    void execute(std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>> tileP) override {
+    void execute(std::shared_ptr<MatrixTileP> tileP) override {
         tileP->ttl(1);
         auto i = tileP->rowIdx(), j = tileP->colIdx();
         if(isMatrixTileCAvailable(i, j)) {
-            this->addResult(std::make_shared<std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>>(
+            this->addResult(std::make_shared<std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>>(
                 matrixTileC(i, j),
                 tileP
             ));
@@ -65,42 +80,71 @@ public:
         }
     }
 
+    void execute(std::shared_ptr<MatrixTileN> tileN) override {
+        tileN->ttl(1);
+        auto i = tileN->rowIdx(), j = tileN->colIdx();
+        if(isMatrixTileCAvailable(i, j)) {
+            this->addResult(std::make_shared<std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>>(
+                matrixTileC(i, j),
+                tileN
+            ));
+            --ttl_;
+        }
+        else {
+            partialProductTileN(tileN);
+        }
+    }
+
     bool isDone() { return ttl_ == 0; }
 
 private:
-    bool isPartialProductTilePAvailable(uint64_t i, uint64_t j) { return gridPartialProduct_[i*gridWidthResults_ + j].size() != 0; }
+    bool isPartialProductTilePAvailable(uint64_t i, uint64_t j) { return gridPartialProductP_[i * gridWidthResults_ + j].size() != 0; }
+
+    bool isPartialProductTileNAvailable(uint64_t i, uint64_t j) { return gridPartialProductN_[i * gridWidthResults_ + j].size() != 0; }
 
     bool isMatrixTileCAvailable(uint64_t i, uint64_t j) { return gridMatrixC_[i*gridWidthResults_ + j] != nullptr; }
 
-    std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>> partialProductTileP(uint64_t i, uint64_t j) {
+    std::shared_ptr<MatrixTileP> partialProductTileP(uint64_t i, uint64_t j) {
         assert(isPartialProductTilePAvailable(i, j));
-        auto tileP = gridPartialProduct_[i*gridWidthResults_ + j].back();
-        gridPartialProduct_[i*gridWidthResults_ + j].pop_back();
+        auto tileP = gridPartialProductP_[i * gridWidthResults_ + j].back();
+        gridPartialProductP_[i * gridWidthResults_ + j].pop_back();
         return tileP;
     }
 
-    void partialProductTileP(std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>> tileP) {
-        gridPartialProduct_[tileP->rowIdx()*gridWidthResults_ + tileP->colIdx()].emplace_back(tileP);
+    void partialProductTileP(std::shared_ptr<MatrixTileP> tileP) {
+        gridPartialProductP_[tileP->rowIdx() * gridWidthResults_ + tileP->colIdx()].emplace_back(tileP);
     }
 
-    std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>> matrixTileC(uint64_t i, uint64_t j) {
+    std::shared_ptr<MatrixTileN> partialProductTileN(uint64_t i, uint64_t j) {
+        assert(isPartialProductTileNAvailable(i, j));
+        auto tileN = gridPartialProductN_[i * gridWidthResults_ + j].back();
+        gridPartialProductN_[i * gridWidthResults_ + j].pop_back();
+        return tileN;
+    }
+
+    void partialProductTileN(std::shared_ptr<MatrixTileN> tileN) {
+        gridPartialProductN_[tileN->rowIdx() * gridWidthResults_ + tileN->colIdx()].emplace_back(tileN);
+    }
+
+    std::shared_ptr<MatrixTileC> matrixTileC(uint64_t i, uint64_t j) {
         assert(isMatrixTileCAvailable(i, j));
         auto tileC = gridMatrixC_[i*gridWidthResults_ + j];
         gridMatrixC_[i*gridWidthResults_ + j] = nullptr;
         return tileC;
     }
 
-    void matrixTileC(std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>> tileC) {
+    void matrixTileC(std::shared_ptr<MatrixTileC> tileC) {
         assert(!isMatrixTileCAvailable(tileC->rowIdx(), tileC->colIdx()));
         gridMatrixC_[tileC->rowIdx() * gridWidthResults_ + tileC->colIdx()] = tileC;
     }
 
 private:
-    uint64_t gridHeightResults_                                                                        = 0;
-    uint64_t gridWidthResults_                                                                         = 0;
-    std::vector<std::vector<std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>> gridPartialProduct_ = {};
-    std::vector<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>> gridMatrixC_                     = {};
-    int32_t ttl_                                                                                       = 0;
+    uint64_t gridHeightResults_                                                 = 0;
+    uint64_t gridWidthResults_                                                  = 0;
+    std::vector<std::vector<std::shared_ptr<MatrixTileP>>> gridPartialProductP_ = {};
+    std::vector<std::vector<std::shared_ptr<MatrixTileN>>> gridPartialProductN_ = {};
+    std::vector<std::shared_ptr<MatrixTileC>> gridMatrixC_                      = {};
+    int32_t ttl_                                                                = 0;
 };
 
 #endif //HH3_MATMUL_OUTER_PRODUCT_COMPUTATION_STATE_H

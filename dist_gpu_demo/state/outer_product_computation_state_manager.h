@@ -22,16 +22,26 @@
 
 #include "outer_product_computation_state.h"
 
-template<class MatrixType, char InpIdC, char ProdId, Order Ord>
+template<class MatrixType, char InpIdC, char ProdId, char NetId, Order Ord,
+    class MatrixTileC = MatrixTile<MatrixType, InpIdC, Ord>,
+    class MatrixTileP = MatrixTile<MatrixType, ProdId, Ord>,
+    class MatrixTileN = MatrixTile<MatrixType, NetId, Ord>
+>
 class OuterProductComputationStateManager:
-    public hh::StateManager<2,
-        MatrixTile<MatrixType, InpIdC, Ord>,                                                                                    //inp1
-        MatrixTile<MatrixType, ProdId, Ord>,                                                                                    //inp2
-        std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>   //out1
+    public hh::StateManager<3,
+        MatrixTileC,                                                           //inp1
+        MatrixTileP,                                                           //inp2
+        MatrixTileN,                                                           //inp3
+        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>, //out1
+        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>  //out1
     > {
+private:
+    using InputTilePair1 = std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>;
+    using InputTilePair2 = std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>;
+
 public:
-    explicit OuterProductComputationStateManager(std::shared_ptr<OuterProductComputationState<MatrixType, InpIdC, ProdId, Ord>> const &state):
-        hh::StateManager<2, MatrixTile<MatrixType, InpIdC, Ord>, MatrixTile<MatrixType, ProdId, Ord>, std::pair<std::shared_ptr<MatrixTile<MatrixType, InpIdC, Ord>>, std::shared_ptr<MatrixTile<MatrixType, ProdId, Ord>>>>(
+    explicit OuterProductComputationStateManager(std::shared_ptr<OuterProductComputationState<MatrixType, InpIdC, ProdId, NetId, Ord>> const &state):
+        hh::StateManager<3, MatrixTileC, MatrixTileP, MatrixTileN, InputTilePair1, InputTilePair2>(
             state,
             "Outer Product Computation State Manager",
             false
@@ -39,7 +49,7 @@ public:
 
     bool canTerminate() const override {
         this->state()->lock();
-        auto ret = std::dynamic_pointer_cast<OuterProductComputationState<MatrixType, InpIdC, ProdId, Ord>>(this->state())->isDone();
+        auto ret = std::dynamic_pointer_cast<OuterProductComputationState<MatrixType, InpIdC, ProdId, NetId, Ord>>(this->state())->isDone();
         this->state()->unlock();
         return ret;
     }

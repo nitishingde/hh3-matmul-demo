@@ -266,6 +266,7 @@ private:
         std::string dotFile
     ) override {
         constexpr char ProdId = 'p';
+        constexpr char NetId  = 'n';
         auto subA = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Col, MatrixType, IdA, Ord>>(matrixA);
         auto subB = std::static_pointer_cast<ContiguousSubMatrixContainer<Order::Row, MatrixType, IdB, Ord>>(matrixB);
         auto matC = std::static_pointer_cast<Cyclic2dMatrixContainer<MatrixType, IdC, Ord>>(matrixC);
@@ -296,7 +297,7 @@ private:
         auto matrixATraversalTask = std::make_shared<MatrixColTraversalTask<MatrixType, IdA, Ord>>();
         auto matrixBTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdB, Ord>>();
         auto matrixCTraversalTask = std::make_shared<MatrixRowTraversalTask<MatrixType, IdC, Ord>>();
-        auto accumulateTask       = std::make_shared<AccumulateTask<MatrixType, IdC, ProdId, Ord>>(productThreads_);
+        auto accumulateTask       = std::make_shared<AccumulateTask<MatrixType, IdC, ProdId, NetId, Ord>>(productThreads_);
         auto senderTask           = std::make_shared<Cyclic2dSenderTask<MatrixType, IdC, Ord>>(commThreads_, mTiles*nTiles-myTiles);
         auto receiverTask         = std::make_shared<Cyclic2dReceiverTask<MatrixType, ProdId, Ord>>(myTiles*(getNumNodes()-1));
 
@@ -306,12 +307,12 @@ private:
         auto cudaGraph    = std::make_shared<OuterProductCudaGraph<MatrixType, IdA, IdB, ProdId, Ord>>(mTiles, kTiles, nTiles, tileSize, productThreads_);
         auto execPipeline = std::make_shared<OuterProductExecPipeline<MatrixType, IdA, IdB, ProdId, Ord>>(cudaGraph, devices);
 
-        auto computationState        = std::make_shared<OuterProductComputationState<MatrixType, IdC, ProdId, Ord>>(
+        auto computationState        = std::make_shared<OuterProductComputationState<MatrixType, IdC, ProdId, NetId, Ord>>(
             mTiles,
             nTiles,
             mTiles*nTiles*subA->subMatrixNumColTiles() + myTiles*(getNumNodes()-1)
         );
-        auto computationStateManager = std::make_shared<OuterProductComputationStateManager<MatrixType, IdC, ProdId, Ord>>(computationState);
+        auto computationStateManager = std::make_shared<OuterProductComputationStateManager<MatrixType, IdC, ProdId, NetId, Ord>>(computationState);
         auto outputState             = std::make_shared<OuterProductOutputState<MatrixType, IdC, Ord>>(mTiles, nTiles, subA->subMatrixNumColTiles());
         auto outputStateManager      = std::make_shared<hh::StateManager<1,
             MatrixTile<MatrixType, IdC, Ord>,

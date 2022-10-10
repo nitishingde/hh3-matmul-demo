@@ -17,41 +17,58 @@
 // United States.
 
 
-#ifndef HH3_MATMUL_OUTER_PRODUCT_EXEC_PIPELINE_H
-#define HH3_MATMUL_OUTER_PRODUCT_EXEC_PIPELINE_H
+#ifndef HH3_MATMUL_UNIFIEDMEMORY_H
+#define HH3_MATMUL_UNIFIEDMEMORY_H
 
-#include "../data/matrix_tile.h"
 #include <hedgehog/hedgehog.h>
 
-template<class MatrixType, char InpIdA, char InpIdB, char OutId, Order Ord,
-    class MatrixTileA = MatrixTile<MatrixType, InpIdA, Ord>,
-    class MatrixTileB = MatrixTile<MatrixType, InpIdB, Ord>,
-    class MatrixTileP = MatrixTile<MatrixType, OutId, Ord>
->
-class OuterProductExecPipeline:
-    public hh::AbstractExecutionPipeline<2,
-        MatrixTileA, //inp1
-        MatrixTileB, //inp2
-        MatrixTileP  //out1
-    > {
+/**
+ * Wrapper to allocate/deallocate cuda unified memory and have the functionality of synchronizing using streams and events.
+ */
+class UnifiedMemory {
 public:
-    explicit OuterProductExecPipeline(
-        std::shared_ptr<hh::Graph<2, MatrixTileA, MatrixTileB, MatrixTileP>> const &graph,
-        std::vector<int> const &deviceIds
-    ): hh::AbstractExecutionPipeline<2, MatrixTileA, MatrixTileB, MatrixTileP>(graph, deviceIds) {
-        deviceCount_ = deviceIds.size();
+    explicit UnifiedMemory(uint64_t bytes) {
+        checkCudaErrors(cudaMallocManaged(&pUnifiedMemory_, bytes));
     }
 
-    bool sendToGraph(std::shared_ptr<MatrixTileA> &matrixTileA, size_t const &graphId) override {
-        return (matrixTileA->colIdx() % deviceCount_) == graphId;
+    ~UnifiedMemory() {
+        checkCudaErrors(cudaFree(pUnifiedMemory_));
+        pUnifiedMemory_ = nullptr;
+        if(cudaEventCreated_) {
+            checkCudaErrors(cudaEventDestroy(cudaEvent_));
+            cudaEventCreated_ = false;
+        }
     }
 
-    bool sendToGraph(std::shared_ptr<MatrixTileB> &matrixTileB, size_t const &graphId) override {
-        return (matrixTileB->rowIdx() % deviceCount_) == graphId;
+    /**
+     * Record cudaAsync API call using stream for later synchronization.
+     *
+     * @param stream
+     */
+    void recordEvent(cudaStream_t stream) {
+        if (!cudaEventCreated_) {
+            checkCudaErrors(cudaEventCreate(&cudaEvent_));
+            cudaEventCreated_ = true;
+        }
+        checkCudaErrors(cudaEventRecord(cudaEvent_, stream));
     }
+
+    /**
+     * Synchronize the cudaAsync API called previously.
+     */
+    void synchronizeEvent() {
+        assert(cudaEventCreated_);
+        checkCudaErrors(cudaEventSynchronize(cudaEvent_));
+    }
+
+    // FIXME: names
+    [[nodiscard]] void* cudaMemory() { return pUnifiedMemory_; }
+    [[nodiscard]] void** cudaMemoryAddress() { return &pUnifiedMemory_; }
 
 private:
-    uint32_t deviceCount_ = 0;
+    void *pUnifiedMemory_  = nullptr;
+    bool cudaEventCreated_ = false;
+    cudaEvent_t cudaEvent_ = {};
 };
 
-#endif //HH3_MATMUL_OUTER_PRODUCT_EXEC_PIPELINE_H
+#endif //HH3_MATMUL_UNIFIEDMEMORY_H

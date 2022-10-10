@@ -79,8 +79,8 @@ target_link_libraries(dist_test_cublas
         dist_matmul
 )
 
-add_executable(cibc_outer_prod_1 cibc_outer_prod_1.cpp mmd.h)
-target_link_libraries(cibc_outer_prod_1
+add_executable(cibc cibc.cpp mmd.h)
+target_link_libraries(cibc
     PUBLIC
         dist_matmul
 )

@@ -34,7 +34,7 @@ class OuterProductComputationState:
         MatrixTileP,                                                           //inp2
         MatrixTileN,                                                           //inp3
         std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>, //out1
-        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>  //out1
+        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>  //out2
     > {
 public:
     explicit OuterProductComputationState(uint64_t gridHeightResults, uint64_t gridWidthResults, int32_t ttl): gridHeightResults_(gridHeightResults), gridWidthResults_(gridWidthResults), ttl_(ttl) {

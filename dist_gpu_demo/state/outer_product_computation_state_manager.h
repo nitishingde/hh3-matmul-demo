@@ -33,14 +33,14 @@ class OuterProductComputationStateManager:
         MatrixTileP,                                                           //inp2
         MatrixTileN,                                                           //inp3
         std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>, //out1
-        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>  //out1
+        std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>  //out2
     > {
 private:
     using InputTilePair1 = std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileP>>;
     using InputTilePair2 = std::pair<std::shared_ptr<MatrixTileC>, std::shared_ptr<MatrixTileN>>;
 
 public:
-    explicit OuterProductComputationStateManager(std::shared_ptr<OuterProductComputationState<MatrixType, InpIdC, ProdId, NetId, Ord>> const &state):
+    explicit OuterProductComputationStateManager(std::shared_ptr<OuterProductComputationState<MatrixType, InpIdC, ProdId, NetId, Ord, MatrixTileC, MatrixTileP, MatrixTileN>> const &state):
         hh::StateManager<3, MatrixTileC, MatrixTileP, MatrixTileN, InputTilePair1, InputTilePair2>(
             state,
             "Outer Product Computation State Manager",
@@ -49,7 +49,7 @@ public:
 
     bool canTerminate() const override {
         this->state()->lock();
-        auto ret = std::dynamic_pointer_cast<OuterProductComputationState<MatrixType, InpIdC, ProdId, NetId, Ord>>(this->state())->isDone();
+        auto ret = std::dynamic_pointer_cast<OuterProductComputationState<MatrixType, InpIdC, ProdId, NetId, Ord, MatrixTileC, MatrixTileP, MatrixTileN>>(this->state())->isDone();
         this->state()->unlock();
         return ret;
     }

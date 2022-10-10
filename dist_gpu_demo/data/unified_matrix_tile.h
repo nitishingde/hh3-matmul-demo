@@ -17,41 +17,56 @@
 // United States.
 
 
-#ifndef HH3_MATMUL_OUTER_PRODUCT_EXEC_PIPELINE_H
-#define HH3_MATMUL_OUTER_PRODUCT_EXEC_PIPELINE_H
+#ifndef HH3_MATMUL_UNIFIED_MATRIX_TILE_H
+#define HH3_MATMUL_UNIFIED_MATRIX_TILE_H
 
-#include "../data/matrix_tile.h"
+#include "matrix_order.h"
+#include "matrix_tile_meta_data.h"
+#include "unified_memory.h"
+#include "ttl_managed_memory.h"
 #include <hedgehog/hedgehog.h>
 
-template<class MatrixType, char InpIdA, char InpIdB, char OutId, Order Ord,
-    class MatrixTileA = MatrixTile<MatrixType, InpIdA, Ord>,
-    class MatrixTileB = MatrixTile<MatrixType, InpIdB, Ord>,
-    class MatrixTileP = MatrixTile<MatrixType, OutId, Ord>
->
-class OuterProductExecPipeline:
-    public hh::AbstractExecutionPipeline<2,
-        MatrixTileA, //inp1
-        MatrixTileB, //inp2
-        MatrixTileP  //out1
-    > {
+template<class MatrixType, char Id, Order Ord = Order::Col>
+class UnifiedMatrixTile: public UnifiedMemory, public TtlManagedMemory {
 public:
-    explicit OuterProductExecPipeline(
-        std::shared_ptr<hh::Graph<2, MatrixTileA, MatrixTileB, MatrixTileP>> const &graph,
-        std::vector<int> const &deviceIds
-    ): hh::AbstractExecutionPipeline<2, MatrixTileA, MatrixTileB, MatrixTileP>(graph, deviceIds) {
-        deviceCount_ = deviceIds.size();
+    explicit UnifiedMatrixTile(uint64_t tileSize): UnifiedMemory(sizeof(MatrixType)*tileSize*tileSize), tileSize_(tileSize) {
+        resetMatrixTileMetaData();
     }
 
-    bool sendToGraph(std::shared_ptr<MatrixTileA> &matrixTileA, size_t const &graphId) override {
-        return (matrixTileA->colIdx() % deviceCount_) == graphId;
+    void preProcess() override {
+        resetMatrixTileMetaData();
     }
 
-    bool sendToGraph(std::shared_ptr<MatrixTileB> &matrixTileB, size_t const &graphId) override {
-        return (matrixTileB->rowIdx() % deviceCount_) == graphId;
+    //Getters/Setters
+    [[nodiscard]] const MatrixTileMetaData& matrixTileMetaData() const { return matrixTileMetaData_; }
+    void matrixTileMetaData(const MatrixTileMetaData &matrixTileMetaData) { matrixTileMetaData_ = matrixTileMetaData; }
+    [[nodiscard]] uint64_t rowIdx() const { return matrixTileMetaData_.rowIdx; }
+    [[nodiscard]] uint64_t colIdx() const { return matrixTileMetaData_.colIdx; }
+    [[nodiscard]] uint64_t height() const { return matrixTileMetaData_.height; }
+    [[nodiscard]] uint64_t width() const { return matrixTileMetaData_.width; }
+    [[nodiscard]] uint64_t tileSize() const { return tileSize_; }
+    [[nodiscard]] uint64_t leadingDimension() {
+        if constexpr(Ord == Order::Col) {
+            return matrixTileMetaData_.height;
+        }
+        return matrixTileMetaData_.width;
+    }
+    [[nodiscard]] MatrixType* data() { return static_cast<MatrixType*>(this->cudaMemory()); }
+    [[nodiscard]] uint64_t dataSize() const { return tileSize_*tileSize_; }
+
+private:
+    void resetMatrixTileMetaData() {
+        matrixTileMetaData_ = {
+            .rowIdx = 0,
+            .colIdx = 0,
+            .height = tileSize_,
+            .width  = tileSize_
+        };
     }
 
 private:
-    uint32_t deviceCount_ = 0;
+    MatrixTileMetaData matrixTileMetaData_                       = {};
+    uint64_t tileSize_                                           = 0;
 };
 
-#endif //HH3_MATMUL_OUTER_PRODUCT_EXEC_PIPELINE_H
+#endif //HH3_MATMUL_UNIFIED_MATRIX_TILE_H

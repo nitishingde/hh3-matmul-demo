@@ -50,6 +50,12 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     {
         MPI_Barrier(MPI_COMM_WORLD);
         MMD_MpiOuterProduct1<MatrixType, 'a', 'b', 'c', Ord>(productThreads, commThreads).execute(subMatA, subMatB, matrixC, deviceIds);
+    }
+
+    {
+        init(matrixC);
+        MPI_Barrier(MPI_COMM_WORLD);
+        MMD_MpiOuterProduct2<MatrixType, 'a', 'b', 'c', Ord>(productThreads, commThreads).execute(subMatA, subMatB, matrixC, deviceIds);
         matrixC->shrink();
     }
 

@@ -21,6 +21,7 @@
 #define HH3_MATMUL_CUDA_PRODUCT_TASK_H
 
 #include "../data/cuda_matrix_tile.h"
+#include "../data/unified_matrix_tile.h"
 
 template<class MatrixType, char InpIdA, char InpIdB, char OutId, Order Ord,
     class CudaTileA = CudaMatrixTile<MatrixType, InpIdA, Ord>,
@@ -60,6 +61,14 @@ public:
         MatrixType alpha = 1., beta = 0.;
 
         auto cudaTileP = std::static_pointer_cast<CudaTileP>(this->getManagedMemory());
+        if constexpr(std::is_same_v<CudaTileP, UnifiedMatrixTile<MatrixType, OutId, Ord>>) {
+            checkCudaErrors(cudaMemPrefetchAsync(
+                cudaTileP->data(),
+                cudaTileP->tileSize()*cudaTileP->tileSize()*sizeof(MatrixType),
+                this->deviceId(),
+                this->stream()
+            ));
+        }
         cudaTileP->matrixTileMetaData(MatrixTileMetaData{
             .rowIdx = cudaTileA->rowIdx(),
             .colIdx = cudaTileB->colIdx(),

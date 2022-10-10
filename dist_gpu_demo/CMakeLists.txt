@@ -85,8 +85,26 @@ target_link_libraries(cibc
         dist_matmul
 )
 
+add_executable(cibc_outer_prod_1 cibc_outer_prod_1.cpp mmd.h)
+target_link_libraries(cibc_outer_prod_1
+    PUBLIC
+        dist_matmul
+)
+
+add_executable(cibc_outer_prod_2 cibc_outer_prod_2.cpp mmd.h)
+target_link_libraries(cibc_outer_prod_2
+    PUBLIC
+        dist_matmul
+)
+
 add_executable(notchpeak_outer_prod_1 notchpeak_outer_prod_1.cpp mmd.h)
 target_link_libraries(notchpeak_outer_prod_1
+    PUBLIC
+        dist_matmul
+)
+
+add_executable(notchpeak_outer_prod_2 notchpeak_outer_prod_2.cpp mmd.h)
+target_link_libraries(notchpeak_outer_prod_2
     PUBLIC
         dist_matmul
 )

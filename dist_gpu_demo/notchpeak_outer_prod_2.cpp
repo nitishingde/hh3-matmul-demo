@@ -6,7 +6,7 @@
 #include "mmd.h"
 #include <cstdio>
 
-#define VERIFY_MMD true
+#define VERIFY_MMD false
 #define DUMP_DATA  false
 
 int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {

@@ -103,10 +103,31 @@ public:
     void execute(std::shared_ptr<MatrixTile<MatrixType, Id, Ord>> matrixTile) override {
         if(matrixTile->sourceNodeId() == getNodeId()) return;
         auto dataPacket = matrixTile->dataPacket();
+
+        auto start = std::chrono::high_resolution_clock::now();
         MPI_Send(
             dataPacket->data(), dataPacket->size(), MPI_UINT8_T,
             matrixTile->sourceNodeId(), matrixTile->contextId(), MPI_COMM_WORLD
         );
+        auto end = std::chrono::high_resolution_clock::now();
+        double bandWidth = double(dataPacket->size())/(double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9);
+        bandWidth /= (1024*1024);// MB/s
+
+        minBW_ = std::min(minBW_, bandWidth);
+        totalSent_++;
+        avgBW_ = (avgBW_*(totalSent_-1) + bandWidth)/totalSent_;
+        maxBW_ = std::max(maxBW_, bandWidth);
+    }
+
+    std::string extraPrintingInformation() const override {
+        if(maxBW_ < 0.0) return "";
+
+        auto min = std::to_string(minBW_);
+        auto avg = std::to_string(avgBW_);
+        auto max = std::to_string(maxBW_);
+        return "Min Bandwidth: " + min.substr(0, min.find('.', 0)+4) + " MB/s\\n"
+            + "Avg Bandwidth: " + avg.substr(0, avg.find('.', 0)+4) + " MB/s\\n"
+            + "Max Bandwidth: " + max.substr(0, max.find('.', 0)+4) + " MB/s";
     }
 
     std::shared_ptr<hh::AbstractTask<1, MatrixTile<MatrixType, Id, Ord>, void*>>
@@ -115,6 +136,8 @@ public:
     }
 
 private:
+    double minBW_ = 1e9, avgBW_ = 0.0, maxBW_ = -1.0;
+    int64_t totalSent_ = 0;
     int64_t expectedCount_ = 0;//FIXME: is it needed?
 };
 

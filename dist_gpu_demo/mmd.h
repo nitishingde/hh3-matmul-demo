@@ -388,7 +388,7 @@ public:
     explicit MMD_MpiOuterProduct2(size_t productThreads = 4, size_t commThreads = 8)
         : productThreads_(productThreads), commThreads_(commThreads) {}
 
-private:
+//private:
     void executeImpl(
         std::shared_ptr<MatrixContainer<MatrixType, IdA, Ord>> matrixA,
         std::shared_ptr<MatrixContainer<MatrixType, IdB, Ord>> matrixB,

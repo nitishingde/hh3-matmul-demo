@@ -108,3 +108,9 @@ target_link_libraries(notchpeak_outer_prod_2
     PUBLIC
         dist_matmul
 )
+
+add_executable(notchpeak_benchmark notchpeak_benchmark.cpp mmd.h)
+target_link_libraries(notchpeak_benchmark
+    PUBLIC
+        dist_matmul
+)

@@ -109,7 +109,7 @@ void dumpData(std::shared_ptr<Cyclic2dMatrixContainer<MatrixType, Id, Ord>> matr
             if(auto tile = matrixC->getTile(i, j); tile != nullptr and tile->sourceNodeId() == getNodeId()) {
                 std::string fileName = path+"/matrix_tile_"+std::to_string(i)+"_"+std::to_string(j)+".dat";
                 printf("[Process %d] Writing to file %s\n", getNodeId(), fileName.c_str());
-                auto pFile = fopen(fileName.c_str(), "w");
+                auto pFile = fopen(fileName.c_str(), "wb");
                 fwrite(tile->data(), sizeof(MatrixType), tile->dataSize(), pFile);
                 fclose(pFile);
             }

@@ -61,7 +61,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         }
         checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
         auto start = std::chrono::high_resolution_clock::now();
-        strategy.executeImpl(subMatA, subMatB, matrixC, deviceIds, "MMD_Unified_tile"+std::to_string(tileSize)+"_iter"+std::to_string(iter)+"_node");
+        strategy.executeImpl(subMatA, subMatB, matrixC, deviceIds, path + "MMD_Unified_tile"+std::to_string(tileSize)+"_iter"+std::to_string(iter)+"_node");
         checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
         auto end = std::chrono::high_resolution_clock::now();
         time[iter] = double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9;

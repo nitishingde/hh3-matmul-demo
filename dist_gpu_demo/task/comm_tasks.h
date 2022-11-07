@@ -74,12 +74,6 @@ private:
                     req = requests_.erase(req);
                     this->addResult(tile);
                 }
-                else if(status.MPI_ERROR) {
-                    int errorLen;
-                    char error[256];
-                    MPI_Error_string(status.MPI_ERROR, error, &errorLen);
-                    printf("[Process 0][Error %s]\n", error);
-                }
             }
         }
     }

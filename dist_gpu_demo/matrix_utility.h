@@ -71,17 +71,17 @@ bool verifySolution(
     init(redundantMatrixC);
 
     {
-        MPI_Barrier(MPI_COMM_WORLD);
+        checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
         MMD_VerifyCublas<MatrixType, IdA, IdB, IdC, Ord>().execute(std::move(subMatA), std::move(subMatB), redundantMatrixC, deviceIds);
         subMatA = nullptr;
         subMatB = nullptr;
     }
 
     MPI_Datatype datatype;
-    MPI_Type_contiguous(int32_t(M), std::is_same_v<MatrixType, double>? MPI_DOUBLE: MPI_FLOAT, &datatype);
-    MPI_Type_commit(&datatype);
-    MPI_Bcast(redundantMatrixC->data(), int32_t(N), datatype, 0, redundantMatrixC->mpiComm());
-    MPI_Barrier(MPI_COMM_WORLD);
+    checkMpiErrors(MPI_Type_contiguous(int32_t(M), std::is_same_v<MatrixType, double>? MPI_DOUBLE: MPI_FLOAT, &datatype));
+    checkMpiErrors(MPI_Type_commit(&datatype));
+    checkMpiErrors(MPI_Bcast(redundantMatrixC->data(), int32_t(N), datatype, 0, redundantMatrixC->mpiComm()));
+    checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
     if(isRootNodeId()) printf("Verifying solution.\n");
 
     bool isCorrect = true;

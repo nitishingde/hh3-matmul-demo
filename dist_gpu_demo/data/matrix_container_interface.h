@@ -50,8 +50,8 @@ public:
         };
         registerContext(contextId, matrixMetaData_);
 #if NDEBUG
-        MPI_Comm_rank(mpiComm_, &nodeId_);
-        MPI_Comm_size(mpiComm_, &numNodes_);
+        checkMpiErrors(MPI_Comm_rank(mpiComm_, &nodeId_));
+        checkMpiErrors(MPI_Comm_size(mpiComm_, &numNodes_));
 #else
         if((MPI_Comm_rank(mpiComm_, &nodeId_) != MPI_SUCCESS) or (MPI_Comm_size(mpiComm_, &numNodes_) != MPI_SUCCESS)) {
             MPI_Abort(this->mpiComm_, EXIT_FAILURE);

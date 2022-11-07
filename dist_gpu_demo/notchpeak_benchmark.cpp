@@ -7,7 +7,7 @@
 #include <cstdio>
 
 #define VERIFY_MMD false
-#define DUMP_DATA  true
+#define DUMP_DATA  false
 
 int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     using MatrixType = float;
@@ -18,8 +18,8 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     CublasGlobalLockGuard cublasGlobalLockGuard;
 
     MPI_Comm matrixComm;
-    MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm);
-    MPI_Barrier(matrixComm);
+    checkMpiErrors(MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm));
+    checkMpiErrors(MPI_Barrier(matrixComm));
 
     auto [M, K, N, tileSize, productThreads, commThreads, path] = parseArgs(argc, argv);
     printf("[Process %d] M = %lu, K = %lu, N = %lu, tileSize = %lu, path = %s\n", getNodeId(), M, K, N, tileSize, path.c_str());
@@ -59,10 +59,10 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
             printf("\rIterations: %d/%d", iter+1, ITER);
             fflush(stdout);
         }
-        MPI_Barrier(MPI_COMM_WORLD);
+        checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
         auto start = std::chrono::high_resolution_clock::now();
         strategy.executeImpl(subMatA, subMatB, matrixC, deviceIds, "MMD_Unified_tile"+std::to_string(tileSize)+"_iter"+std::to_string(iter)+"_node");
-        MPI_Barrier(MPI_COMM_WORLD);
+        checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
         auto end = std::chrono::high_resolution_clock::now();
         time[iter] = double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9;
         init(matrixC);
@@ -87,7 +87,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     }
 
     matrixC->shrink();
-    MPI_Barrier(MPI_COMM_WORLD);
+    checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
 
 #if VERIFY_MMD
     verifySolution(std::move(subMatA), std::move(subMatB), matrixC, deviceIds, matrixComm);
@@ -99,7 +99,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     dumpData(matrixC, path);
 #endif
 
-    MPI_Comm_free(&matrixComm);
+    checkMpiErrors(MPI_Comm_free(&matrixComm));
 
     return 0;
 }

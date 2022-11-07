@@ -40,11 +40,11 @@ public:
             requests_.template emplace_back(Request{});
             auto &request = requests_.back();
             request.tile_ = tile;
-            MPI_Irecv(
+            checkMpiErrors(MPI_Irecv(
                 dataPacket->data(), dataPacket->size(), MPI_UINT8_T,
                 MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD,
                 &request.mpiRequest_
-            );
+            ));
         }
         daemon.join();
     }
@@ -64,7 +64,7 @@ private:
             for(auto req = requests_.begin(); req != requests_.end();) {
                 int32_t flag;
                 MPI_Status status;
-                MPI_Test(&req->mpiRequest_, &flag, &status);
+                checkMpiErrors(MPI_Test(&req->mpiRequest_, &flag, &status));
                 if(flag) {
                     auto tile = req->tile_;
                     tile->dataPacket()->contextId(status.MPI_TAG);
@@ -105,10 +105,10 @@ public:
         auto dataPacket = matrixTile->dataPacket();
 
         auto start = std::chrono::high_resolution_clock::now();
-        MPI_Send(
+        checkMpiErrors(MPI_Send(
             dataPacket->data(), dataPacket->size(), MPI_UINT8_T,
             matrixTile->sourceNodeId(), matrixTile->contextId(), MPI_COMM_WORLD
-        );
+        ));
         auto end = std::chrono::high_resolution_clock::now();
         double bandWidth = double(dataPacket->size())/(double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9);
         bandWidth /= (1024*1024);// MB/s

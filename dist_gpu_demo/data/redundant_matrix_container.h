@@ -39,7 +39,7 @@ public:
           isSourceNode_(isSourceNode) {
 
         int32_t sourceNode = isSourceNode? this->nodeId(): 0;
-        MPI_Allreduce(&sourceNode, &sourceNode_, 1, MPI_INT32_T, MPI_SUM, this->mpiComm_);
+        checkMpiErrors(MPI_Allreduce(&sourceNode, &sourceNode_, 1, MPI_INT32_T, MPI_SUM, this->mpiComm_));
 #if not NDEBUG
         if(isSourceNode) {
             assert(sourceNode == this->nodeId());

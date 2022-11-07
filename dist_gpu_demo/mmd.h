@@ -133,7 +133,7 @@ private:
         std::vector<MatrixType> tempC((isRootNodeId()? len: 0));
         for(uint64_t idx = 0, limit = m*n; idx < limit; idx += len) {
             len = (((idx+len) <= limit)? len: limit-idx);
-            MPI_Reduce(
+            checkMpiErrors(MPI_Reduce(
                 &matC->data()[idx],
                 tempC.data(),
                 len,
@@ -141,7 +141,7 @@ private:
                 MPI_SUM,
                 0,
                 matC->mpiComm()
-            );
+            ));
             if(isRootNodeId()) {
                 std::memcpy(&matC->data()[idx], tempC.data(), sizeof(MatrixType)*len);
             }
@@ -216,7 +216,7 @@ private:
         std::vector<MatrixType> tempC((isRootNodeId()? len: 0));
         for(uint64_t idx = 0, limit = m*n; idx < limit; idx += len) {
             len = (((idx+len) <= limit)? len: limit-idx);
-            MPI_Reduce(
+            checkMpiErrors(MPI_Reduce(
                 &matC->data()[idx],
                 tempC.data(),
                 len,
@@ -224,7 +224,7 @@ private:
                 MPI_SUM,
                 0,
                 matC->mpiComm()
-            );
+            ));
             if(isRootNodeId()) {
                 std::memcpy(&matC->data()[idx], tempC.data(), sizeof(MatrixType)*len);
             }

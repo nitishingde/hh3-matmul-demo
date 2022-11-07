@@ -42,28 +42,34 @@ static int32_t sMpiNumNodes = 1;
     return sMpiNodeId == 0;
 }
 
+#ifndef checkMpiErrors
+void __checkMpiErrors(const int errorCode, const char *file, const int line) {
+    char msg[MPI_MAX_ERROR_STRING];
+    int length;
+    MPI_Error_string(errorCode, msg, &length);
+    fprintf(stderr, "[Process %d] %s:%d {%s}\n", sMpiNodeId, file, line, msg);
+    MPI_Abort(MPI_COMM_WORLD, errorCode);
+}
+
+#if MMD_ENABLE_CHECK_MPI
+#define checkMpiErrors(err) if(int errorCode = err; errorCode != MPI_SUCCESS) { __checkMpiErrors(errorCode, __FILE__, __LINE__); }
+#else
+#define checkMpiErrors(err) err
+#endif
+
+#endif //checkMpiErrors
+
 class MpiGlobalLockGuard {
 public:
     explicit MpiGlobalLockGuard(int *argc, char ***argv) {
-        int32_t mpiNodeId = -1, mpiNumNodes = -1;
         int32_t provided;
-        if(MPI_Init_thread(argc, argv, MPI_THREAD_MULTIPLE, &provided) == MPI_SUCCESS) {
-            int32_t flag = false;
-            if(auto status = MPI_Initialized(&flag); status == MPI_SUCCESS and flag) {
-                MPI_Comm_rank(MPI_COMM_WORLD, &sMpiNodeId);
-                MPI_Comm_size(MPI_COMM_WORLD, &sMpiNumNodes);
-            } else {
-                printf("[MPI ERROR] %s:%d", __FILE__, __LINE__);
-                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-            }
-        }
+        checkMpiErrors(MPI_Init_thread(argc, argv, MPI_THREAD_MULTIPLE, &provided));
+        checkMpiErrors(MPI_Comm_rank(MPI_COMM_WORLD, &sMpiNodeId));
+        checkMpiErrors(MPI_Comm_size(MPI_COMM_WORLD, &sMpiNumNodes));
     }
 
     ~MpiGlobalLockGuard() {
-        if(MPI_Finalize() != MPI_SUCCESS) {
-            printf("[MPI ERROR] %s:%d", __FILE__, __LINE__);
-            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-        }
+        checkMpiErrors(MPI_Finalize());
     }
 };
 

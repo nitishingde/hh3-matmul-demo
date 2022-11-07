@@ -50,6 +50,8 @@ set_target_properties(dist_matmul PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_definitions(dist_matmul
     PUBLIC
         HH_USE_CUDA
+        HH_ENABLE_CHECK_CUDA
+        MMD_ENABLE_CHECK_MPI
 )
 target_include_directories(dist_matmul
     PUBLIC

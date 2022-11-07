@@ -50,6 +50,7 @@ public:
     }
 
     [[nodiscard]] bool canTerminate() const override {
+        std::lock_guard lc(mutex_);
 //        printf("[Process %d] canTerminate %d\n", getNodeId(), expectedCount_ == 0 and requests_.empty());
         if(expectedCount_ < 0) throw std::runtime_error("MatrixBlockReceiverTask::expectedCount_ < 0\n");
         return expectedCount_ == 0 and requests_.empty();
@@ -90,7 +91,7 @@ private:
         MPI_Request mpiRequest_ {};
     };
     std::list<Request> requests_;
-    std::mutex mutex_ {};
+    mutable std::mutex mutex_ {};
 };
 
 template<class MatrixType, char Id, Order Ord>

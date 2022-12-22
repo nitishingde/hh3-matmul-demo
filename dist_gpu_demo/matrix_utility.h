@@ -15,6 +15,16 @@ void init(std::shared_ptr<ContiguousSubMatrixContainer<SubMatrixOrder, MatrixTyp
     );
 }
 
+template<Order SubMatrixOrder, class MatrixType, char Id, Order Ord>
+void init(std::shared_ptr<TiledSubMatrixContainer<SubMatrixOrder, MatrixType, Id, Ord>> subMat) {
+    for(auto [rowIdx, rowLen] = subMat->subMatrixRowTileRange(); rowIdx < rowLen; ++rowIdx) {
+        for(auto [colIdx, colLen] = subMat->subMatrixColTileRange(); colIdx < colLen; ++colIdx) {
+            auto tile = subMat->getTile(rowIdx, colIdx);
+            std::for_each(tile->data(), tile->data()+tile->dataSize(), [](MatrixType &val) { val = fastrand()%10; });
+        }
+    }
+}
+
 template<class MatrixType, char Id, Order Ord>
 void init(std::shared_ptr<Cyclic2dMatrixContainer<MatrixType, Id, Ord>> cyclic2dMatrix) {
     for(uint32_t i = 0; i < cyclic2dMatrix->matrixNumColTiles(); ++i) {
@@ -100,6 +110,45 @@ bool verifySolution(
     }
 
     return isCorrect;
+}
+
+template<Order SubMatrixOrder, class MatrixType, char Id, Order Ord>
+void _copySubMatrix(std::shared_ptr<TiledSubMatrixContainer<SubMatrixOrder, MatrixType, Id, Ord>> srcMat, std::shared_ptr<ContiguousSubMatrixContainer<SubMatrixOrder, MatrixType, Id, Ord>> dstMat) {
+    for(auto [rowIdx, rowLen] = srcMat->subMatrixRowTileRange(); rowIdx < rowLen; ++rowIdx) {
+        for(auto [colIdx, colLen] = srcMat->subMatrixColTileRange(); colIdx < colLen; ++colIdx) {
+            auto srcTile = srcMat->getTile(rowIdx, colIdx);
+            auto dstTile = dstMat->getTile(rowIdx, colIdx);
+            assert(srcTile != nullptr);
+            assert(dstTile != nullptr);
+            for(size_t i = 0; i < srcTile->width(); ++i) {
+                for(size_t j = 0; j < srcTile->height(); ++j) {
+                    dstTile->data()[i*dstTile->leadingDimension() + j] = srcTile->data()[i*srcTile->leadingDimension() + j];
+                }
+            }
+        }
+    }
+}
+
+template<class MatrixType, char IdA, char IdB, char IdC, Order Ord>
+bool verifySolution(
+        std::shared_ptr<TiledSubMatrixContainer<Order::Col, MatrixType, IdA, Ord>> &&subMatA,
+        std::shared_ptr<TiledSubMatrixContainer<Order::Row, MatrixType, IdB, Ord>> &&subMatB,
+        std::shared_ptr<Cyclic2dMatrixContainer<MatrixType, IdC, Ord>> matrixC,
+        const std::vector<int32_t> &deviceIds,
+        MPI_Comm matrixComm
+    ) {
+
+    uint64_t M = matrixC->matrixHeight(), K = subMatA->matrixWidth(), N = matrixC->matrixWidth(), tileSize = matrixC->matrixTileSize();
+
+    auto contiguousSubMatA = std::make_shared<ContiguousSubMatrixContainer<Order::Col, MatrixType, IdA, Ord>>(100, M, K, tileSize, matrixComm);
+    _copySubMatrix(subMatA, contiguousSubMatA);
+    subMatA = nullptr;
+
+    auto contiguousSubMatB = std::make_shared<ContiguousSubMatrixContainer<Order::Row, MatrixType, IdB, Ord>>(101, K, N, tileSize, matrixComm);
+    _copySubMatrix(subMatB, contiguousSubMatB);
+    subMatB = nullptr;
+
+    return verifySolution(std::move(contiguousSubMatA), std::move(contiguousSubMatB), matrixC, deviceIds, matrixComm);
 }
 
 template<class MatrixType, char Id, Order Ord>

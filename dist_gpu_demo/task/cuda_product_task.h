@@ -106,6 +106,16 @@ public:
         }
         checkCudaErrors(cudaStreamSynchronize(this->stream()));
 
+        if constexpr(std::is_same_v<CudaTileP, UnifiedMatrixTile<MatrixType, OutId, Ord>>) {
+            checkCudaErrors(cudaMemPrefetchAsync(
+                cudaTileP->data(),
+                cudaTileP->tileSize()*cudaTileP->tileSize()*sizeof(MatrixType),
+                cudaCpuDeviceId,
+                this->stream()
+            ));
+            cudaTileP->recordEvent(this->stream());
+        }
+
         this->addResult(cudaTileP);
         cudaTileA->returnToMemoryManager();
         cudaTileB->returnToMemoryManager();

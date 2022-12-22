@@ -51,6 +51,10 @@ public:
         auto tileC = tilePair->first;
         auto tileP = tilePair->second;
 
+        if constexpr(std::is_same_v<MatrixTileP, UnifiedMatrixTile<MatrixType, ProdId, Ord>>) {
+            tileP->synchronizeEvent();
+        }
+
         assert(tileC->width() == tileP->width());
         assert(tileC->height() == tileP->height());
 

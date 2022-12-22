@@ -354,7 +354,10 @@ private:
         localGraph.createDotFile(
             dotFile + std::to_string(getNodeId()) + ".dot",
             hh::ColorScheme::EXECUTION,
-            hh::StructureOptions::ALL
+            hh::StructureOptions::QUEUE,
+            hh::DebugOptions::NONE,
+            std::make_unique<hh::JetColor>(),
+            false
         );
     }
 
@@ -507,7 +510,10 @@ public:
         localGraph.createDotFile(
             dotFile + std::to_string(getNodeId()) + ".dot",
             hh::ColorScheme::EXECUTION,
-            hh::StructureOptions::ALL
+            hh::StructureOptions::QUEUE,
+            hh::DebugOptions::NONE,
+            std::make_unique<hh::JetColor>(),
+            false
         );
     }
 
@@ -660,7 +666,10 @@ public:
         localGraph.createDotFile(
             dotFile + std::to_string(getNodeId()) + ".dot",
             hh::ColorScheme::EXECUTION,
-            hh::StructureOptions::ALL
+            hh::StructureOptions::QUEUE,
+            hh::DebugOptions::NONE,
+            std::make_unique<hh::JetColor>(),
+            false
         );
     }
 

@@ -33,11 +33,11 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         cudaDeviceProp cudaDeviceProp{};
         cudaGetDeviceProperties(&cudaDeviceProp, i);
         printf("[Process %d][GPU %d/%d][%s][RAM = %zuGB][#AyncEngines = %d]\n",
-               getNodeId(),
-               i, devCount,
-               cudaDeviceProp.name,
-               cudaDeviceProp.totalGlobalMem/(1<<30),
-               cudaDeviceProp.asyncEngineCount
+           getNodeId(),
+           i, devCount,
+           cudaDeviceProp.name,
+           cudaDeviceProp.totalGlobalMem/(1<<30),
+           cudaDeviceProp.asyncEngineCount
         );
     }
 
@@ -55,16 +55,20 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     constexpr uint32_t ITER = 10;
     double time[ITER] = {0.};
     for(uint32_t iter = 0; iter < ITER; ++iter) {
-        if(isRootNodeId()) {
-            printf("\rIterations: %d/%d", iter+1, ITER);
-            fflush(stdout);
-        }
         checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
         auto start = std::chrono::high_resolution_clock::now();
         strategy.executeImpl(subMatA, subMatB, matrixC, deviceIds, path + "MMD_Unified_tile"+std::to_string(tileSize)+"_iter"+std::to_string(iter)+"_node");
         checkMpiErrors(MPI_Barrier(MPI_COMM_WORLD));
         auto end = std::chrono::high_resolution_clock::now();
         time[iter] = double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9;
+        if(isRootNodeId()) {
+            printf("\r[Iterations: %d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]",
+               iter+1, ITER,
+               (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time[iter]),
+               time[iter]
+            );
+            fflush(stdout);
+        }
         init(matrixC);
     }
 

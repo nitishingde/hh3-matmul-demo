@@ -29,6 +29,7 @@
 
 static int32_t sMpiNodeId = 0;
 static int32_t sMpiNumNodes = 1;
+static std::string sHostName = "";
 
 [[nodiscard]] int32_t getNodeId() {
     return sMpiNodeId;
@@ -40,6 +41,10 @@ static int32_t sMpiNumNodes = 1;
 
 [[nodiscard]] bool isRootNodeId() {
     return sMpiNodeId == 0;
+}
+
+[[nodiscard]] std::string getHostName() {
+    return sHostName;
 }
 
 #ifndef checkMpiErrors
@@ -66,10 +71,19 @@ public:
         checkMpiErrors(MPI_Init_thread(argc, argv, MPI_THREAD_MULTIPLE, &provided));
         checkMpiErrors(MPI_Comm_rank(MPI_COMM_WORLD, &sMpiNodeId));
         checkMpiErrors(MPI_Comm_size(MPI_COMM_WORLD, &sMpiNumNodes));
+        int32_t len = -1;
+        sHostName.resize(MPI_MAX_PROCESSOR_NAME);
+        checkMpiErrors(MPI_Get_processor_name(sHostName.data(), &len));
+        sHostName.resize(len);
     }
 
     ~MpiGlobalLockGuard() {
         checkMpiErrors(MPI_Finalize());
+    }
+
+    void init(MPI_Comm mpiComm = MPI_COMM_WORLD) {
+        checkMpiErrors(MPI_Comm_rank(mpiComm, &sMpiNodeId));
+        checkMpiErrors(MPI_Comm_size(mpiComm, &sMpiNumNodes));
     }
 };
 
@@ -98,7 +112,7 @@ private:
 
 // Argument parser -------------------------------------------------------------------------------------------------- //
 
-std::tuple<uint64_t, uint64_t, uint64_t, uint64_t, size_t, size_t, std::string>
+std::tuple<uint64_t, uint64_t, uint64_t, uint64_t, size_t, size_t, std::string, std::string>
 parseArgs(int argc, char **argv) {
     try {
         TCLAP::CmdLine cmd("Command description message", ' ', "1.0");
@@ -117,13 +131,16 @@ parseArgs(int argc, char **argv) {
         cmd.add(argComm);
         TCLAP::ValueArg<std::string> argPath("P", "path", "scratch/tmp dir path",              false,  "./", "dir path");
         cmd.add(argPath);
+        TCLAP::ValueArg<std::string> argHostFile("H", "hostfile", "path to hostfile",          false,  "",   "file path");
+        cmd.add(argHostFile);
+
 
         cmd.parse(argc, argv);
-        return {argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argProd.getValue(), argComm.getValue(), argPath.getValue()};
+        return {argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argProd.getValue(), argComm.getValue(), argPath.getValue(), argHostFile.getValue()};
     }
     catch (TCLAP::ArgException e) {
         fprintf(stderr, "[Error] %s for arg %s\n", e.error().c_str(), e.argId().c_str());
-        return {32768, 32768, 32768, 8192, 4, 8, "./"};
+        return {32768, 32768, 32768, 8192, 4, 8, "./", ""};
     }
 }
 

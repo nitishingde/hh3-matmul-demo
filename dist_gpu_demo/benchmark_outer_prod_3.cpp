@@ -15,12 +15,28 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv);
     CublasGlobalLockGuard cublasGlobalLockGuard;
 
-    MPI_Comm matrixComm;
-    checkMpiErrors(MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm));
-    checkMpiErrors(MPI_Barrier(matrixComm));
+    auto [M, K, N, tileSize, productThreads, commThreads, path, hostFilePath] = parseArgs(argc, argv);
 
-    auto [M, K, N, tileSize, productThreads, commThreads, path] = parseArgs(argc, argv);
-    printf("[Process %d] M = %lu, K = %lu, N = %lu, tileSize = %lu, path = %s\n", getNodeId(), M, K, N, tileSize, path.c_str());
+    MPI_Comm matrixComm = MPI_COMM_NULL;
+    if(!hostFilePath.empty()) {
+        std::ifstream hostFile;
+        hostFile.open(hostFilePath.c_str());
+        std::string host;
+        int32_t newRank;
+        while(hostFile >> host >> newRank) {
+            if(host == getHostName()) {
+                checkMpiErrors(MPI_Comm_split(MPI_COMM_WORLD, 0, newRank, &matrixComm));
+                break;
+            }
+        }
+        assert(matrixComm != MPI_COMM_NULL);
+        mpiGlobalLockGuard.init(matrixComm);
+    } else {
+        checkMpiErrors(MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm));
+    }
+
+    checkMpiErrors(MPI_Barrier(matrixComm));
+    printf("[Process %d][Host = %s] M = %lu, K = %lu, N = %lu, tileSize = %lu, path = %s\n", getNodeId(), getHostName().c_str(), M, K, N, tileSize, path.c_str());
 
     int32_t devCount = 0;
     cudaGetDeviceCount(&devCount);
@@ -30,12 +46,13 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         deviceIds.emplace_back(i);
         cudaDeviceProp cudaDeviceProp{};
         cudaGetDeviceProperties(&cudaDeviceProp, i);
-        printf("[Process %d][GPU %d/%d][%s][RAM = %zuGB][#AyncEngines = %d]\n",
-           getNodeId(),
-           i, devCount,
-           cudaDeviceProp.name,
-           cudaDeviceProp.totalGlobalMem/(1<<30),
-           cudaDeviceProp.asyncEngineCount
+        printf("[Process %d][GPU %d/%d][%s][RAM = %zuGB][#AyncEngines = %d][Compute capability = %d.%d]\n",
+            getNodeId(),
+            i, devCount,
+            cudaDeviceProp.name,
+            cudaDeviceProp.totalGlobalMem/(1<<30),
+            cudaDeviceProp.asyncEngineCount,
+            cudaDeviceProp.major, cudaDeviceProp.minor
         );
     }
 

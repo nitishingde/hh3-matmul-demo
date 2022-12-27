@@ -78,10 +78,10 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         time[iter] = double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9;
         if(isRootNodeId()) {
             printf("\r[Iterations: %d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]",
-               iter+1, ITER,
-               (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time[iter]),
-               time[iter]
-           );
+                iter+1, ITER,
+                (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time[iter]),
+                time[iter]
+            );
             fflush(stdout);
         }
         init(matrixC);

@@ -32,7 +32,8 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         assert(matrixComm != MPI_COMM_NULL);
         mpiGlobalLockGuard.init(matrixComm);
     } else {
-        checkMpiErrors(MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm));
+        // checkMpiErrors(MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm));
+        matrixComm = MPI_COMM_WORLD;
     }
 
     checkMpiErrors(MPI_Barrier(matrixComm));
@@ -118,7 +119,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     dumpData(matrixC, path);
 #endif
 
-    checkMpiErrors(MPI_Comm_free(&matrixComm));
+    // checkMpiErrors(MPI_Comm_free(&matrixComm));
 
     return 0;
 }

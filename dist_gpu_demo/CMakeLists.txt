@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts")
 
 find_package(MPI REQUIRED)
-find_package(OpenBLAS REQUIRED PATHS /home/sci/nitish/.local)#FIXME
+find_package(OpenBLAS QUIET)#FIXME
 
 include(FetchContent)
 
@@ -117,8 +117,8 @@ target_link_libraries(notchpeak_outer_prod_2
         dist_matmul
 )
 
-add_executable(notchpeak_benchmark notchpeak_benchmark.cpp mmd.h)
-target_link_libraries(notchpeak_benchmark
+add_executable(benchmark_outer_prod_2 benchmark_outer_prod_2.cpp mmd.h)
+target_link_libraries(benchmark_outer_prod_2
     PUBLIC
         dist_matmul
 )

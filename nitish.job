@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# script for running on DGX cluster in SCI
+
+#SBATCH --partition=dgx
+#SBATCH --nodelist=rigveda
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --gres=gpu:8
+#SBATCH --mem=0
+
+export LD_LIBRARY_PATH=/home/sci/nitish/.local/cuda-11.7/lib64/
+mpirun -np $SLURM_NTASKS /home/sci/nitish/projects/hh3-matmul/cmake-build-release/comm_gpu_demo/compare_prod --params 32768 32768 32768 8192 > compare_prod_2_4_4.txt

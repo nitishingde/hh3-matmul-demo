@@ -30,3 +30,8 @@ if (CUDA_FOUND)
 	set(CUDA_NVCC_FLAGS_RELEASE -O3; -DNDEBUG)
 	add_subdirectory(dist_gpu_demo)
 endif (CUDA_FOUND)
+
+if(OpenBLAS_VERSION)
+    message(STATUS "OpenBLAS found")
+	add_subdirectory(blas_demo)
+endif(OpenBLAS_VERSION)

@@ -52,13 +52,3 @@ target_link_libraries(blas_demo
     PUBLIC
         blas_matmul
 )
-
-add_executable(test_hh3 test_hh3.cpp)
-target_include_directories(test_hh3
-    PUBLIC
-        ${Hedgehog_INCLUDE_DIRS}
-)
-target_link_libraries(test_hh3
-    PUBLIC
-        ${Hedgehog_LIBRARIES}
-)

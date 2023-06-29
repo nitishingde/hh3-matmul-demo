@@ -5,7 +5,7 @@
 #include <bitset>
 #include <hedgehog/hedgehog.h>
 #include <list>
-#include <cblas-openblas.h>
+#include <cblas.h>
 #include "data.h"
 
 //#define LOG() printf("[%d] %s:%d\n", getNodeId(), __FILE__, __LINE__)

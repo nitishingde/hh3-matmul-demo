@@ -18,7 +18,6 @@ find_package(MPI REQUIRED)
 add_library(blas_matmul
     STATIC
         data.h
-        graphs.h
         states.h
         tasks.h
         utility.h

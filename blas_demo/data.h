@@ -36,10 +36,10 @@ enum class Major {
 template<typename MatrixType, char Id>
 class MatrixTile: public hh::ManagedMemory {
 public:
-    explicit MatrixTile(int32_t rowIdx, int32_t colIdx, uint64_t width, uint64_t height, MemoryType memoryType = MemoryType::HOST, Major major = Major::COL):
+    explicit MatrixTile(int32_t rowIdx, int32_t colIdx, uint64_t height, uint64_t width, MemoryType memoryType = MemoryType::HOST, Major major = Major::COL):
         rowIdx_(rowIdx), colIdx_(colIdx),
         byteSize_(width*height*sizeof(MatrixType)),
-        width_(width), height_(height),
+        height_(height), width_(width),
         memoryType_(memoryType), major_(major), memoryOwner_(MemoryOwner::USER), memoryState_(MemoryState::SHARED) {
 
         if(memoryType_ == MemoryType::HOST) {
@@ -247,10 +247,7 @@ public:
         // TODO: populate only the relevant MatrixTiles
         for(int32_t p = p0; p < MT; p+=P) {
             for(int32_t q = q0; q < NT; q+=Q) {
-                auto tile = std::make_shared<Tile>(
-                    p, q,
-                    this->tileDim_.x, this->tileDim_.y
-                );
+                auto tile = std::make_shared<Tile>(p, q, this->tileHeight(p, q), this->tileWidth(p, q));
                 auto pData = (MatrixType *)tile->data();
                 for(uint32_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = 1;
                 this->tileGrid_[p][q] = tile;

@@ -100,6 +100,9 @@ auto parseArgs(int argc, char **argv) {
         TCLAP::ValueArg<std::string> argHostFile("H", "hostfile", "path to hostfile",          false,  "",   "file path");
         cmd.add(argHostFile);
 
+        sMpiGridP = argP.getValue();
+        sMpiGridQ = argQ.getValue();
+
         cmd.parse(argc, argv);
         return std::make_tuple(argP.getValue(), argQ.getValue(), argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argGemm.getValue(), argPath.getValue(), argHostFile.getValue());
     }

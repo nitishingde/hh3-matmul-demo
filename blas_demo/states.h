@@ -23,7 +23,7 @@ private:
     using TileC   = MatrixTile<MatrixType, IdC>;
 
 public:
-    InputState(const int32_t KT):
+    explicit InputState(const int32_t KT):
         hh::AbstractState<3, MatrixC, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB, TileC>(), KT_(KT) {}
 
     void execute(std::shared_ptr<MatrixC> matrixC) override {

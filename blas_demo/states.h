@@ -141,26 +141,26 @@ public:
     }
 
     void execute(std::shared_ptr<TileA> tileA) override {
-        auto rowIdx = tileA->rowIdx(), k = tileA->colIdx();
-        gridA_[rowIdx][k] = tileA;
+        auto i = tileA->rowIdx(), k = tileA->colIdx();
+        gridA_[i][k] = tileA;
 
-        for(int32_t c = 0; c < NT_; ++c) {//FIXME
-            auto tileB = gridB_[k][c];
+        for(int32_t j = 0; j < NT_; ++j) {
+            auto tileB = gridB_[k][j];
             if(tileB != nullptr) {
-                workQueue_.emplace_back(std::make_shared<Triplet>(tileA, tileB, nullptr));
+                workQueue_.emplace_back(std::make_tuple(i, j, k));
             }
         }
         trigger();
     }
 
     void execute(std::shared_ptr<TileB> tileB) override {
-        auto k = tileB->rowIdx(), colIdx = tileB->colIdx();
-        gridB_[k][colIdx] = tileB;
+        auto k = tileB->rowIdx(), j = tileB->colIdx();
+        gridB_[k][j] = tileB;
 
-        for(int32_t r = 0; r < MT_; ++r) {//FIXME
-            auto tileA = gridA_[r][k];
+        for(int32_t i = 0; i < MT_; ++i) {
+            auto tileA = gridA_[i][k];
             if(tileA != nullptr) {
-                workQueue_.emplace_back(std::make_shared<Triplet>(tileA, tileB, nullptr));
+                workQueue_.emplace_back(std::make_tuple(i, j, k));
             }
         }
         trigger();
@@ -202,6 +202,7 @@ public:
 
         tileC->used();
         if(tileC->canBeRecycled()) {
+            gridC_[tileC->rowIdx()][tileC->colIdx()] = nullptr;
 //            printf("[node %d] tileC(%d, %d).ttl %d\n", getNodeId(), tileC->rowIdx(), tileC->colIdx(), tileC->ttl());
             ttl_--;
             this->addResult(tileC);
@@ -218,15 +219,13 @@ public:
 private:
     void trigger() {
         for(auto it = workQueue_.begin(); it != workQueue_.end();) {
-            auto triplet = *it;
-            auto tileA = std::get<std::shared_ptr<TileA>>(*triplet);
-            auto tileB = std::get<std::shared_ptr<TileB>>(*triplet);
-            auto rowIdx = tileA->rowIdx(), colIdx = tileB->colIdx();
-            auto tileC = gridC_[rowIdx][colIdx];
+            auto [i, j, k] = *it;
+            auto tileA = gridA_[i][k];
+            auto tileB = gridB_[k][j];
+            auto tileC = gridC_[i][j];
             if(tileC) {
-                std::get<std::shared_ptr<TileC>>(*triplet) = tileC;
-                this->addResult(triplet);
-                gridC_[rowIdx][colIdx] = nullptr;
+                this->addResult(std::make_shared<Triplet>(std::make_tuple(tileA, tileB, tileC)));
+                gridC_[i][j] = nullptr;
                 it = workQueue_.erase(it);
             }
             else {
@@ -236,7 +235,7 @@ private:
     }
 
 private:
-    std::list<std::shared_ptr<Triplet>> workQueue_ = {};
+    std::list<std::tuple<int32_t, int32_t, int32_t>> workQueue_ = {};
     Grid<std::shared_ptr<TileA>> gridA_     = {};
     Grid<std::shared_ptr<TileB>> gridB_     = {};
     Grid<std::shared_ptr<TileC>> gridC_     = {};

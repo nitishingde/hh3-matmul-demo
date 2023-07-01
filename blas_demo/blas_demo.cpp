@@ -157,8 +157,8 @@ int main(int argc, char *argv[]) {
 //                if(!isRootNodeId()) return;
                 printf("[node %d] tileC(%d, %d)>>\n", getNodeId(), tile->rowIdx(), tile->colIdx());
                 auto pData = (MatrixType*)tile->data();
-                for(uint32_t c = 0; c < tile->width(); ++c) {
-                    for(uint32_t r = 0; r < tile->height(); ++r) {
+                for(uint32_t r = 0; r < tile->height(); ++r) {
+                    for(uint32_t c = 0; c < tile->width(); ++c) {
                         printf("%f ", pData[c*tile->height()+r]);
                     }
                     printf("\n");

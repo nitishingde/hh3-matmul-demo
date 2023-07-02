@@ -15,8 +15,11 @@ find_package(Hedgehog REQUIRED)
 find_package(OpenBLAS QUIET)
 
 # Cuda
-find_package(CUDA REQUIRED)
-find_package(NVTX REQUIRED)
+find_package(CUDA QUIET)
+find_package(NVTX QUIET)
+
+# MPI
+find_package(MPI QUIET)
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${Hedgehog_CXX_FLAGS})
 
@@ -24,14 +27,14 @@ if (NOT MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra -Werror -pedantic")
 endif (NOT MSVC)
 
-if (CUDA_FOUND)
+if(CUDA_FOUND AND MPI_FOUND)
 	message(STATUS "CUDA found")
 	set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 	set(CUDA_NVCC_FLAGS_RELEASE -O3; -DNDEBUG)
 	add_subdirectory(dist_gpu_demo)
-endif (CUDA_FOUND)
+endif(CUDA_FOUND AND MPI_FOUND)
 
-if(OpenBLAS_VERSION)
+if(OpenBLAS_FOUND AND MPI_FOUND)
     message(STATUS "OpenBLAS found")
 	add_subdirectory(blas_demo)
-endif(OpenBLAS_VERSION)
+endif(OpenBLAS_FOUND AND MPI_FOUND)

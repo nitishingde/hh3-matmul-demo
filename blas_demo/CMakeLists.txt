@@ -11,7 +11,11 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/mirror/tclap.git
     GIT_TAG		   master
 )
-FetchContent_MakeAvailable(TCLAP)
+FetchContent_GetProperties(TCLAP)
+if(NOT tclap_POPULATED)
+    FetchContent_Populate(TCLAP)
+endif(NOT tclap_POPULATED)
+set(TCLAP_SOURCE_DIR ${tclap_SOURCE_DIR})
 
 find_package(MPI REQUIRED)
 

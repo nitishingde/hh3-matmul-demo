@@ -70,32 +70,31 @@ public:
 
 // Argument parser -------------------------------------------------------------------------------------------------- //
 
-//std::tuple<int64_t, int64_t, int64_t, int64_t, size_t, std::string, std::string>
 auto parseArgs(int argc, char **argv) {
     try {
         TCLAP::CmdLine cmd("Command description message", ' ', "1.0");
 
-        TCLAP::ValueArg<int64_t> argP("p", "pdim", "height of grid of nodes",                  true,     1, "non negative integer value");
+        TCLAP::ValueArg<int64_t> argP("p", "p-dim", "height of grid of nodes", true, 1, "non negative integer value");
         cmd.add(argP);
-        TCLAP::ValueArg<int64_t> argQ("q", "qdim", "width of grid of nodes",                   true,     1, "non negative integer value");
+        TCLAP::ValueArg<int64_t> argQ("q", "q-dim", "width of grid of nodes", true, 1, "non negative integer value");
         cmd.add(argQ);
-        TCLAP::ValueArg<int64_t> argM("M", "mdim", "height of matrix A / height of matrix C", false, 32768, "non negative integer value");
+        TCLAP::ValueArg<int64_t> argM("M", "m-dim", "height of matrix A / height of matrix C", false, 32768, "non negative integer value");
         cmd.add(argM);
-        TCLAP::ValueArg<int64_t> argK("K", "kdim", "width of matrix A / height of matrix B",  false, 32768, "non negative integer value");
+        TCLAP::ValueArg<int64_t> argK("K", "k-dim", "width of matrix A / height of matrix B", false, 32768, "non negative integer value");
         cmd.add(argK);
-        TCLAP::ValueArg<int64_t> argN("N", "ndim", "width of matrix B / width of matrix C",   false, 32768, "non negative integer value");
+        TCLAP::ValueArg<int64_t> argN("N", "n-dim", "width of matrix B / width of matrix C", false, 32768, "non negative integer value");
         cmd.add(argN);
-        TCLAP::ValueArg<int64_t> argT("T", "tileSize", "tile size",                           false,  8192, "non negative integer value");
+        TCLAP::ValueArg<int64_t> argT("T", "tileSize", "tile size", false, 8192, "non negative integer value");
         cmd.add(argT);
-        TCLAP::ValueArg<int64_t> argGemm("g", "prod", "product threads",                      false,  4,    "non negative integer value");
-        cmd.add(argGemm);
-        TCLAP::ValueArg<std::string> argPath("P", "path", "scratch/tmp dir path",              false,  "./", "dir path");
+        TCLAP::ValueArg<int64_t> argProdThreads("t", "prod", "product threads", false, 4, "non negative integer value");
+        cmd.add(argProdThreads);
+        TCLAP::ValueArg<std::string> argPath("P", "path", "scratch/tmp dir path", false, "./", "dir path");
         cmd.add(argPath);
-        TCLAP::ValueArg<std::string> argHostFile("H", "hostfile", "path to hostfile",          false,  "",   "file path");
+        TCLAP::ValueArg<std::string> argHostFile("H", "hostfile", "path to hostfile", false, "", "file path");
         cmd.add(argHostFile);
 
         cmd.parse(argc, argv);
-        return std::make_tuple(argP.getValue(), argQ.getValue(), argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argGemm.getValue(), argPath.getValue(), argHostFile.getValue());
+        return std::make_tuple(argP.getValue(), argQ.getValue(), argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argProdThreads.getValue(), argPath.getValue(), argHostFile.getValue());
     }
     catch (TCLAP::ArgException &e) {
         fprintf(stderr, "[Error] %s for arg %s\n", e.error().c_str(), e.argId().c_str());

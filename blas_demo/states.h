@@ -39,8 +39,8 @@ public:
             }
         }
 
-        MT_ = rows.size();
-        NT_ = cols.size();
+        tileBTtl_ = int64_t(rows.size());
+        tileATtl_ = int64_t(cols.size());
 
         for(int64_t k = 0; k < KT_; ++k) {
             for(const auto row: rows) {
@@ -58,33 +58,31 @@ public:
     }
 
     void execute(std::shared_ptr<TileA> tileA) override {
-        assert(NT_ != 0);
-        tileA->ttl(NT_);
+        assert(0 < tileATtl_);
+        tileA->ttl(tileATtl_);
         this->addResult(tileA);
         reqCount_--;
     }
 
     void execute(std::shared_ptr<TileB> tileB) override {
-        assert(MT_ != 0);
-        tileB->ttl(MT_);
+        assert(0 < tileBTtl_);
+        tileB->ttl(tileBTtl_);
         this->addResult(tileB);
         reqCount_--;
     }
 
     [[nodiscard]] bool isDone() const {
-//        printf("[node %d] reqCount_ %d\n", getNodeId(), reqCount_);FIXME
         return isStarted_ and reqCount_ == 0;
     }
 
 private:
-    int64_t MT_        = 0;
-    int64_t KT_        = 0;
-    int64_t NT_        = 0;
+    int64_t tileATtl_  = -1;
+    int64_t tileBTtl_  = -1;
+    int64_t KT_        = -1;
     int64_t reqCount_  = 0;
     bool    isStarted_ = false;
 };
 
-// TODO
 template<typename MatrixType, char IdA, char IdB, char IdC>
 class InputStateManager: public hh::StateManager<
         3,
@@ -96,7 +94,7 @@ class InputStateManager: public hh::StateManager<
         MatrixTile<MatrixType, IdA>,
         MatrixTile<MatrixType, IdB>,
         MatrixTile<MatrixType, IdC>
-    >{
+    > {
     using MatrixC = MatrixContainer<MatrixType, IdC>;
     using TileA   = MatrixTile<MatrixType, IdA>;
     using TileB   = MatrixTile<MatrixType, IdB>;
@@ -104,7 +102,7 @@ class InputStateManager: public hh::StateManager<
 
 public:
     explicit InputStateManager(const std::shared_ptr<InputState<MatrixType, IdA, IdB, IdC>> &state):
-    hh::StateManager<3, MatrixC, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB, TileC>(state, "Input StateManager", false) {}
+        hh::StateManager<3, MatrixC, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB, TileC>(state, "Input StateManager", false) {}
 
     [[nodiscard]] bool canTerminate() const override {
         this->state()->lock();
@@ -123,7 +121,7 @@ class ComputationState: public hh::AbstractState<
         std::tuple<std::shared_ptr<MatrixTile<MatrixType, IdA>>, std::shared_ptr<MatrixTile<MatrixType, IdB>>, std::shared_ptr<MatrixTile<MatrixType, IdC>>>,
         std::tuple<std::shared_ptr<MatrixTile<MatrixType, IdA>>, std::shared_ptr<MatrixTile<MatrixType, IdB>>, std::shared_ptr<MatrixTile<MatrixType, IdC>>>,
         MatrixTile<MatrixType, IdC>
-    >{
+    > {
 private:
     template<class GridT>
     using Grid    = std::vector<std::vector<GridT>>;
@@ -181,21 +179,17 @@ public:
         auto tileC = std::get<std::shared_ptr<TileC>>(*triplet);
 
         tileA->used();
-//        printf("[node %d] tileA(%d, %d).ttl %d\n", getNodeId(), tileA->rowIdx(), tileA->colIdx(), tileA->ttl());
         if(tileA->canBeRecycled()) {
             gridA_[tileA->rowIdx()][tileA->colIdx()] = nullptr;
             if(tileA->isMemoryManagerConnected()) {
-//                printf("a>> [node %d] tileA(%d, %d).ttl %d\n", getNodeId(), tileA->rowIdx(), tileA->colIdx(), tileA->ttl());
                 tileA->returnToMemoryManager();
             }
         }
 
         tileB->used();
-//        printf("[node %d] tileB(%d, %d).ttl %d\n", getNodeId(), tileB->rowIdx(), tileB->colIdx(), tileB->ttl());
         if(tileB->canBeRecycled()) {
             gridB_[tileB->rowIdx()][tileB->colIdx()] = nullptr;
             if(tileB->isMemoryManagerConnected()) {
-//                printf("b>> [node %d] tileB(%d, %d).ttl %d\n", getNodeId(), tileB->rowIdx(), tileB->colIdx(), tileB->ttl());
                 tileB->returnToMemoryManager();
             }
         }
@@ -203,7 +197,6 @@ public:
         tileC->used();
         if(tileC->canBeRecycled()) {
             gridC_[tileC->rowIdx()][tileC->colIdx()] = nullptr;
-//            printf("[node %d] tileC(%d, %d).ttl %d\n", getNodeId(), tileC->rowIdx(), tileC->colIdx(), tileC->ttl());
             ttl_--;
             this->addResult(tileC);
         } else {
@@ -213,7 +206,6 @@ public:
     }
 
     [[nodiscard]] bool isDone() const {
-//        printf("[node %d] workQueue_ %zu, ttl_ %d\n", getNodeId(), workQueue_.size(), ttl_);FIXME
         return isStarted_ and workQueue_.empty() and ttl_ == 0;
     }
 private:
@@ -236,14 +228,14 @@ private:
 
 private:
     std::list<std::tuple<int64_t, int64_t, int64_t>> workQueue_ = {};
-    Grid<std::shared_ptr<TileA>> gridA_     = {};
-    Grid<std::shared_ptr<TileB>> gridB_     = {};
-    Grid<std::shared_ptr<TileC>> gridC_     = {};
-    int64_t                      ttl_       = 0;
-    bool                         isStarted_ = false;
-    int64_t                     MT_        = 0;
-    int64_t                     KT_        = 0;
-    int64_t                     NT_        = 0;
+    Grid<std::shared_ptr<TileA>>                     gridA_     = {};
+    Grid<std::shared_ptr<TileB>>                     gridB_     = {};
+    Grid<std::shared_ptr<TileC>>                     gridC_     = {};
+    int64_t                                          ttl_       = 0;
+    bool                                             isStarted_ = false;
+    int64_t                                          MT_        = -1;
+    int64_t                                          KT_        = -1;
+    int64_t                                          NT_        = -1;
 };
 
 template<typename MatrixType, char IdA, char IdB, char IdC>
@@ -255,7 +247,7 @@ class ComputationStateManager: public hh::StateManager<
         std::tuple<std::shared_ptr<MatrixTile<MatrixType, IdA>>, std::shared_ptr<MatrixTile<MatrixType, IdB>>, std::shared_ptr<MatrixTile<MatrixType, IdC>>>,
         std::tuple<std::shared_ptr<MatrixTile<MatrixType, IdA>>, std::shared_ptr<MatrixTile<MatrixType, IdB>>, std::shared_ptr<MatrixTile<MatrixType, IdC>>>,
         MatrixTile<MatrixType, IdC>
->{
+    > {
 private:
     using TileA   = MatrixTile<MatrixType, IdA>;
     using TileB   = MatrixTile<MatrixType, IdB>;

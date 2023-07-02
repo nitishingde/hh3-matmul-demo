@@ -5,7 +5,7 @@
 #include <hedgehog/hedgehog.h>
 #include "utility.h"
 
-struct Dim {
+struct Vec2 {
     int64_t x;
     int64_t y;
 };
@@ -15,6 +15,7 @@ enum class MemoryType {
     CUDA_UNIFIED_MEMORY,
 };
 
+// TODO: state machine, refer MOSI protocol used in SLATE. May or may not be needed.
 enum class MemoryState {
     SHARED,
     MODIFIED,
@@ -36,7 +37,7 @@ enum class Major {
 template<typename MatrixType, char Id>
 class MatrixTile: public hh::ManagedMemory {
 public:
-    explicit MatrixTile(int64_t rowIdx, int64_t colIdx, int64_t height, int64_t width, MemoryType memoryType = MemoryType::HOST, Major major = Major::COL):
+    explicit MatrixTile(const int64_t rowIdx, const int64_t colIdx, const int64_t height, const int64_t width, const MemoryType memoryType = MemoryType::HOST, const Major major = Major::COL):
         rowIdx_(rowIdx), colIdx_(colIdx),
         byteSize_(width*height*sizeof(MatrixType)),
         height_(height), width_(width),
@@ -51,7 +52,7 @@ public:
     }
 
     // For memory management
-    explicit MatrixTile(int64_t tileSize, MemoryType memoryType):
+    explicit MatrixTile(const int64_t tileSize, const MemoryType memoryType):
         byteSize_(tileSize*tileSize*sizeof(MatrixType)),
         width_(tileSize),
         height_(tileSize),
@@ -120,19 +121,19 @@ public:
 
     // Getters
     [[nodiscard]] void*       data()                   { return pData_;                                }
-    [[nodiscard]] int64_t    byteSize()         const { return width_*height_*sizeof(MatrixType);     }
-    [[nodiscard]] int64_t    width()            const { return width_;                                }
-    [[nodiscard]] int64_t    height()           const { return height_;                               }
+    [[nodiscard]] int64_t     byteSize()         const { return width_*height_*sizeof(MatrixType);     }
+    [[nodiscard]] int64_t     width()            const { return width_;                                }
+    [[nodiscard]] int64_t     height()           const { return height_;                               }
     [[nodiscard]] int64_t     rowIdx()           const { return rowIdx_;                               }
     [[nodiscard]] int64_t     colIdx()           const { return colIdx_;                               }
-    [[nodiscard]] int64_t    leadingDimension() const { return major_ == Major::COL? height_: width_; }
-//    [[nodiscard]] MemoryType  memoryType()       const { return memoryType_;                           }
+    [[nodiscard]] int64_t     leadingDimension() const { return major_ == Major::COL? height_: width_; }
+    [[nodiscard]] MemoryType  memoryType()       const { return memoryType_;                           }
     [[nodiscard]] Major       major()            const { return major_;                                }
     [[nodiscard]] MemoryOwner memoryOwner()      const { return memoryOwner_;                          }
     [[nodiscard]] int64_t     ttl()              const {return ttl_;                                   }
 
     // Setters
-    void init(int64_t rowIdx, int64_t colIdx, int64_t height, int64_t width) {
+    void init(const int64_t rowIdx, const int64_t colIdx, const int64_t height, const int64_t width) {
         assert(int64_t(height*width*sizeof(MatrixType)) <= byteSize_);
         rowIdx_ = rowIdx;
         colIdx_ = colIdx;
@@ -140,20 +141,15 @@ public:
         height_ = height;
         memoryState_ = MemoryState::ON_HOLD;
     }
-    void memoryState(MemoryState memoryState) { memoryState_ = memoryState; }
-//    void width(int64_t width)              { width_ = width;           }
-//    void height(int64_t height)            { height_ = height;         }
-//    void rowIdx(int64_t rowIdx)            { rowIdx_ = rowIdx;         }
-//    void colIdx(int64_t colIdx)            { colIdx_ = colIdx;         }
-//    void memoryType(MemoryType memoryType)  { memoryType_ = memoryType; }
-//    void order(Order order)                 { order_ = order;           }
-    void ttl(const int64_t ttl)               { ttl_ = ttl; }
+    void memoryState(const MemoryState memoryState) { memoryState_ = memoryState; }
+    void major(const Major major)                   { major_ = major;             }
+    void ttl(const int64_t ttl)                     { ttl_ = ttl;                 }
 
 private:
     void        *pData_           = nullptr;                // untouchable
-    int64_t    byteSize_         = 0;                      // untouchable
-    int64_t    width_            = 0;
-    int64_t    height_           = 0;
+    int64_t     byteSize_         = 0;                      // untouchable
+    int64_t     width_            = 0;
+    int64_t     height_           = 0;
     int64_t     rowIdx_           = 0;
     int64_t     colIdx_           = 0;
     MemoryType  memoryType_       = MemoryType::HOST;
@@ -177,31 +173,35 @@ private:
     using Grid = std::vector<std::vector<GridT>>;
 
 public:
-    explicit MatrixContainer(int64_t height, int64_t width, int64_t tileDim, int64_t pGridDim, int64_t qGridDim, MPI_Comm mpiComm = MPI_COMM_WORLD):
+    explicit MatrixContainer(const int64_t height, const int64_t width, const int64_t tileDim, const int64_t pGridDim, const int64_t qGridDim, MPI_Comm mpiComm):
         height_(height), width_(width), tileDim_({tileDim, tileDim}), pGridDim_(pGridDim), qGridDim_(qGridDim), mpiComm_(mpiComm) {
-        checkMpiErrors(MPI_Comm_rank(mpiComm, (int32_t*)&nodeId_));
-        checkMpiErrors(MPI_Comm_size(mpiComm, (int32_t*)&numNodes_));
+
+        int32_t temp;
+        checkMpiErrors(MPI_Comm_rank(mpiComm, &temp));
+        nodeId_ = temp;
+        checkMpiErrors(MPI_Comm_size(mpiComm, &temp));
+        numNodes_ = temp;
         assert(pGridDim_*qGridDim_ == numNodes_);
+
         tileGrid_.resize((height+tileDim-1)/tileDim, std::vector<std::shared_ptr<Tile>>((width+tileDim-1)/tileDim, nullptr));
         tileOwnership_.resize((height+tileDim-1)/tileDim, std::vector<int64_t>((width+tileDim-1)/tileDim, 0));
     }
 
     virtual bool init() = 0;
-//    virtual std::shared_ptr<Tile> tile(int64_t rowIdx, int64_t colIdx) = 0;
     [[maybe_unused]] virtual int64_t typeId() = 0;
 
     // Getters
-//    [[nodiscard]] int64_t        matrixHeight()                                const { return height_;                         }
-//    [[nodiscard]] int64_t        matrixWidth()                                 const { return width_;                          }
-    [[nodiscard]] int64_t        matrixNumRowTiles()                           const { return tileGrid_.size();                }
-    [[nodiscard]] int64_t        matrixNumColTiles()                           const { return tileGrid_[0].size();             }
-    [[nodiscard]] int64_t         owner(int64_t rowIdx, int64_t colIdx)         const { return tileOwnership_[rowIdx][colIdx];  }
-    std::shared_ptr<Tile>         tile(int64_t rowIdx, int64_t colIdx)                { return this->tileGrid_[rowIdx][colIdx]; }
-    [[nodiscard]] const MPI_Comm& mpiComm()                                 const { return mpiComm_; }
-    [[nodiscard]] int64_t        nodeId()                                  const { return nodeId_; }
-    [[nodiscard]] int64_t        numNodes()                                const { return numNodes_; }
-    [[nodiscard]] bool            isRootNodeId()                            const { return nodeId_ == 0; }
-    [[nodiscard]] bool            isLastNodeId()                            const { return nodeId_ == (numNodes_-1); }
+    [[nodiscard]] int64_t         matrixHeight()                                    const { return height_;                         }
+    [[nodiscard]] int64_t         matrixWidth()                                     const { return width_;                          }
+    [[nodiscard]] int64_t         matrixNumRowTiles()                               const { return tileGrid_.size();                }
+    [[nodiscard]] int64_t         matrixNumColTiles()                               const { return tileGrid_[0].size();             }
+    [[nodiscard]] int64_t         owner(const int64_t rowIdx, const int64_t colIdx) const { return tileOwnership_[rowIdx][colIdx];  }
+    std::shared_ptr<Tile>         tile(const int64_t rowIdx, const int64_t colIdx)        { return this->tileGrid_[rowIdx][colIdx]; }
+    [[nodiscard]] const MPI_Comm& mpiComm()                                         const { return mpiComm_;                        }
+    [[nodiscard]] int64_t         nodeId()                                          const { return nodeId_;                         }
+    [[nodiscard]] int64_t         numNodes()                                        const { return numNodes_;                       }
+    [[nodiscard]] bool            isRootNodeId()                                    const { return nodeId_ == 0;                    }
+    [[nodiscard]] bool            isLastNodeId()                                    const { return nodeId_ == (numNodes_-1);        }
 
     [[nodiscard]] int64_t tileHeight(int64_t rowIdx, [[maybe_unused]]int64_t colIdx) const {
         return std::min(tileDim_.y, int64_t(height_-tileDim_.y*rowIdx));
@@ -220,15 +220,15 @@ public:
 
 protected:
     Grid<std::shared_ptr<Tile>> tileGrid_      = {};
-    Grid<int64_t>              tileOwnership_ = {};
-    int64_t width_       = 0;
-    int64_t height_      = 0;
-    Dim      tileDim_     = {};
-    MPI_Comm mpiComm_     = {};
-    int64_t  nodeId_      = 0;
-    int64_t  numNodes_    = 0;
-    int64_t pGridDim_     = 0;
-    int64_t qGridDim_     = 0;
+    Grid<int64_t>               tileOwnership_ = {};
+    int64_t                     width_         = -1;
+    int64_t                     height_        = -1;
+    Vec2                        tileDim_       = {-1, -1};
+    MPI_Comm                    mpiComm_       = {};
+    int64_t                     nodeId_        = -1;
+    int64_t                     numNodes_      = -1;
+    int64_t                     pGridDim_      = -1;
+    int64_t                     qGridDim_      = -1;
 };
 
 template<typename MatrixType, char Id>
@@ -237,7 +237,7 @@ private:
     using Tile = MatrixTile<MatrixType, Id>;
 
 public:
-    explicit TwoDBlockCyclicMatrix(int64_t height, int64_t width, int64_t tileDim, int64_t pGridDim, int64_t qGridDim, MPI_Comm mpiComm = MPI_COMM_WORLD):
+    explicit TwoDBlockCyclicMatrix(const int64_t height, const int64_t width, const int64_t tileDim, const int64_t pGridDim, const int64_t qGridDim, MPI_Comm mpiComm):
         MatrixContainer<MatrixType, Id>(height, width, tileDim, pGridDim, qGridDim, mpiComm) {
         init();
     }
@@ -281,7 +281,7 @@ struct DbRequest {
     bool    quit   = false;
 //    int64_t priority = 0; // zero is the highest priority
 //    int64_t deviceId = 0;
-    explicit DbRequest(int64_t r, int64_t c, bool q = false): rowIdx(r), colIdx(c), quit(q) {}
+    explicit DbRequest(const int64_t r, const int64_t c, const bool q = false): rowIdx(r), colIdx(c), quit(q) {}
 };
 
 #endif //HH3_MATMUL_DATA

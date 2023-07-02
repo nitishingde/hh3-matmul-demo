@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
     constexpr char IdB = 'b';
     constexpr char IdC = 'c';
     auto [P, Q, M, K, N, T, gemmThreads, path, host] = parseArgs(argc, argv);
-//    constexpr uint32_t M = 18, N = 18, K = 18, T = 2;
+    MPI_Comm mpiComm = MPI_COMM_WORLD;
 
     using MatrixA = MatrixContainer<MatrixType, IdA>;
     using MatrixB = MatrixContainer<MatrixType, IdB>;
@@ -100,9 +100,9 @@ int main(int argc, char *argv[]) {
     using TileC   = MatrixTile<MatrixType, IdC>;
     using Triplet = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>, std::shared_ptr<TileC>>;
 
-    auto matrixA = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdA>>(M, K, T, P, Q);
-    auto matrixB = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdB>>(K, N, T, P, Q);
-    auto matrixC = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdC>>(M, N, T, P, Q);
+    auto matrixA = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdA>>(M, K, T, P, Q, mpiComm);
+    auto matrixB = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdB>>(K, N, T, P, Q, mpiComm);
+    auto matrixC = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdC>>(M, N, T, P, Q, mpiComm);
 
     auto MT = matrixA->matrixNumRowTiles(), KT = matrixA->matrixNumColTiles(), NT = matrixB->matrixNumColTiles();
     printf("[node %ld] MT = %ld, KT = %ld, NT = %ld\n", getNodeId(), MT, KT, NT);

@@ -23,7 +23,7 @@ private:
     public:
         explicit InterNodeRequest() = default;
 
-        explicit InterNodeRequest(std::shared_ptr<Tile> data, int64_t otherNode, int64_t tagId, bool quit = false) {
+        explicit InterNodeRequest(const std::shared_ptr<Tile> data, const int64_t otherNode, const int64_t tagId, const bool quit = false) {
             assert((data == nullptr and quit == true) or (data != nullptr and quit == false));
             metaDataBuffer_[Offset::ROW] = data? data->rowIdx(): -1;
             metaDataBuffer_[Offset::COL] = data? data->colIdx(): -1;
@@ -118,7 +118,6 @@ private:
         auto matrixTile = std::static_pointer_cast<MatrixTile<MatrixType, Id>>(this->getManagedMemory());
         const auto rowIdx = dbRequest->rowIdx, colIdx = dbRequest->colIdx;
         matrixTile->init(rowIdx, colIdx, this->matrix_->tileHeight(rowIdx, colIdx), this->matrix_->tileWidth(rowIdx, colIdx));
-//        matrix_->tile(rowIdx, colIdx, matrixTile);FIXME??
 
         std::lock_guard lc(mutex_);
         outgoingRequests_.emplace_back(InterNodeRequest(
@@ -136,7 +135,7 @@ private:
             // metadata is pretty small, 4*8B = 32B, therefore eager protocol will be used by MPI while sending this
             // buffer, hence a blocking send is good enough here.
             auto mdBuffer = request.metaDataBuffer();
-            checkMpiErrors(MPI_Send(&mdBuffer[0], sizeof(mdBuffer), MPI_BYTE, request.otherNode(), Id, mpiComm_));
+            checkMpiErrors(MPI_Send(&mdBuffer[0], sizeof(mdBuffer), MPI_BYTE, request.otherNode(), Id, matrix_->mpiComm()));
             if(request.quit()) continue;
 
             auto&& response = InterNodeResponse();
@@ -147,7 +146,7 @@ private:
                 MPI_BYTE,
                 request.otherNode(),
                 request.tagId(),
-                mpiComm_,
+                matrix_->mpiComm(),
                 &response.mpiRequest
             ));
             incomingResponses_.emplace_back(response);
@@ -161,9 +160,9 @@ private:
         InterNodeRequest request          {};
         auto&            metaDataBuffer = request.metaDataBuffer();
         MPI_Status       mpiStatus      = {};
-        for(checkMpiErrors(MPI_Iprobe(MPI_ANY_SOURCE, Id, mpiComm_, &flag, &mpiStatus)); flag; checkMpiErrors(MPI_Iprobe(MPI_ANY_SOURCE, Id, mpiComm_, &flag, &mpiStatus))) {
+        for(checkMpiErrors(MPI_Iprobe(MPI_ANY_SOURCE, Id, matrix_->mpiComm(), &flag, &mpiStatus)); flag; checkMpiErrors(MPI_Iprobe(MPI_ANY_SOURCE, Id, matrix_->mpiComm(), &flag, &mpiStatus))) {
             MPI_Status mpiRecvStatus;
-            checkMpiErrors(MPI_Recv(&metaDataBuffer[0], sizeof(metaDataBuffer), MPI_BYTE, mpiStatus.MPI_SOURCE, Id, mpiComm_, &mpiRecvStatus));
+            checkMpiErrors(MPI_Recv(&metaDataBuffer[0], sizeof(metaDataBuffer), MPI_BYTE, mpiStatus.MPI_SOURCE, Id, matrix_->mpiComm(), &mpiRecvStatus));
             if(request.quit()) {
                 liveNodeList_[mpiStatus.MPI_SOURCE] = false;
                 liveNodeCounter_.store(std::accumulate(liveNodeList_.begin(), liveNodeList_.end(), 0));
@@ -172,7 +171,7 @@ private:
             InterNodeResponse response = {};
             auto tile = matrix_->tile(request.rowIdx(), request.colIdx());
             response.pData = tile;
-            checkMpiErrors(MPI_Isend(tile->data(), tile->byteSize(), MPI_BYTE, mpiStatus.MPI_SOURCE, request.tagId(), mpiComm_, &response.mpiRequest));
+            checkMpiErrors(MPI_Isend(tile->data(), tile->byteSize(), MPI_BYTE, mpiStatus.MPI_SOURCE, request.tagId(), matrix_->mpiComm(), &response.mpiRequest));
             outgoingResponses_.emplace_back(response);
         }
     }
@@ -225,12 +224,11 @@ private:
     std::shared_ptr<Matrix>                matrix_             = nullptr;
     std::thread                            daemon_             = {};
     bool                                   isStarted_          = false;
+    std::mutex                             mutex_              = {};
     std::list<std::shared_ptr<DB_Request>> dbRequests_         = {};
     std::list<InterNodeRequest>            outgoingRequests_   = {};
     std::list<InterNodeResponse>           incomingResponses_  = {};
     std::list<InterNodeResponse>           outgoingResponses_  = {};
-    std::mutex                             mutex_              = {};
-    MPI_Comm                               mpiComm_            = MPI_COMM_WORLD;
     std::vector<bool>                      liveNodeList_       = {};
     std::atomic_int64_t                    liveNodeCounter_    = {};
 };
@@ -248,7 +246,7 @@ private:
     using Triplet = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>, std::shared_ptr<TileC>>;
 
 public:
-    explicit ProductTask(int numThreads): hh::AbstractTask<1, Triplet , Triplet>("Product Task", numThreads, false) {}
+    explicit ProductTask(const int numThreads): hh::AbstractTask<1, Triplet , Triplet>("Product Task", numThreads, false) {}
 
     void execute(std::shared_ptr<Triplet> triplet) override {
         auto tileA = std::get<std::shared_ptr<TileA>>(*triplet);

@@ -36,5 +36,5 @@ endif(CUDA_FOUND AND MPI_FOUND)
 
 if(OpenBLAS_FOUND AND MPI_FOUND)
     message(STATUS "OpenBLAS found")
-	add_subdirectory(blas_demo)
+	add_subdirectory(dist_blas_demo)
 endif(OpenBLAS_FOUND AND MPI_FOUND)

@@ -177,7 +177,11 @@ private:
     using Grid = std::vector<std::vector<GridT>>;
 
 public:
-    explicit MatrixContainer(int64_t height, int64_t width, int64_t tileDim): height_(height), width_(width), tileDim_({tileDim, tileDim}) {
+    explicit MatrixContainer(int64_t height, int64_t width, int64_t tileDim, int64_t pGridDim, int64_t qGridDim, MPI_Comm mpiComm = MPI_COMM_WORLD):
+        height_(height), width_(width), tileDim_({tileDim, tileDim}), pGridDim_(pGridDim), qGridDim_(qGridDim), mpiComm_(mpiComm) {
+        checkMpiErrors(MPI_Comm_rank(mpiComm, (int32_t*)&nodeId_));
+        checkMpiErrors(MPI_Comm_size(mpiComm, (int32_t*)&numNodes_));
+        assert(pGridDim_*qGridDim_ == numNodes_);
         tileGrid_.resize((height+tileDim-1)/tileDim, std::vector<std::shared_ptr<Tile>>((width+tileDim-1)/tileDim, nullptr));
         tileOwnership_.resize((height+tileDim-1)/tileDim, std::vector<int64_t>((width+tileDim-1)/tileDim, 0));
     }
@@ -193,7 +197,11 @@ public:
     [[nodiscard]] int64_t        matrixNumColTiles()                           const { return tileGrid_[0].size();             }
     [[nodiscard]] int64_t         owner(int64_t rowIdx, int64_t colIdx)         const { return tileOwnership_[rowIdx][colIdx];  }
     std::shared_ptr<Tile>         tile(int64_t rowIdx, int64_t colIdx)                { return this->tileGrid_[rowIdx][colIdx]; }
-//    [[nodiscard]] Dim             tileDimension(int64_t rowIdx, int64_t colIdx) const { return {tileWidth(rowIdx, colIdx), tileHeight(rowIdx, colIdx)}; }
+    [[nodiscard]] const MPI_Comm& mpiComm()                                 const { return mpiComm_; }
+    [[nodiscard]] int64_t        nodeId()                                  const { return nodeId_; }
+    [[nodiscard]] int64_t        numNodes()                                const { return numNodes_; }
+    [[nodiscard]] bool            isRootNodeId()                            const { return nodeId_ == 0; }
+    [[nodiscard]] bool            isLastNodeId()                            const { return nodeId_ == (numNodes_-1); }
 
     [[nodiscard]] int64_t tileHeight(int64_t rowIdx, [[maybe_unused]]int64_t colIdx) const {
         return std::min(tileDim_.y, int64_t(height_-tileDim_.y*rowIdx));
@@ -202,15 +210,10 @@ public:
     [[nodiscard]] int64_t tileWidth([[maybe_unused]]int64_t rowIdx, int64_t colIdx) const {
         return std::min(tileDim_.x, int64_t(width_-tileDim_.x*colIdx));
     }
-//    [[nodiscard]] const MPI_Comm& mpiComm()                                 const { return mpiComm_; }
-//    [[nodiscard]] int64_t        nodeId()                                  const { return nodeId_; }
-//    [[nodiscard]] int64_t        numNodes()                                const { return numNodes_; }
-//    [[nodiscard]] bool            isRootNodeId()                            const { return nodeId_ == 0; }
-//    [[nodiscard]] bool            isLastNodeId()                            const { return nodeId_ == (numNodes_-1); }
 
     // Setters
     void tile(int64_t rowIdx, int64_t colIdx, std::shared_ptr<Tile> tile) {
-        assert(owner(rowIdx, colIdx) != getNodeId());
+        assert(owner(rowIdx, colIdx) != nodeId_);
         assert(tile->memoryOwner() == MemoryOwner::WORKSPACE);
         tileGrid_[rowIdx][colIdx] = tile;
     }
@@ -221,9 +224,11 @@ protected:
     int64_t width_       = 0;
     int64_t height_      = 0;
     Dim      tileDim_     = {};
-//    MPI_Comm mpiComm_     = {};
-//    int64_t nodeId_      = 0;
-//    int64_t numNodes_    = 0;
+    MPI_Comm mpiComm_     = {};
+    int64_t  nodeId_      = 0;
+    int64_t  numNodes_    = 0;
+    int64_t pGridDim_     = 0;
+    int64_t qGridDim_     = 0;
 };
 
 template<typename MatrixType, char Id>
@@ -232,21 +237,18 @@ private:
     using Tile = MatrixTile<MatrixType, Id>;
 
 public:
-    explicit TwoDBlockCyclicMatrix(int64_t height, int64_t width, int64_t tileDim)
-        : MatrixContainer<MatrixType, Id>(height, width, tileDim) {
+    explicit TwoDBlockCyclicMatrix(int64_t height, int64_t width, int64_t tileDim, int64_t pGridDim, int64_t qGridDim, MPI_Comm mpiComm = MPI_COMM_WORLD):
+        MatrixContainer<MatrixType, Id>(height, width, tileDim, pGridDim, qGridDim, mpiComm) {
         init();
     }
 
     bool init() override {
-        auto nodeId = getNodeId();
-        auto numNodes = getNumNodes();
-        const auto [P, Q] = getGridDim();
         const auto MT = this->matrixNumRowTiles();
         const auto NT = this->matrixNumColTiles();
-        int64_t p0 = nodeId/Q, q0 = nodeId%Q;
+        int64_t p0 = this->nodeId_/this->qGridDim_, q0 = this->nodeId_%this->qGridDim_;
         // TODO: populate only the relevant MatrixTiles
-        for(int64_t p = p0; p < int64_t(MT); p+=P) {
-            for(int64_t q = q0; q < int64_t(NT); q+=Q) {
+        for(int64_t p = p0; p < int64_t(MT); p+=this->pGridDim_) {
+            for(int64_t q = q0; q < int64_t(NT); q+=this->qGridDim_) {
                 auto tile = std::make_shared<Tile>(p, q, this->tileHeight(p, q), this->tileWidth(p, q));
                 auto pData = (MatrixType *)tile->data();
                 for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = 1;
@@ -256,7 +258,7 @@ public:
 
         for(int64_t p = 0; p < int64_t(MT); ++p) {
             for(int64_t q = 0; q < int64_t(NT); ++q) {
-                this->tileOwnership_[p][q] = (q%Q + p*Q)%numNodes;
+                this->tileOwnership_[p][q] = (q%this->qGridDim_ + p*this->qGridDim_)%this->numNodes_;
             }
         }
 

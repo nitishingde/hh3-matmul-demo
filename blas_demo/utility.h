@@ -7,11 +7,9 @@
 
 // MPI Related ------------------------------------------------------------------------------------------------------ //
 
-static int32_t sMpiNodeId    = 0;
-static int32_t sMpiNumNodes  = 6;
-static int32_t sMpiGridP     = 3;
-static int32_t sMpiGridQ     = 2;
-static std::string sHostName = "";
+static int32_t sMpiNodeId    = -1;
+static int32_t sMpiNumNodes  = -1;
+static std::string sHostName = {};
 
 [[nodiscard]] int64_t getNodeId() {
     return sMpiNodeId;
@@ -19,10 +17,6 @@ static std::string sHostName = "";
 
 [[nodiscard]] int64_t getNumNodes() {
     return sMpiNumNodes;
-}
-
-[[nodiscard]] std::tuple<int64_t, int64_t> getGridDim() {
-    return {sMpiGridP, sMpiGridQ};
 }
 
 [[nodiscard]] bool isRootNodeId() {
@@ -99,9 +93,6 @@ auto parseArgs(int argc, char **argv) {
         cmd.add(argPath);
         TCLAP::ValueArg<std::string> argHostFile("H", "hostfile", "path to hostfile",          false,  "",   "file path");
         cmd.add(argHostFile);
-
-        sMpiGridP = argP.getValue();
-        sMpiGridQ = argQ.getValue();
 
         cmd.parse(argc, argv);
         return std::make_tuple(argP.getValue(), argQ.getValue(), argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argGemm.getValue(), argPath.getValue(), argHostFile.getValue());

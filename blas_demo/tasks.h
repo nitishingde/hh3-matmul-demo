@@ -44,10 +44,6 @@ private:
         [[nodiscard]] int64_t                 otherNode()      const { return otherNode_;                   }
         [[nodiscard]] std::shared_ptr<Tile>   data()                 { return data_;                        }
 
-        [[maybe_unused]] void print() {
-            printf("[%d][row = %ld][col = %ld][tag = %ld][QUIT = %ld]\n", getNodeId(), rowIdx(), colIdx(), tagId(), quit());
-        }
-
     private:
         enum Offset {
             ROW = 0,
@@ -66,45 +62,47 @@ private:
     };
 
 public:
-    explicit MatrixDbTask(): hh::AbstractTask<2, Matrix, DB_Request, Tile>("Matrix DB Task", 1, false) {
-        liveNodeCounter_.store(getNumNodes());
-        liveNodeList_ = std::vector<bool>(getNumNodes(), true);
-        daemon_ = std::thread(&MatrixDbTask::daemon, this);
-    }
+    explicit MatrixDbTask(): hh::AbstractTask<2, Matrix, DB_Request, Tile>("Matrix DB Task", 1, false) {}
 
     ~MatrixDbTask() override = default;
 
     void execute(std::shared_ptr<Matrix> matrix) override {
+        assert(matrix_ == nullptr);
+
         matrix_ = matrix;
+        liveNodeCounter_.store(matrix_->numNodes());
+        liveNodeList_ = std::vector<bool>(matrix_->numNodes(), true);
+        daemon_ = std::thread(&MatrixDbTask::daemon, this);
+
         for(; !dbRequests_.empty(); dbRequests_.pop_front()) {
             handleDbRequest(dbRequests_.front());
         }
     }
 
     void execute(std::shared_ptr<DB_Request> dbRequest) override {
-        if(!this->liveNodeList_[getNodeId()]) {
-            throw std::runtime_error("MatrixDbTask shouldn't receive db requests!");
-        }
-
         if(matrix_ == nullptr) {
             dbRequests_.emplace_back(dbRequest);
             return;
+        }
+
+        if(!this->liveNodeList_[matrix_->nodeId()]) {
+            throw std::runtime_error("MatrixDbTask shouldn't receive db requests!");
         }
 
         handleDbRequest(dbRequest);
     }
 
     [[nodiscard]] bool canTerminate() const override {
-        return liveNodeCounter_ == 0 and outgoingRequests_.empty() and incomingResponses_.empty() and outgoingResponses_.empty();
+        return isStarted_ and liveNodeCounter_ == 0 and outgoingRequests_.empty() and incomingResponses_.empty() and outgoingResponses_.empty();
     }
 
 private:
     void handleDbRequest(std::shared_ptr<DB_Request> dbRequest) {
-        if(dbRequest->quit and liveNodeList_[getNodeId()]) {
-            liveNodeList_[getNodeId()] = false;
+        if(dbRequest->quit and liveNodeList_[matrix_->nodeId()]) {
+            liveNodeList_[matrix_->nodeId()] = false;
             liveNodeCounter_.store(std::accumulate(liveNodeList_.begin(), liveNodeList_.end(), 0));
-            for(int64_t node = 0; node < getNumNodes(); ++node) {
-                if(node == getNodeId()) continue;
+            for(int64_t node = 0; node < matrix_->numNodes(); ++node) {
+                if(node == matrix_->nodeId()) continue;
                 outgoingRequests_.emplace_back(InterNodeRequest(nullptr, node, -1, true));
             }
             daemon_.join();
@@ -133,7 +131,7 @@ private:
     void processOutgoingRequests() {
         std::lock_guard lc(mutex_);
         for(auto &request: outgoingRequests_) {
-            if(request.otherNode() == getNodeId()) continue;
+            if(request.otherNode() == matrix_->nodeId()) continue;
 
             // metadata is pretty small, 4*8B = 32B, therefore eager protocol will be used by MPI while sending this
             // buffer, hence a blocking send is good enough here.
@@ -213,6 +211,7 @@ private:
 
     void daemon() {
         using namespace std::chrono_literals;
+        isStarted_ = true;
         while(!canTerminate()) {
             processOutgoingRequests();
             processIncomingRequests();
@@ -225,6 +224,7 @@ private:
 private:
     std::shared_ptr<Matrix>                matrix_             = nullptr;
     std::thread                            daemon_             = {};
+    bool                                   isStarted_          = false;
     std::list<std::shared_ptr<DB_Request>> dbRequests_         = {};
     std::list<InterNodeRequest>            outgoingRequests_   = {};
     std::list<InterNodeResponse>           incomingResponses_  = {};

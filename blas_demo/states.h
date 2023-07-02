@@ -23,14 +23,14 @@ private:
     using TileC   = MatrixTile<MatrixType, IdC>;
 
 public:
-    explicit InputState(const int32_t KT):
+    explicit InputState(const int64_t KT):
         hh::AbstractState<3, MatrixC, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB, TileC>(), KT_(KT) {}
 
     void execute(std::shared_ptr<MatrixC> matrixC) override {
         isStarted_ = true;
-        std::set<int32_t> rows, cols;
-        for(int32_t col = 0; col < matrixC->matrixNumColTiles(); ++col) {
-            for(int32_t row = 0; row < matrixC->matrixNumRowTiles(); ++row) {
+        std::set<int64_t> rows, cols;
+        for(int64_t col = 0; col < matrixC->matrixNumColTiles(); ++col) {
+            for(int64_t row = 0; row < matrixC->matrixNumRowTiles(); ++row) {
                 if(auto tileC = matrixC->tile(row, col); tileC != nullptr) {
                     this->addResult(tileC);
                     rows.emplace(row);
@@ -42,7 +42,7 @@ public:
         MT_ = rows.size();
         NT_ = cols.size();
 
-        for(int32_t k = 0; k < KT_; ++k) {
+        for(int64_t k = 0; k < KT_; ++k) {
             for(const auto row: rows) {
                 this->addResult(std::make_shared<DbRequest<IdA>>(row, k));
                 reqCount_++;
@@ -77,10 +77,10 @@ public:
     }
 
 private:
-    int32_t MT_        = 0;
-    int32_t KT_        = 0;
-    int32_t NT_        = 0;
-    int32_t reqCount_  = 0;
+    int64_t MT_        = 0;
+    int64_t KT_        = 0;
+    int64_t NT_        = 0;
+    int64_t reqCount_  = 0;
     bool    isStarted_ = false;
 };
 
@@ -133,7 +133,7 @@ private:
     using Triplet = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>, std::shared_ptr<TileC>>;
 
 public:
-    ComputationState(const int32_t MT, const int32_t KT, const int32_t NT):
+    ComputationState(const int64_t MT, const int64_t KT, const int64_t NT):
         hh::AbstractState<4, TileA, TileB, TileC, Triplet, Triplet, TileC>(), MT_(MT), KT_(KT), NT_(NT) {
         gridA_.resize(MT, std::vector<std::shared_ptr<TileA>>(KT, nullptr));
         gridB_.resize(KT, std::vector<std::shared_ptr<TileB>>(NT, nullptr));
@@ -144,7 +144,7 @@ public:
         auto i = tileA->rowIdx(), k = tileA->colIdx();
         gridA_[i][k] = tileA;
 
-        for(int32_t j = 0; j < NT_; ++j) {
+        for(int64_t j = 0; j < NT_; ++j) {
             auto tileB = gridB_[k][j];
             if(tileB != nullptr) {
                 workQueue_.emplace_back(std::make_tuple(i, j, k));
@@ -157,7 +157,7 @@ public:
         auto k = tileB->rowIdx(), j = tileB->colIdx();
         gridB_[k][j] = tileB;
 
-        for(int32_t i = 0; i < MT_; ++i) {
+        for(int64_t i = 0; i < MT_; ++i) {
             auto tileA = gridA_[i][k];
             if(tileA != nullptr) {
                 workQueue_.emplace_back(std::make_tuple(i, j, k));
@@ -235,15 +235,15 @@ private:
     }
 
 private:
-    std::list<std::tuple<int32_t, int32_t, int32_t>> workQueue_ = {};
+    std::list<std::tuple<int64_t, int64_t, int64_t>> workQueue_ = {};
     Grid<std::shared_ptr<TileA>> gridA_     = {};
     Grid<std::shared_ptr<TileB>> gridB_     = {};
     Grid<std::shared_ptr<TileC>> gridC_     = {};
-    int32_t                      ttl_       = 0;
+    int64_t                      ttl_       = 0;
     bool                         isStarted_ = false;
-    int32_t                      MT_        = 0;
-    int32_t                      KT_        = 0;
-    int32_t                      NT_        = 0;
+    int64_t                     MT_        = 0;
+    int64_t                     KT_        = 0;
+    int64_t                     NT_        = 0;
 };
 
 template<typename MatrixType, char IdA, char IdB, char IdC>

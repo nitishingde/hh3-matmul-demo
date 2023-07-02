@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
     auto matrixC = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdC>>(M, N, T);
 
     auto MT = matrixA->matrixNumRowTiles(), KT = matrixA->matrixNumColTiles(), NT = matrixB->matrixNumColTiles();
-    printf("[node %d] MT = %d, KT = %d, NT = %d\n", getNodeId(), MT, KT, NT);
+    printf("[node %ld] MT = %ld, KT = %ld, NT = %ld\n", getNodeId(), MT, KT, NT);
 
     auto graph = hh::Graph<3, MatrixA, MatrixB, MatrixC, TileC>("OpenBlas MM");
 
@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
         std::visit(hh::ResultVisitor{
             [](std::shared_ptr<MatrixTile<MatrixType, IdC>> &tile) {
 //                if(!isRootNodeId()) return;
-                printf("[node %d] tileC(%d, %d)>>\n", getNodeId(), tile->rowIdx(), tile->colIdx());
+                printf("[node %ld] tileC(%ld, %ld)>>\n", getNodeId(), tile->rowIdx(), tile->colIdx());
                 auto pData = (MatrixType*)tile->data();
                 for(uint32_t r = 0; r < tile->height(); ++r) {
                     for(uint32_t c = 0; c < tile->width(); ++c) {

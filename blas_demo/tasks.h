@@ -19,11 +19,11 @@ private:
 
     class InterNodeRequest {
     private:
-        using MetaDataBuffer = std::array<int32_t, 4>;
+        using MetaDataBuffer = std::array<int64_t, 4>;
     public:
         explicit InterNodeRequest() = default;
 
-        explicit InterNodeRequest(std::shared_ptr<Tile> data, int32_t otherNode, int32_t tagId, bool quit = false) {
+        explicit InterNodeRequest(std::shared_ptr<Tile> data, int64_t otherNode, int64_t tagId, bool quit = false) {
             assert((data == nullptr and quit == true) or (data != nullptr and quit == false));
             metaDataBuffer_[Offset::ROW] = data? data->rowIdx(): -1;
             metaDataBuffer_[Offset::COL] = data? data->colIdx(): -1;
@@ -34,18 +34,18 @@ private:
         }
 
         // Getters
-        [[nodiscard]] int32_t                 tagId()          const { return metaDataBuffer_[Offset::TAG]; }
-        [[nodiscard]] int32_t                 rowIdx()         const { return metaDataBuffer_[Offset::ROW]; }
-        [[nodiscard]] int32_t                 colIdx()         const { return metaDataBuffer_[Offset::COL]; }
+        [[nodiscard]] int64_t                 tagId()          const { return metaDataBuffer_[Offset::TAG]; }
+        [[nodiscard]] int64_t                 rowIdx()         const { return metaDataBuffer_[Offset::ROW]; }
+        [[nodiscard]] int64_t                 colIdx()         const { return metaDataBuffer_[Offset::COL]; }
         [[nodiscard]] bool                    quit()           const { return metaDataBuffer_[Offset::FIN]; }
         [[nodiscard]] void*                   dataBuffer()           { return data_->data();                }
-        [[nodiscard]] int32_t                 dataByteSize()   const { return data_->byteSize();            }
-        [[nodiscard]] std::array<int32_t, 4>& metaDataBuffer()       { return metaDataBuffer_;              }
-        [[nodiscard]] int32_t                 otherNode()      const { return otherNode_;                   }
+        [[nodiscard]] int64_t                 dataByteSize()   const { return data_->byteSize();            }
+        [[nodiscard]] std::array<int64_t, 4>& metaDataBuffer()       { return metaDataBuffer_;              }
+        [[nodiscard]] int64_t                 otherNode()      const { return otherNode_;                   }
         [[nodiscard]] std::shared_ptr<Tile>   data()                 { return data_;                        }
 
         [[maybe_unused]] void print() {
-            printf("[%d][row = %d][col = %d][tag = %d][QUIT = %d]\n", getNodeId(), rowIdx(), colIdx(), tagId(), quit());
+            printf("[%d][row = %ld][col = %ld][tag = %ld][QUIT = %ld]\n", getNodeId(), rowIdx(), colIdx(), tagId(), quit());
         }
 
     private:
@@ -56,7 +56,7 @@ private:
             FIN = 3,
         };
         MetaDataBuffer        metaDataBuffer_ = {0};
-        int32_t               otherNode_      = -1;
+        int64_t               otherNode_      = -1;
         std::shared_ptr<Tile> data_           = nullptr;
     };
 
@@ -103,7 +103,7 @@ private:
         if(dbRequest->quit and liveNodeList_[getNodeId()]) {
             liveNodeList_[getNodeId()] = false;
             liveNodeCounter_.store(std::accumulate(liveNodeList_.begin(), liveNodeList_.end(), 0));
-            for(int32_t node = 0; node < getNumNodes(); ++node) {
+            for(int64_t node = 0; node < getNumNodes(); ++node) {
                 if(node == getNodeId()) continue;
                 outgoingRequests_.emplace_back(InterNodeRequest(nullptr, node, -1, true));
             }
@@ -135,7 +135,7 @@ private:
         for(auto &request: outgoingRequests_) {
             if(request.otherNode() == getNodeId()) continue;
 
-            // metadata is pretty small, 4*4 = 16B, therefore eager protocol will be used by MPI while sending this
+            // metadata is pretty small, 4*8B = 32B, therefore eager protocol will be used by MPI while sending this
             // buffer, hence a blocking send is good enough here.
             auto mdBuffer = request.metaDataBuffer();
             checkMpiErrors(MPI_Send(&mdBuffer[0], sizeof(mdBuffer), MPI_BYTE, request.otherNode(), Id, mpiComm_));
@@ -232,7 +232,7 @@ private:
     std::mutex                             mutex_              = {};
     MPI_Comm                               mpiComm_            = MPI_COMM_WORLD;
     std::vector<bool>                      liveNodeList_       = {};
-    std::atomic_uint32_t                   liveNodeCounter_    = {};
+    std::atomic_int64_t                    liveNodeCounter_    = {};
 };
 
 template<typename MatrixType, char IdA, char IdB, char IdC>

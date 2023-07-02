@@ -106,7 +106,7 @@ auto parseArgs(int argc, char **argv) {
         cmd.parse(argc, argv);
         return std::make_tuple(argP.getValue(), argQ.getValue(), argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argGemm.getValue(), argPath.getValue(), argHostFile.getValue());
     }
-    catch (TCLAP::ArgException e) {
+    catch (TCLAP::ArgException &e) {
         fprintf(stderr, "[Error] %s for arg %s\n", e.error().c_str(), e.argId().c_str());
         return std::make_tuple(int64_t(1), int64_t(1), int64_t(32768), int64_t(32768), int64_t(32768), int64_t(32768), int64_t(4), std::string("./"), std::string(""));
     }
@@ -115,7 +115,7 @@ auto parseArgs(int argc, char **argv) {
 // Random number generator ------------------------------------------------------------------------------------------ //
 
 static unsigned int g_seed = 1;
-inline unsigned int fast_rand() {
+[[maybe_unused]] inline unsigned int fast_rand() {
     g_seed = (214013 * g_seed + 2531011);
     return (g_seed >> 16) & 0x7FFF;
 }

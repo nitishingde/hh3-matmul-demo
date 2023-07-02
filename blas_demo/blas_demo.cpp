@@ -130,6 +130,8 @@ int main(int argc, char *argv[]) {
     // build graphs
     graph.input<MatrixA>(dbTaskA);
     graph.input<MatrixB>(dbTaskB);
+    graph.input<MatrixA>(inputStateManager);
+    graph.input<MatrixB>(inputStateManager);
     graph.input<MatrixC>(inputStateManager);
     graph.edge<DbRequest<IdA>>(inputStateManager, dbTaskA);
     graph.edge<TileA>(dbTaskA, inputStateManager);

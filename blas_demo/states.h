@@ -6,7 +6,9 @@
 
 template<typename MatrixType, char IdA, char IdB, char IdC>
 class InputState: public hh::AbstractState<
-        3,
+        5,
+        MatrixContainer<MatrixType, IdA>,
+        MatrixContainer<MatrixType, IdB>,
         MatrixContainer<MatrixType, IdC>,
         MatrixTile<MatrixType, IdA>,
         MatrixTile<MatrixType, IdB>,
@@ -17,6 +19,8 @@ class InputState: public hh::AbstractState<
         MatrixTile<MatrixType, IdC>
     > {
 private:
+    using MatrixA = MatrixContainer<MatrixType, IdA>;
+    using MatrixB = MatrixContainer<MatrixType, IdB>;
     using MatrixC = MatrixContainer<MatrixType, IdC>;
     using TileA   = MatrixTile<MatrixType, IdA>;
     using TileB   = MatrixTile<MatrixType, IdB>;
@@ -24,37 +28,29 @@ private:
 
 public:
     explicit InputState(const int64_t KT):
-        hh::AbstractState<3, MatrixC, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB, TileC>(), KT_(KT) {}
+        hh::AbstractState<5, MatrixA, MatrixB, MatrixC, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB, TileC>(), KT_(KT) {}
+
+    void execute(std::shared_ptr<MatrixA> matrixA) override {
+        matrixA_ = matrixA;
+        trigger();
+    }
+
+    void execute(std::shared_ptr<MatrixB> matrixB) override {
+        matrixB_ = matrixB;
+        trigger();
+    }
 
     void execute(std::shared_ptr<MatrixC> matrixC) override {
-        isStarted_ = true;
-        std::set<int64_t> rows, cols;
         for(int64_t col = 0; col < matrixC->matrixNumColTiles(); ++col) {
             for(int64_t row = 0; row < matrixC->matrixNumRowTiles(); ++row) {
                 if(auto tileC = matrixC->tile(row, col); tileC != nullptr) {
                     this->addResult(tileC);
-                    rows.emplace(row);
-                    cols.emplace(col);
+                    rows_.emplace(row);
+                    cols_.emplace(col);
                 }
             }
         }
-
-        tileBTtl_ = int64_t(rows.size());
-        tileATtl_ = int64_t(cols.size());
-
-        for(int64_t k = 0; k < KT_; ++k) {
-            for(const auto row: rows) {
-                this->addResult(std::make_shared<DbRequest<IdA>>(row, k));
-                reqCount_++;
-            }
-
-            for(const auto col: cols) {
-                this->addResult(std::make_shared<DbRequest<IdB>>(k, col));
-                reqCount_++;
-            }
-        }
-        this->addResult(std::make_shared<DbRequest<IdA>>(-1, -1, true));
-        this->addResult(std::make_shared<DbRequest<IdB>>(-1, -1, true));
+        trigger();
     }
 
     void execute(std::shared_ptr<TileA> tileA) override {
@@ -76,16 +72,58 @@ public:
     }
 
 private:
-    int64_t tileATtl_  = -1;
-    int64_t tileBTtl_  = -1;
-    int64_t KT_        = -1;
-    int64_t reqCount_  = 0;
-    bool    isStarted_ = false;
+    void trigger() {
+        if(matrixA_ == nullptr or matrixB_ == nullptr or (rows_.empty() and cols_.empty())) return;
+
+        isStarted_ = true;
+        tileBTtl_ = int64_t(rows_.size());
+        tileATtl_ = int64_t(cols_.size());
+
+        for(int64_t k = 0; k < KT_; ++k) {
+            for(const auto row: rows_) {
+                if(auto tileA = matrixA_->tile(row, k); tileA != nullptr) {
+                    tileA->ttl(tileATtl_);
+                    this->addResult(tileA);
+                }
+                else {
+                    this->addResult(std::make_shared<DbRequest<IdA>>(row, k));
+                    reqCount_++;
+                }
+            }
+
+            for(const auto col: cols_) {
+                if(auto tileB = matrixB_->tile(k, col); tileB != nullptr) {
+                    tileB->ttl(tileBTtl_);
+                    this->addResult(tileB);
+                }
+                else {
+                    this->addResult(std::make_shared<DbRequest<IdB>>(k, col));
+                    reqCount_++;
+                }
+            }
+        }
+
+        this->addResult(std::make_shared<DbRequest<IdA>>(-1, -1, true));
+        this->addResult(std::make_shared<DbRequest<IdB>>(-1, -1, true));
+    }
+
+private:
+    std::set<int64_t>        rows_      = {};
+    std::set<int64_t>        cols_      = {};
+    std::shared_ptr<MatrixA> matrixA_   = nullptr;
+    std::shared_ptr<MatrixB> matrixB_   = nullptr;
+    int64_t                  tileATtl_  = -1;
+    int64_t                  tileBTtl_  = -1;
+    int64_t                  KT_        = -1;
+    int64_t                  reqCount_  = 0;
+    bool                     isStarted_ = false;
 };
 
 template<typename MatrixType, char IdA, char IdB, char IdC>
 class InputStateManager: public hh::StateManager<
-        3,
+        5,
+        MatrixContainer<MatrixType, IdA>,
+        MatrixContainer<MatrixType, IdB>,
         MatrixContainer<MatrixType, IdC>,
         MatrixTile<MatrixType, IdA>,
         MatrixTile<MatrixType, IdB>,
@@ -95,6 +133,8 @@ class InputStateManager: public hh::StateManager<
         MatrixTile<MatrixType, IdB>,
         MatrixTile<MatrixType, IdC>
     > {
+    using MatrixA = MatrixContainer<MatrixType, IdA>;
+    using MatrixB = MatrixContainer<MatrixType, IdB>;
     using MatrixC = MatrixContainer<MatrixType, IdC>;
     using TileA   = MatrixTile<MatrixType, IdA>;
     using TileB   = MatrixTile<MatrixType, IdB>;
@@ -102,7 +142,7 @@ class InputStateManager: public hh::StateManager<
 
 public:
     explicit InputStateManager(const std::shared_ptr<InputState<MatrixType, IdA, IdB, IdC>> &state):
-        hh::StateManager<3, MatrixC, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB, TileC>(state, "Input StateManager", false) {}
+        hh::StateManager<5, MatrixA, MatrixB, MatrixC, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB, TileC>(state, "Input StateManager", false) {}
 
     [[nodiscard]] bool canTerminate() const override {
         this->state()->lock();

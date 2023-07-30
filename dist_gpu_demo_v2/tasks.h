@@ -157,13 +157,9 @@ private:
         vecA.resize(0);
         vecB.resize(0);
         ttl_--;
-        if(isDone()) {
+        if(ttl_ == 0) {
             this->addResult(std::make_shared<Job>(true));
         }
-    }
-
-    [[nodiscard]] bool isDone() const {
-        return ttl_ == 0;
     }
 
 private:
@@ -457,7 +453,7 @@ public:
         job_->addTileB(tileB);
     }
 
-    void execute(std::shared_ptr<TileP> tileP) override {
+    void execute([[maybe_unused]] std::shared_ptr<TileP> tileP) override {
         ttl_--;
         if(ttl_ == 0) {
             job_->finished();

@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     auto jobGenTask         = std::make_shared<GpuJobGeneratorTask<MatrixType, IdA, IdB, IdC>>(cudaDeviceProp.totalGlobalMem, prodThreads);
     jobGenTask->connectMemoryManager(std::make_shared<GpuTokenMemoryManager>(deviceIds));
     auto execPipeline       = std::make_shared<OuterProductExecutionPipeline<MatrixType, IdA, IdB, IdC, IdP>>(
-        std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC, IdP>>(deviceIds, T, prodThreads), deviceIds
+        std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC, IdP>>(T, prodThreads), deviceIds
     );
     auto compStateManager   = std::make_shared<OuterProductComputationStateManager<MatrixType, IdA, IdB, IdC, IdP>>(
         std::make_shared<OuterProductComputationState<MatrixType, IdA, IdB, IdC, IdP>>(MT, KT, NT)

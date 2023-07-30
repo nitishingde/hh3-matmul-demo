@@ -15,7 +15,7 @@ private:
     using Pair  = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>>;
 
 public:
-    explicit OuterProductGpuGraph(const std::vector<int32_t> &devices, int64_t tileSize, int32_t threadCount = 4):
+    explicit OuterProductGpuGraph(int64_t tileSize, int32_t threadCount = 4):
         hh::Graph<1, GpuJob<MatrixType, IdA, IdB, IdC>, MatrixTile<MatrixType, IdP>>() {
 
         auto h2dTaskA  = std::make_shared<HostToDeviceCopyTask<MatrixType, IdA>>();

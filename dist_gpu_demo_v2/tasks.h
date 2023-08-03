@@ -103,7 +103,7 @@ public:
                     rowTilesFromB_[k].emplace_back(tileB);
                 }
                 else {
-                    this->addResult(std::make_shared<DbRequest<IdA>>(colIdx, k));
+                    this->addResult(std::make_shared<DbRequest<IdB>>(k, colIdx));
                 }
             }
         }

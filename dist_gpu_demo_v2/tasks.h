@@ -175,7 +175,7 @@ private:
 };
 
 template<typename MatrixType, char Id>
-class MatrixDbTask: public hh::AbstractTask<2, MatrixContainer<MatrixType, Id>, DbRequest<Id>, MatrixTile<MatrixType, Id>> {
+class MatrixWarehouseTask: public hh::AbstractTask<2, MatrixContainer<MatrixType, Id>, DbRequest<Id>, MatrixTile<MatrixType, Id>> {
 private:
     using Matrix     = MatrixContainer<MatrixType, Id>;
     using DB_Request = DbRequest<Id>;
@@ -226,9 +226,9 @@ private:
     };
 
 public:
-    explicit MatrixDbTask(): hh::AbstractTask<2, Matrix, DB_Request, Tile>("Matrix DB Task", 1, false) {}
+    explicit MatrixWarehouseTask(): hh::AbstractTask<2, Matrix, DB_Request, Tile>("Matrix DB Task", 1, false) {}
 
-    ~MatrixDbTask() override = default;
+    ~MatrixWarehouseTask() override = default;
 
     void execute(std::shared_ptr<Matrix> matrix) override {
         assert(matrix_ == nullptr);
@@ -236,7 +236,7 @@ public:
         matrix_ = matrix;
         liveNodeCounter_.store(matrix_->numNodes());
         liveNodeList_ = std::vector<bool>(matrix_->numNodes(), true);
-        daemon_ = std::thread(&MatrixDbTask::daemon, this);
+        daemon_ = std::thread(&MatrixWarehouseTask::daemon, this);
 
         for(; !dbRequests_.empty(); dbRequests_.pop_front()) {
             handleDbRequest(dbRequests_.front());

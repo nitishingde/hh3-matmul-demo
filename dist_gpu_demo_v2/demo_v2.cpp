@@ -28,15 +28,9 @@ int main(int argc, char *argv[]) {
     printf("[p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld]\n", p, q, M, K, N, T, prodThreads);
     fflush(stdout);
 
-    int32_t gpuCount = 0;
-    checkCudaErrors(cudaGetDeviceCount(&gpuCount));
     cudaDeviceProp cudaDeviceProp = {};
     checkCudaErrors(cudaGetDeviceProperties(&cudaDeviceProp, 0));
-    auto deviceIds = std::vector<int32_t>();
-    deviceIds.reserve(gpuCount);
-    for(int32_t i = 0; i < gpuCount; ++i) {
-        deviceIds.emplace_back(i);
-    }
+    std::vector<int32_t> deviceIds {int32_t(getNodeId())};
     CublasGlobalLockGuard cublasGlobalLockGuard(deviceIds);
 
     auto matrixA = std::make_shared<TwoDBlockCyclicContiguousSubMatrix<MatrixType, IdA>>(memoryType, M, K, T, p, q, mpiComm);
@@ -62,18 +56,24 @@ int main(int argc, char *argv[]) {
         std::make_shared<OuterProductComputationState<MatrixType, IdA, IdB, IdC, IdP>>(MT, KT, NT)
     );
     auto accTask            = std::make_shared<AccumulateTask<MatrixType, IdC, IdP>>(prodThreads);
-    auto dbTaskA            = std::make_shared<MatrixDbTask<MatrixType, IdA>>();
-    auto dbTaskB            = std::make_shared<MatrixDbTask<MatrixType, IdB>>();
+    auto dwTaskA            = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
+    dwTaskA->connectMemoryManager(
+        std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(MT, T, MemoryType::CUDA_UNIFIED_MEMORY)
+    );
+    auto dwTaskB            = std::make_shared<MatrixWarehouseTask<MatrixType, IdB>>();
+    dwTaskB->connectMemoryManager(
+        std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(NT, T, MemoryType::CUDA_UNIFIED_MEMORY)
+    );
 
     graph.input<Triplet>(inputStateManager);
-//    graph.edge<MatrixA>(inputStateManager, dbTaskA);
-//    graph.edge<MatrixB>(inputStateManager, dbTaskB);
+    graph.edge<MatrixA>(inputStateManager, dwTaskA);
+    graph.edge<MatrixB>(inputStateManager, dwTaskB);
     graph.edge<MatrixC>(inputStateManager, compStateManager);
     graph.edge<Triplet>(inputStateManager, jobGenTask);
-//    graph.edge<DbRequest<IdA>>(jobGenTask, dbTaskA);
-//    graph.edge<DbRequest<IdB>>(jobGenTask, dbTaskB);
-//    graph.edge<TileA>(dbTaskA, jobGenTask);
-//    graph.edge<TileB>(dbTaskB, jobGenTask);
+    graph.edge<DbRequest<IdA>>(jobGenTask, dwTaskA);
+    graph.edge<DbRequest<IdB>>(jobGenTask, dwTaskB);
+    graph.edge<TileA>(dwTaskA, jobGenTask);
+    graph.edge<TileB>(dwTaskB, jobGenTask);
     graph.edge<Job>(jobGenTask, execPipeline);
     graph.edge<TileP>(execPipeline, compStateManager);
     graph.edge<Pair>(compStateManager, accTask);

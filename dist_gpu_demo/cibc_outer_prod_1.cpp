@@ -21,7 +21,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
     MPI_Comm_dup(MPI_COMM_WORLD, &matrixComm);
     MPI_Barrier(matrixComm);
 
-    auto [M, K, N, tileSize, productThreads, commThreads, path] = parseArgs(argc, argv);
+    auto [M, K, N, tileSize, productThreads, commThreads, path, hostfile] = parseArgs(argc, argv);
     printf("[Process %d] M = %lu, K = %lu, N = %lu, tileSize = %lu\n", getNodeId(), M, K, N, tileSize);
 
     int32_t devCount = 0;

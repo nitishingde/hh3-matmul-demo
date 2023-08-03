@@ -25,7 +25,7 @@
 
 template<class MatrixType, char InpIdA, char InpIdB, Order Ord>
 class OuterProductCudaState:
-    public hh::State<2,
+    public hh::AbstractState<2,
         CudaMatrixTile<MatrixType, InpIdA, Ord>,                                                                                        //inp1
         CudaMatrixTile<MatrixType, InpIdB, Ord>,                                                                                        //inp2
         std::pair<std::shared_ptr<CudaMatrixTile<MatrixType, InpIdA, Ord>>, std::shared_ptr<CudaMatrixTile<MatrixType, InpIdB, Ord>>>   //out1

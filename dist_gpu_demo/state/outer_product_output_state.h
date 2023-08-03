@@ -25,7 +25,7 @@
 
 template<class MatrixType, char OutIdC, Order Ord>
 class OuterProductOutputState:
-    public hh::State<1,
+    public hh::AbstractState<1,
         MatrixTile<MatrixType, OutIdC, Ord>,  //inp1
         MatrixTile<MatrixType, OutIdC, Ord>   //out1
     > {

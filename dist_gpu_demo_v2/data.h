@@ -132,7 +132,7 @@ public:
     [[nodiscard]] MemoryType  memoryType()       const { return memoryType_;                           }
     [[nodiscard]] Major       major()            const { return major_;                                }
     [[nodiscard]] MemoryOwner memoryOwner()      const { return memoryOwner_;                          }
-    [[nodiscard]] int64_t     ttl()              const {return ttl_;                                   }
+    [[nodiscard]] int64_t     ttl()              const { return ttl_;                                  }
 
     // Setters
     void init(const int64_t rowIdx, const int64_t colIdx, const int64_t height, const int64_t width) {

@@ -41,6 +41,7 @@ int main(int argc, char *argv[]) {
 
     if(isRootNodeId()) {
         printf("Data distribution:\n");
+        fflush(stdout);
         for(int64_t row = 0; row < matrixB->matrixNumRowTiles(); ++row) {
             for(int64_t col = 0; col < matrixA->matrixNumColTiles(); ++col) {
                 printf("   ");
@@ -50,8 +51,10 @@ int main(int argc, char *argv[]) {
                 printf("%2ld ", matrixB->owner(row, col));
             }
             printf("\b\n");
+            fflush(stdout);
         }
         printf("\n");
+        fflush(stdout);
 
         for(int64_t row = 0; row < matrixA->matrixNumRowTiles(); ++row) {
             for(int64_t col = 0; col < matrixA->matrixNumColTiles(); ++col) {
@@ -62,6 +65,7 @@ int main(int argc, char *argv[]) {
                 printf("%2ld ", matrixC->owner(row, col));
             }
             printf("\b\n");
+            fflush(stdout);
         }
         printf("\n");
         fflush(stdout);

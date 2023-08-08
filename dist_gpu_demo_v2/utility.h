@@ -9,6 +9,8 @@
 
 #ifndef NDEBUG
 #define LOG() printf("[Node %ld][%s:%d]\n", getNodeId(), __FILE__, __LINE__)
+#else
+#define LOG()
 #endif
 
 // MPI Related ------------------------------------------------------------------------------------------------------ //

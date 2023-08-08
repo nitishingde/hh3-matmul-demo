@@ -141,10 +141,10 @@ private:
         for(size_t i = 0; i < vecB.size(); i+=windowWidth_) {
             for(size_t j = 0; j < vecA.size(); j+=windowHeight_) {
                 auto job = std::make_shared<Job>();
-                for(size_t ii = i; (ii < i+windowWidth_) and (ii < vecB.size()); ++ii) {
+                for(size_t ii = i; (ii < i+windowWidth_) and (ii < vecA.size()); ++ii) {
                     job->addTileA(vecA[ii]);
                 }
-                for(size_t jj = j; (jj < j+windowHeight_) and (jj < vecA.size()); ++jj) {
+                for(size_t jj = j; (jj < j+windowHeight_) and (jj < vecB.size()); ++jj) {
                     job->addTileB(vecB[jj]);
                 }
 

@@ -485,6 +485,7 @@ public:
     explicit HostToDeviceCopyTask(int32_t threadCount = 1): hh::AbstractCUDATask<1, Tile, Tile>("H2D", threadCount, false, false) {}
 
     void execute(std::shared_ptr<Tile> tile) override {
+        checkCudaErrors(cudaMemAdvise(tile->data(), tile->byteSize(), cudaMemoryAdvise::cudaMemAdviseSetReadMostly, this->deviceId()));
         checkCudaErrors(cudaMemPrefetchAsync(tile->data(), tile->byteSize(), this->deviceId(), this->stream()));
         checkCudaErrors(cudaStreamSynchronize(this->stream()));
         this->addResult(tile);

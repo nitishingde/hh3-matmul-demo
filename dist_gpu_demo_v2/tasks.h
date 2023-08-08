@@ -429,11 +429,16 @@ public:
 
         job_ = job;
         ttl_ = job->tilesFromMatrixA().size() * job->tilesFromMatrixB().size();
+        int64_t ttlA = job->tilesFromMatrixB().size(), ttlB = job->tilesFromMatrixA().size();
         for(auto &colA = job->tilesFromMatrixA(); !colA.empty(); colA.pop_front()) {
-            this->addResult(colA.front());
+            auto tileA = colA.front();
+            tileA->ttl(ttlA);
+            this->addResult(tileA);
         }
         for(auto &colB = job->tilesFromMatrixB(); !colB.empty(); colB.pop_front()) {
-            this->addResult(colB.front());
+            auto tileB = colB.front();
+            tileB->ttl(ttlB);
+            this->addResult(tileB);
         }
     }
 
@@ -567,6 +572,16 @@ public:
         ));
         tileP->recordEvent(this->stream());
         this->addResult(tileP);
+
+        tileA->used();
+        if(tileA->isMemoryManagerConnected()) {
+            tileA->returnToMemoryManager();
+        }
+
+        tileB->used();
+        if(tileB->isMemoryManagerConnected()) {
+            tileB->returnToMemoryManager();
+        }
     }
 
     std::shared_ptr<hh::AbstractTask<1, Pair, TileP>>

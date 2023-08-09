@@ -173,21 +173,13 @@ int main(int argc, char *argv[]) {
     graph.output<TileC>(compStateManager);
     graph.executeGraph();
 
+    MPI_Barrier(mpiComm);
     graph.pushData(std::make_shared<Triplet>(std::make_tuple(
         std::static_pointer_cast<MatrixA>(matrixA),
         std::static_pointer_cast<MatrixB>(matrixB),
         std::static_pointer_cast<MatrixC>(matrixC)
     )));
     graph.finishPushingData();
-
-    graph.createDotFile(
-        "./demo_v2_temp_" + std::to_string(getNodeId()) + ".dot",
-        hh::ColorScheme::EXECUTION,
-        hh::StructureOptions::QUEUE,
-        hh::DebugOptions::ALL,
-        std::make_unique<hh::JetColor>(),
-        false
-    );
 
     // clean up
 #ifndef NDEBUG
@@ -229,6 +221,10 @@ int main(int argc, char *argv[]) {
         false
     );
 
+    double time = double((graph.core()->executionDuration() == std::chrono::nanoseconds::zero()? std::chrono::system_clock::now() - graph.core()->startExecutionTimeStamp(): graph.core()->executionDuration()).count())/1e9;
+    double maxTime = 0;
+    checkMpiErrors(MPI_Reduce(&time, &maxTime, 1, MPI_DOUBLE, MPI_MAX, 0, mpiComm));
+
 #ifndef NDEBUG
     // verify solution
     MPI_Barrier(mpiComm);
@@ -267,6 +263,8 @@ int main(int argc, char *argv[]) {
         }
     }
 #endif
+
+    if(isRootNodeId()) printf("[ " CYAN("%9.3f") " gflops]["  RED("%8.3f") " secs ]\n", (2.*double(M)*double(K)*double(N))/(1.e9 * maxTime), maxTime);
 
     return 0;
 }

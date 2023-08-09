@@ -164,7 +164,7 @@ private:
     bool        cudaEventCreated_ = false;
 
     // Managed Memory
-    int64_t ttl_ = 0;
+    int64_t ttl_ = 0;                                       //FIXME: use atomics?
 };
 
 template<typename MatrixType, char Id>

@@ -12,7 +12,7 @@ class GpuJobGeneratorTask: public hh::AbstractTask<
         DbRequest<IdA>,
         DbRequest<IdB>,
         GpuJob<MatrixType, IdA, IdB, IdC>
-> {
+    > {
 private:
     template<class GridT>
     using Grid    = std::vector<std::vector<GridT>>;
@@ -49,7 +49,7 @@ public:
 
         int64_t tileSize = std::max(std::max(matrixA->tileDim(), matrixB->tileDim()), matrixC->tileDim());
         int64_t tilesPerDev = devMemSizeInBytes_/(tileSize*tileSize*sizeof(MatrixType));
-        // wh + ww + tilesPerDev = tilesPerDev, let wh = ww
+        // wh + ww + prodTilesPerDev = tilesPerDev, let wh = ww
         windowHeight_ = windowWidth_ = (tilesPerDev-prodTilesPerDev_)/2;
 
         struct JobK {
@@ -66,8 +66,8 @@ public:
         // prioritize jobs on the basis of locality of data
         for(int64_t k = 0; k < KT; ++k) {
             auto jobK = JobK{
-                    .index    = k,
-                    .priority = 0,
+                .index    = k,
+                .priority = 0,
             };
 
             // evaluate priority

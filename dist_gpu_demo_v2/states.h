@@ -42,7 +42,7 @@ class OuterProductComputationState: public hh::AbstractState<
         MatrixTile<MatrixType, IdP>,
         std::tuple<std::shared_ptr<MatrixTile<MatrixType, IdC>>, std::shared_ptr<MatrixTile<MatrixType, IdP>>>,
         MatrixTile<MatrixType, IdC>
-        > {
+    > {
 private:
     template<class GridT>
     using Grid    = std::vector<std::vector<GridT>>;

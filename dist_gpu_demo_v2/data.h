@@ -255,7 +255,7 @@ public:
             for(int64_t q = q0; q < NT; q+=this->qGridDim_) {
                 auto tile = std::make_shared<Tile>(p, q, this->tileHeight(p, q), this->tileWidth(p, q), this->tileMemoryType_);
                 auto pData = (MatrixType *)tile->data();
-                for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = 1;
+                for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = fast_rand()%10;
                 this->tileGrid_[p][q] = tile;
             }
         }
@@ -308,7 +308,7 @@ public:
                 if(this->tileOwnership_[r][c] == this->nodeId_) {
                     auto tile = std::make_shared<Tile>(r, c, this->tileHeight(r, c), this->tileWidth(r, c), this->tileMemoryType_);
                     auto pData = (MatrixType *)tile->data();
-                    for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = 1;//r*MT+c; FIXME
+                    for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = fast_rand()%10;
                     this->tileGrid_[r][c] = tile;
                 }
             }

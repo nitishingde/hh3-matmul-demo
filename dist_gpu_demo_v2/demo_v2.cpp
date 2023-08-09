@@ -120,7 +120,6 @@ int main(int argc, char *argv[]) {
     )));
     graph.finishPushingData();
 
-    LOG();
     graph.createDotFile(
         "./demo_v2_temp_" + std::to_string(getNodeId()) + ".dot",
         hh::ColorScheme::EXECUTION,
@@ -158,9 +157,7 @@ int main(int argc, char *argv[]) {
         );
     }
 
-    LOG();
     graph.waitForTermination();
-    LOG();
     graph.createDotFile(
         "./demo_v2_" + std::to_string(getNodeId()) + ".dot",
         hh::ColorScheme::EXECUTION,

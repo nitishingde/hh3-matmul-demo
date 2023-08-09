@@ -54,46 +54,54 @@ private:
 public:
     explicit OuterProductComputationState(const int64_t MT, const int64_t KT, const int64_t NT): KT_(KT) {
         gridP_.resize(MT, std::vector<std::vector<std::shared_ptr<TileP>>>(NT, std::vector<std::shared_ptr<TileP>>{}));
-        gridC_.resize(MT, std::vector<std::shared_ptr<TileC>>(NT, nullptr));
     }
 
     void execute(std::shared_ptr<MatrixC> matrixC) override {
+        assert(matrixC != nullptr);
+        matrixC_ = matrixC;
+
         ttl_ = 0;
         for(int64_t rowIdx = 0; rowIdx < matrixC->matrixNumRowTiles(); ++rowIdx) {
             for(int64_t colIdx = 0; colIdx < matrixC->matrixNumColTiles(); ++colIdx) {
                 if(auto tileC = matrixC->tile(rowIdx, colIdx); tileC != nullptr) {
-                    gridC_[rowIdx][colIdx]  = tileC;
-                    ttl_                   += KT_;
+                    tileC->memoryState(MemoryState::SHARED);
                     tileC->ttl(KT_);
+                    ttl_ += KT_;
                 }
             }
         }
     }
 
     void execute(std::shared_ptr<TileC> tileC) override {
-        auto rowIdx = tileC->rowIdx(), colIdx = tileC->colIdx();
-        tileC->used();
+        tileC->memoryState(MemoryState::SHARED);
+
         ttl_--;
+        if(ttl_ == 0) {
+            matrixC_ = nullptr;
+        }
+
+        tileC->used();
+        if(tileC->canBeRecycled()) {
+            this->addResult(tileC);
+            return;
+        }
+
+        auto rowIdx = tileC->rowIdx(), colIdx = tileC->colIdx();
         if(!gridP_[rowIdx][colIdx].empty()) {
             auto tileP = gridP_[rowIdx][colIdx].back();
+            tileC->memoryState(MemoryState::ON_HOLD);
             this->addResult(std::make_shared<Pair>(std::make_tuple(tileC, tileP)));
             gridP_[rowIdx][colIdx].pop_back();
             return;
         }
-
-        if(!tileC->canBeRecycled()) {
-            gridC_[rowIdx][colIdx] = tileC;
-        }
-        else {
-            this->addResult(tileC);
-        }
     }
 
     void execute(std::shared_ptr<TileP> tileP) override {
+        assert(matrixC_ != nullptr);
         auto rowIdx = tileP->rowIdx(), colIdx = tileP->colIdx();
-        if(auto tileC = gridC_[rowIdx][colIdx]; tileC != nullptr) {
+        if(auto tileC = matrixC_->tile(rowIdx, colIdx); tileC != nullptr and tileC->memoryState() == MemoryState::SHARED) {
+            tileC->memoryState(MemoryState::ON_HOLD);
             this->addResult(std::make_shared<Pair>(std::make_tuple(tileC, tileP)));
-            gridC_[rowIdx][colIdx] = nullptr;
         }
         else {
             gridP_[rowIdx][colIdx].emplace_back(tileP);
@@ -105,10 +113,10 @@ public:
     }
 
 private:
-    int64_t                                   KT_    = 0;
-    int64_t                                   ttl_   = -1;
-    Grid<std::shared_ptr<TileC>>              gridC_ = {};
-    Grid<std::vector<std::shared_ptr<TileP>>> gridP_ = {};
+    std::shared_ptr<MatrixC>                  matrixC_ = nullptr;
+    int64_t                                   KT_      = 0;
+    int64_t                                   ttl_     = -1;
+    Grid<std::vector<std::shared_ptr<TileP>>> gridP_   = {};
 };
 
 template<typename MatrixType, char IdA, char IdB, char IdC, char IdP>

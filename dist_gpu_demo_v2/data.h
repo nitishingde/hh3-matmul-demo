@@ -132,6 +132,7 @@ public:
     [[nodiscard]] MemoryType  memoryType()       const { return memoryType_;                           }
     [[nodiscard]] Major       major()            const { return major_;                                }
     [[nodiscard]] MemoryOwner memoryOwner()      const { return memoryOwner_;                          }
+    [[nodiscard]] MemoryState memoryState()      const { return memoryState_;                          }
     [[nodiscard]] int64_t     ttl()              const { return ttl_;                                  }
 
     // Setters
@@ -141,7 +142,6 @@ public:
         colIdx_ = colIdx;
         width_  = width;
         height_ = height;
-        memoryState_ = MemoryState::ON_HOLD;
     }
     void memoryState(const MemoryState memoryState) { memoryState_ = memoryState; }
     void major(const Major major)                   { major_ = major;             }

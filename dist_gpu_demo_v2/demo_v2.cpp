@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
     using Job        = GpuJob<MatrixType, IdA, IdB, IdC>;
 
     auto [p, q, M, K, N, T, prodThreads, path, host] = parseArgs(argc, argv);
-    printf("[p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld]\n", p, q, M, K, N, T, prodThreads);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads);
     fflush(stdout);
 
     cudaDeviceProp cudaDeviceProp = {};

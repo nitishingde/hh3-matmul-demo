@@ -73,6 +73,11 @@ int main(int argc, char *argv[]) {
         }
         printf("\n");
         fflush(stdout);
+
+        int64_t tilesPerDev = int64_t(cudaDeviceProp.totalGlobalMem)/(T*T*sizeof(MatrixType));
+        // wh + ww + prodTilesPerDev = tilesPerDev, let wh = ww
+        printf("[Window %ld, %ld]\n", (tilesPerDev-prodThreads)/2, (tilesPerDev-prodThreads)/2);
+        fflush(stdout);
     }
 
     auto demo = [&deviceIds, &cudaDeviceProp, &path, T, prodThreads, mpiComm](std::shared_ptr<MatrixA> matrixA, std::shared_ptr<MatrixB> matrixB, std::shared_ptr<MatrixC> matrixC, const int32_t iter) {

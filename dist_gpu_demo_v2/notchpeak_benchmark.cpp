@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
         fflush(stdout);
     }
 
-    auto demo = [&deviceIds, &cudaDeviceProp, T, prodThreads, mpiComm](std::shared_ptr<MatrixA> matrixA, std::shared_ptr<MatrixB> matrixB, std::shared_ptr<MatrixC> matrixC, const int32_t iter) {
+    auto demo = [&deviceIds, &cudaDeviceProp, &path, T, prodThreads, mpiComm](std::shared_ptr<MatrixA> matrixA, std::shared_ptr<MatrixB> matrixB, std::shared_ptr<MatrixC> matrixC, const int32_t iter) {
         auto MT = matrixC->matrixNumRowTiles(), KT = matrixA->matrixNumColTiles(), NT = matrixC->matrixNumColTiles();
 
         // Generate graph
@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
 
         graph.waitForTermination();
         graph.createDotFile(
-            "./demo_v2_" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot",
+            path + "./demo_v2_" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot",
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
             hh::DebugOptions::ALL,

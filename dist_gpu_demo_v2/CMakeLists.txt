@@ -63,3 +63,9 @@ target_link_libraries(demo_v2_tests
     PUBLIC
         dist_matmul_v2
 )
+
+add_executable(demo_v2_notch notchpeak_benchmark.cpp)
+target_link_libraries(demo_v2_notch
+    PUBLIC
+        dist_matmul_v2
+)

@@ -140,15 +140,35 @@ int main(int argc, char *argv[]) {
         return maxTime;
     };
 
-    double times[10], gflops[10];
-    for(int32_t iter = 0; iter < 10; ++iter) {
-        gflops[iter]  = (2.*double(M)*double(K)*double(N))/1.e9;
+    constexpr int32_t ITER = 10;
+    double times[ITER];
+    for(int32_t iter = 0; iter < ITER; ++iter) {
         times[iter]   = demo(matrixA, matrixB, matrixC, iter);
-        gflops[iter] /= times[iter];
-        if(isRootNodeId()) printf("[%3d][ " CYAN("%9.3f") " gflops]["  RED("%8.3f") " secs ]\n", iter, gflops[iter], times[iter]);
+        if(isRootNodeId()) {
+            printf("[Iterations: %3d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
+               iter+1, ITER,
+               (double(M) * double(K) * double(N) * double(2)) / (1.e9 * times[iter]),
+               times[iter]
+            );
+            fflush(stdout);
+        }
     }
 
-    if(isRootNodeId()) printf("[AVG][ " CYAN("%9.3f") " gflops]["  RED("%8.3f") " secs ]\n", std::accumulate(gflops, gflops+10, 0.)/10, std::accumulate(times, times+10, 0.)/10);
-
+    if(isRootNodeId()) {
+        double gflop = (double(M) * double(K) * double(N) * double(2)) / 1.e9;
+        double minTime = *std::min_element(times, times+ITER);
+        double avgTime = std::accumulate(times, times+ITER, 0.0)/double(ITER);
+        double maxTime = *std::max_element(times, times+ITER);
+        printf("[Iterations: %3d/%d][ Max " GREEN("%9.3f") " gflops ][ Avg " CYAN("%9.3f") " gflops ][ Min " RED("%9.3f") " gflops ][ Min " GREEN("%8.3f") " secs ][ Avg " CYAN("%8.3f") " secs ][ Max " RED("%8.3f") " secs ]\n",
+           ITER, ITER,
+           gflop/minTime,
+           gflop/avgTime,
+           gflop/maxTime,
+           minTime,
+           avgTime,
+           maxTime
+        );
+        fflush(stdout);
+    }
     return 0;
 }

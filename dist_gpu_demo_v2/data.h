@@ -51,6 +51,8 @@ public:
         else if(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY) {
             checkCudaErrors(cudaMallocManaged(&pData_, byteSize_));
         }
+
+        initCudaEvent();
     }
 
     // For memory management
@@ -68,6 +70,8 @@ public:
         else if(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY) {
             checkCudaErrors(cudaMallocManaged(&pData_, byteSize_));
         }
+
+        initCudaEvent();
     }
 
     ~MatrixTile() override {
@@ -76,6 +80,13 @@ public:
         }
         else if(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY) {
             checkCudaErrors(cudaFree(pData_));
+        }
+
+        for(size_t id = 0; id < cudaEvents_.size(); ++id) {
+            if(cudaEventCreated_[id]) {
+                checkCudaErrors(cudaEventDestroy(cudaEvents_[id]));
+            }
+            cudaEventCreated_[id] = false;
         }
     }
 
@@ -98,22 +109,22 @@ public:
      *
      * @param cudaStream
      */
-    void recordEvent(cudaStream_t cudaStream) {
+    void recordEvent(cudaStream_t cudaStream, int32_t deviceId = 0) {
         assert(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY);
-        if (!cudaEventCreated_) {
-            checkCudaErrors(cudaEventCreate(&cudaEvent_));
-            cudaEventCreated_ = true;
+        if (!cudaEventCreated_[deviceId]) {
+            checkCudaErrors(cudaEventCreate(&cudaEvents_[deviceId]));
+            cudaEventCreated_[deviceId] = true;
         }
-        checkCudaErrors(cudaEventRecord(cudaEvent_, cudaStream));
+        checkCudaErrors(cudaEventRecord(cudaEvents_[deviceId], cudaStream));
     }
 
     /**
      * Synchronize the cudaAsync API called previously.
      */
-    void synchronizeEvent() {
+    void synchronizeEvent(int32_t deviceId = 0) {
         assert(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY);
-        if(cudaEventCreated_) {
-            checkCudaErrors(cudaEventSynchronize(cudaEvent_));
+        if(cudaEventCreated_[deviceId]) {
+            checkCudaErrors(cudaEventSynchronize(cudaEvents_[deviceId]));
         }
     }
 
@@ -148,6 +159,14 @@ public:
     void ttl(const int64_t ttl)                     { ttl_ = ttl;                 }
 
 private:
+    void initCudaEvent() {
+        int32_t gpuCount = 0;
+        checkCudaErrors(cudaGetDeviceCount(&gpuCount));
+        cudaEvents_.resize(gpuCount);
+        cudaEventCreated_.resize(gpuCount, false);
+    }
+
+private:
     void        *pData_           = nullptr;                // untouchable
     int64_t     byteSize_         = 0;                      // untouchable
     int64_t     width_            = 0;
@@ -160,8 +179,8 @@ private:
     Major       major_            = Major::COL;
 
     // CUDA related data members
-    cudaEvent_t cudaEvent_        = {};
-    bool        cudaEventCreated_ = false;
+    std::vector<cudaEvent_t> cudaEvents_       = {};
+    std::vector<bool>        cudaEventCreated_ = {};
 
     // Managed Memory
     int64_t ttl_ = 0;                                       //FIXME: use atomics?

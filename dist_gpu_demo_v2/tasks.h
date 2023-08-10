@@ -492,7 +492,7 @@ public:
     void execute(std::shared_ptr<Tile> tile) override {
         checkCudaErrors(cudaMemAdvise(tile->data(), tile->byteSize(), cudaMemoryAdvise::cudaMemAdviseSetReadMostly, this->deviceId()));
         checkCudaErrors(cudaMemPrefetchAsync(tile->data(), tile->byteSize(), this->deviceId(), this->stream()));
-        checkCudaErrors(cudaStreamSynchronize(this->stream()));
+        tile->recordEvent(this->stream(), this->deviceId());
         this->addResult(tile);
     }
 
@@ -540,6 +540,9 @@ public:
             this->deviceId(),
             this->stream()
         ));
+
+        tileA->synchronizeEvent(this->deviceId());
+        tileB->synchronizeEvent(this->deviceId());
 
         if constexpr(std::is_same_v<MatrixType, float>) {
             checkCudaErrors(cublasSgemm_v2(

@@ -81,7 +81,7 @@ public:
         cudaTileB->synchronizeEvent();
 
         if constexpr(Ord == Order::Col) {
-            checkCudaErrors(cublasSetMathMode(handle_, CUBLAS_TF32_TENSOR_OP_MATH));
+            // checkCudaErrors(cublasSetMathMode(handle_, CUBLAS_TF32_TENSOR_OP_MATH));
             // cublasMath_t mode;
             // checkCudaErrors(cublasGetMathMode(handle_, &mode));
             // printf("[Cublas Math Mode = %d]\n", mode);

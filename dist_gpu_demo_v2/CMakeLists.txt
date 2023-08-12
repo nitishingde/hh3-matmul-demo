@@ -29,6 +29,8 @@ add_library(dist_matmul_v2
         states.h
         tasks.h
         utility.h
+        matrix_utility.h
+        mmd.h
 )
 set_target_properties(dist_matmul_v2 PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_definitions(dist_matmul_v2

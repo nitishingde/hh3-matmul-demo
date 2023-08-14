@@ -2,7 +2,8 @@
 #include "matrix_utility.h"
 
 int main(int argc, char *argv[]) {
-    MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv);
+    auto [p, q, M, K, N, T, prodThreads, windowSize, path, host] = parseArgs(argc, argv);
+    MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
 
     using MatrixType = float;
 
@@ -12,7 +13,6 @@ int main(int argc, char *argv[]) {
     constexpr MemoryType memoryType = MemoryType::CUDA_UNIFIED_MEMORY;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
-    auto [p, q, M, K, N, T, prodThreads, windowSize, path, host] = parseArgs(argc, argv);
     windowSize = genWindowSize<MatrixType>(T, prodThreads, windowSize);
     printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld][windowSize %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads, windowSize);
     fflush(stdout);

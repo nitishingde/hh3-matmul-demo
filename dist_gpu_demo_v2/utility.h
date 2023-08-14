@@ -35,6 +35,8 @@
 
 static int32_t sMpiNodeId    = -1;
 static int32_t sMpiNumNodes  = -1;
+static int64_t sGridP        = -1;
+static int64_t sGridQ        = -1;
 static std::string sHostName = {};
 
 [[nodiscard]] int64_t getNodeId() {
@@ -43,6 +45,10 @@ static std::string sHostName = {};
 
 [[nodiscard]] int64_t getNumNodes() {
     return sMpiNumNodes;
+}
+
+[[nodiscard]] std::tuple<int64_t, int64_t> getGridDim() {
+    return {sGridP, sGridQ};
 }
 
 [[nodiscard]] bool isRootNodeId() {
@@ -74,7 +80,10 @@ void __checkMpiErrors(const int errorCode, const char *file, const int line) {
 
 class MpiGlobalLockGuard {
 public:
-    explicit MpiGlobalLockGuard(int *argc, char ***argv) {
+    explicit MpiGlobalLockGuard(int *argc, char ***argv, const int64_t p, const int64_t q) {
+        sGridP = p;
+        sGridQ = q;
+
         int32_t provided;
         checkMpiErrors(MPI_Init_thread(argc, argv, MPI_THREAD_MULTIPLE, &provided));
         init();
@@ -91,6 +100,7 @@ public:
     static void init(MPI_Comm mpiComm = MPI_COMM_WORLD) {
         checkMpiErrors(MPI_Comm_rank(mpiComm, &sMpiNodeId));
         checkMpiErrors(MPI_Comm_size(mpiComm, &sMpiNumNodes));
+        assert(sGridP*sGridQ == int64_t(sMpiNumNodes));
     }
 };
 

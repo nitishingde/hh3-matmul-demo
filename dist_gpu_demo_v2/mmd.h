@@ -38,9 +38,13 @@ private:
     using MatrixC = MMD_Strategy<MatrixType, IdA, IdB, IdC>::MatrixC;
 
 public:
-    explicit MMD_WindowStrategy(int64_t productThreads = 4):
-        MMD_Strategy<MatrixType, IdA, IdB, IdC>(),
-        productThreads_(productThreads) {}
+    explicit MMD_WindowStrategy() = default;
+
+    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t windowSize, const int64_t productThreads) {
+        windowSize_     = windowSize;
+        productThreads_ = productThreads;
+        return *this;
+    }
 
     double executeImpl(
         std::shared_ptr<MatrixA> matrixA,
@@ -72,7 +76,7 @@ public:
             "InputStateManager",
             false
         );
-        auto jobGenTask         = std::make_shared<GpuJobGeneratorTask<MatrixType, IdA, IdB, IdC>>(this->cudaDeviceProp_.totalGlobalMem, productThreads_);
+        auto jobGenTask         = std::make_shared<GpuJobGeneratorTask<MatrixType, IdA, IdB, IdC>>(windowSize_);
         jobGenTask->connectMemoryManager(std::make_shared<GpuTokenMemoryManager>(deviceIds));
         auto execPipeline       = std::make_shared<OuterProductExecutionPipeline<MatrixType, IdA, IdB, IdC, IdP>>(
             std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC, IdP>>(T, productThreads_), deviceIds
@@ -131,6 +135,7 @@ public:
     }
 
 private:
+    int64_t windowSize_     = 0;
     int64_t productThreads_ = 0;
 };
 

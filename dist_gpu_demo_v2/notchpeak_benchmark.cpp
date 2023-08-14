@@ -12,8 +12,9 @@ int main(int argc, char *argv[]) {
     constexpr MemoryType memoryType = MemoryType::CUDA_UNIFIED_MEMORY;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
-    auto [p, q, M, K, N, T, prodThreads, path, host] = parseArgs(argc, argv);
-    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads);
+    auto [p, q, M, K, N, T, prodThreads, windowSize, path, host] = parseArgs(argc, argv);
+    windowSize = genWindowSize<MatrixType>(T, prodThreads, windowSize);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld][windowSize %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads, windowSize);
     fflush(stdout);
 
     int32_t gpuCount = 0;
@@ -33,12 +34,12 @@ int main(int argc, char *argv[]) {
         printDataDistribution<MatrixType, IdA, IdB, IdC>(matrixA, matrixB, matrixC);
     }
 
-    auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>(prodThreads);
+    auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
 
     constexpr int32_t ITER = 10;
     double times[ITER];
     for(int32_t iter = 0; iter < ITER; ++iter) {
-        times[iter]  = strategy.executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot");
+        times[iter]  = strategy.builder(prodThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot");
         if(isRootNodeId()) {
             printf("[Iterations: %3d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
                 iter+1, ITER,

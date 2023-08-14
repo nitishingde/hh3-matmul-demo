@@ -25,9 +25,9 @@ private:
     using Job     = GpuJob<MatrixType, IdA, IdB, IdC>;
 
 public:
-    explicit GpuJobGeneratorTask(const int64_t devMemSizeInBytes, const int64_t prodTilesPerDev):
+    explicit GpuJobGeneratorTask(const int64_t windowSize):
         hh::AbstractTask<3, Triplet, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, Job>("GpuJobGeneratorTask", 1, false),
-        devMemSizeInBytes_(devMemSizeInBytes), prodTilesPerDev_(prodTilesPerDev) {}
+        windowHeight_(windowSize), windowWidth_(windowSize)  {}
 
     void execute(std::shared_ptr<Triplet> triplet) override {
         auto matrixA = std::get<std::shared_ptr<MatrixA>>(*triplet);
@@ -46,11 +46,6 @@ public:
         }
         totalColTilesA_ = rowIndices.size();
         totalRowTilesB_ = colIndices.size();
-
-        int64_t tileSize = std::max(std::max(matrixA->tileDim(), matrixB->tileDim()), matrixC->tileDim());
-        int64_t tilesPerDev = devMemSizeInBytes_/(tileSize*tileSize*sizeof(MatrixType));
-        // wh + ww + prodTilesPerDev = tilesPerDev, let wh = ww
-        windowHeight_ = windowWidth_ = (tilesPerDev-prodTilesPerDev_)/2;
 
         struct JobK {
             int64_t index    = 0;
@@ -163,8 +158,6 @@ private:
     }
 
 private:
-    int64_t                      devMemSizeInBytes_ = -1;
-    int64_t                      prodTilesPerDev_   = -1;
     int64_t                      windowHeight_      = -1;
     int64_t                      windowWidth_       = -1;
     size_t                       totalColTilesA_    = -1;

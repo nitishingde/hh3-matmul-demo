@@ -136,17 +136,41 @@ auto parseArgs(int argc, char **argv) {
         cmd.add(argT);
         TCLAP::ValueArg<int64_t> argProdThreads("t", "prod", "product threads", false, 4, "non negative integer value");
         cmd.add(argProdThreads);
+        TCLAP::ValueArg<int64_t> argW("W", "windowSize", "window size", false, -1, "non negative integer value");
+        cmd.add(argW);
         TCLAP::ValueArg<std::string> argPath("P", "path", "scratch/tmp dir path", false, "./", "dir path");
         cmd.add(argPath);
         TCLAP::ValueArg<std::string> argHostFile("H", "hostfile", "path to hostfile", false, "", "file path");
         cmd.add(argHostFile);
 
         cmd.parse(argc, argv);
-        return std::make_tuple(argP.getValue(), argQ.getValue(), argM.getValue(), argK.getValue(), argN.getValue(), argT.getValue(), argProdThreads.getValue(), argPath.getValue(), argHostFile.getValue());
+        return std::make_tuple(
+            argP.getValue(),
+            argQ.getValue(),
+            argM.getValue(),
+            argK.getValue(),
+            argN.getValue(),
+            argT.getValue(),
+            argProdThreads.getValue(),
+            argW.getValue(),
+            argPath.getValue(),
+            argHostFile.getValue()
+        );
     }
     catch (TCLAP::ArgException &e) {
         fprintf(stderr, "[Error] %s for arg %s\n", e.error().c_str(), e.argId().c_str());
-        return std::make_tuple(int64_t(1), int64_t(1), int64_t(32768), int64_t(32768), int64_t(32768), int64_t(32768), int64_t(4), std::string("./"), std::string(""));
+        return std::make_tuple(
+            int64_t(1),
+            int64_t(1),
+            int64_t(32768),
+            int64_t(32768),
+            int64_t(32768),
+            int64_t(32768),
+            int64_t(4),
+            int64_t(-1),
+            std::string("./"),
+            std::string("")
+        );
     }
 }
 
@@ -164,5 +188,18 @@ inline int32_t tagGenerator() {
     return sTagCounter;
 }
 
+// MM --------------------------------------------------------------------------------------------------------------- //
+
+template<typename MatrixType>
+int64_t genWindowSize(const int64_t tileSize, const int64_t prodTilesPerDev, const int64_t suggestedWindowSize = -1) {
+    cudaDeviceProp cudaDeviceProp = {};
+    checkCudaErrors(cudaGetDeviceProperties(&cudaDeviceProp, 0));
+    int64_t tilesPerDev = int64_t(cudaDeviceProp.totalGlobalMem)/int64_t(tileSize*tileSize*sizeof(MatrixType));
+    // wh + ww + prodTilesPerDev = tilesPerDev, let wh = ww
+    if(suggestedWindowSize <= 0) {
+        return (tilesPerDev-prodTilesPerDev)/2;
+    }
+    return std::min(suggestedWindowSize, (tilesPerDev-prodTilesPerDev)/2);
+}
 
 #endif //HH3_MATMUL_UTILITY_H

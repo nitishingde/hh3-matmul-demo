@@ -68,8 +68,9 @@ int main(int argc, char *argv[]) {
     constexpr MemoryType memoryType = MemoryType::CUDA_UNIFIED_MEMORY;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
-    auto [p, q, M, K, N, T, prodThreads, path, host] = parseArgs(argc, argv);
-    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads);
+    auto [p, q, M, K, N, T, prodThreads, windowSize, path, host] = parseArgs(argc, argv);
+    windowSize = genWindowSize<MatrixType>(T, prodThreads, windowSize);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld][windowSize %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads, windowSize);
     fflush(stdout);
 
     int32_t gpuCount = 0;
@@ -93,8 +94,8 @@ int main(int argc, char *argv[]) {
     auto C = getMatrixToRoot<MatrixType, IdC>(matrixC);
 #endif
 
-    auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>(prodThreads);
-    strategy.executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
+    auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
+    strategy.builder(prodThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
 
 #ifndef NDEBUG
     // verify solution

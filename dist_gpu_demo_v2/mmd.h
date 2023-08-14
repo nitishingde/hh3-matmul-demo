@@ -65,8 +65,12 @@ public:
         using Pair       = std::tuple<std::shared_ptr<TileC>, std::shared_ptr<TileP>>;
         using Job        = GpuJob<MatrixType, IdA, IdB, IdC>;
 
-        auto MT = matrixC->matrixNumRowTiles(), KT = matrixA->matrixNumColTiles(), NT = matrixC->matrixNumColTiles();
-        auto T  = std::max(std::max(matrixA->tileDim(), matrixB->tileDim()), matrixC->tileDim());
+        auto MT     = matrixC->matrixNumRowTiles();
+        auto KT     = matrixA->matrixNumColTiles();
+        auto NT     = matrixC->matrixNumColTiles();
+        auto T      = std::max(std::max(matrixA->tileDim(), matrixB->tileDim()), matrixC->tileDim());
+        auto [P, Q] = getGridDim();
+        auto G      = deviceIds.size();
 
         // Generate graph
         auto graph = hh::Graph<1, Triplet, TileC>("MM");
@@ -87,11 +91,11 @@ public:
         auto accTask            = std::make_shared<AccumulateTask<MatrixType, IdC, IdP>>(productThreads_);
         auto dwTaskA            = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
         dwTaskA->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(MT, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(((MT+P-1)/P)*(2*G), T, memoryType)
         );
         auto dwTaskB            = std::make_shared<MatrixWarehouseTask<MatrixType, IdB>>();
         dwTaskB->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(NT, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(((NT+Q-1)/Q)*(2*G), T, memoryType)
         );
 
         graph.template input<Triplet>(inputStateManager);

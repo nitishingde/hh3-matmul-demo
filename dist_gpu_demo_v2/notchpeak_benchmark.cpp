@@ -23,6 +23,16 @@ int main(int argc, char *argv[]) {
     deviceIds.reserve(gpuCount);
     for(int32_t i = 0; i < gpuCount; ++i) {
         deviceIds.emplace_back(i);
+        cudaDeviceProp cudaDeviceProp{};
+        cudaGetDeviceProperties(&cudaDeviceProp, i);
+        printf("[Process %ld][GPU %d/%d][%s][RAM = %zuGB][#AyncEngines = %d][Compute capability = %d.%d]\n",
+            getNodeId(),
+            i, gpuCount,
+            cudaDeviceProp.name,
+            cudaDeviceProp.totalGlobalMem/(1<<30),
+            cudaDeviceProp.asyncEngineCount,
+            cudaDeviceProp.major, cudaDeviceProp.minor
+        );
     }
     CublasGlobalLockGuard cublasGlobalLockGuard(deviceIds);
 

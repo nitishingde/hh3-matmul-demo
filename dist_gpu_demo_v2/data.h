@@ -45,6 +45,7 @@ public:
         height_(height), width_(width),
         memoryType_(memoryType), major_(major), memoryOwner_(MemoryOwner::USER), memoryState_(MemoryState::SHARED) {
 
+        ttl_.store(-1);
         if(memoryType_ == MemoryType::HOST) {
             pData_ = new uint8_t[byteSize_];
         }
@@ -62,8 +63,9 @@ public:
         height_(tileSize),
         memoryType_(memoryType),
         memoryOwner_(MemoryOwner::WORKSPACE),
-        memoryState_(MemoryState::INVALID) {
+        memoryState_(MemoryState::SHARED) {
 
+        ttl_.store(-1);
         if(memoryType_ == MemoryType::HOST) {
             pData_ = new uint8_t[byteSize_];
         }
@@ -93,11 +95,11 @@ public:
 //    void postProcess() override {}
 
     bool canBeRecycled() override {
-        return ttl_ == 0;
+        return ttl_.load() == 0;
     }
 
     void clean() override {
-        memoryState_ = MemoryState::INVALID;
+        ttl_.store(-1);
     }
 
     void preProcess() override {
@@ -129,7 +131,7 @@ public:
     }
 
     void used() {
-        ttl_--;
+        ttl_.fetch_sub(1);
     }
 
     // Getters
@@ -156,7 +158,7 @@ public:
     }
     void memoryState(const MemoryState memoryState) { memoryState_ = memoryState; }
     void major(const Major major)                   { major_ = major;             }
-    void ttl(const int64_t ttl)                     { ttl_ = ttl;                 }
+    void ttl(const int64_t ttl)                     { ttl_.store(ttl);            }
 
 private:
     void initCudaEvent() {
@@ -183,7 +185,7 @@ private:
     std::vector<bool>        cudaEventCreated_ = {};
 
     // Managed Memory
-    int64_t ttl_ = 0;                                       //FIXME: use atomics?
+    std::atomic_int64_t ttl_ = {};
 };
 
 template<typename MatrixType, char Id>

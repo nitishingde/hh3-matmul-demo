@@ -449,11 +449,16 @@ public:
         job_->addTileB(tileB);
     }
 
-    void execute([[maybe_unused]] std::shared_ptr<TileP> tileP) override {
+    void execute(std::shared_ptr<TileP> tileP) override {
         ttl_--;
         if(ttl_ == 0) {
             job_->finished();
             job_ = nullptr;
+        }
+
+        if(tileP->isMemoryManagerConnected()) {
+            tileP->used();
+            tileP->returnToMemoryManager();
         }
     }
 
@@ -525,6 +530,7 @@ public:
 
         auto tileP = std::static_pointer_cast<TileP>(this->getManagedMemory());
         tileP->init(tileA->rowIdx(), tileB->colIdx(), tileA->height(), tileB->width());
+        tileP->ttl(2);
         checkCudaErrors(cudaMemPrefetchAsync(
             tileP->data(),
             tileP->height()*tileP->width()*sizeof(MatrixType),
@@ -613,6 +619,7 @@ public:
 
         this->addResult(tileC);
         if(tileP->isMemoryManagerConnected()) {
+            tileP->used();
             tileP->returnToMemoryManager();
         }
     }

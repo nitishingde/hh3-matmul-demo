@@ -19,7 +19,7 @@ void printDataDistribution(std::shared_ptr<MatrixA> matrixA, std::shared_ptr<Mat
         for(int64_t col = 0; col < matrixB->matrixNumColTiles(); ++col) {
             printf("%2ld ", matrixB->owner(row, col));
         }
-        printf("\b\n");
+        printf("\n");
         fflush(stdout);
     }
     printf("\n");
@@ -33,7 +33,7 @@ void printDataDistribution(std::shared_ptr<MatrixA> matrixA, std::shared_ptr<Mat
         for(int64_t col = 0; col < matrixC->matrixNumColTiles(); ++col) {
             printf("%2ld ", matrixC->owner(row, col));
         }
-        printf("\b\n");
+        printf("\n");
         fflush(stdout);
     }
     printf("\n");

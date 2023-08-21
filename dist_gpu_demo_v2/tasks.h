@@ -133,6 +133,9 @@ private:
         auto& vecA = colTilesFromA_[k];
         auto& vecB = rowTilesFromB_[k];
 
+        for(auto &tileA: vecA) tileA->ttl(totalRowTilesB_);
+        for(auto &tileB: vecB) tileB->ttl(totalColTilesA_);
+
         for(size_t i = 0; i < vecB.size(); i+=windowWidth_) {
             for(size_t j = 0; j < vecA.size(); j+=windowHeight_) {
                 auto job = std::make_shared<Job>();
@@ -422,16 +425,11 @@ public:
 
         job_ = job;
         ttl_ = job->tilesFromMatrixA().size() * job->tilesFromMatrixB().size();
-        int64_t ttlA = job->tilesFromMatrixB().size(), ttlB = job->tilesFromMatrixA().size();
         for(auto &colA = job->tilesFromMatrixA(); !colA.empty(); colA.pop_front()) {
-            auto tileA = colA.front();
-            tileA->ttl(ttlA);
-            this->addResult(tileA);
+            this->addResult(colA.front());
         }
         for(auto &colB = job->tilesFromMatrixB(); !colB.empty(); colB.pop_front()) {
-            auto tileB = colB.front();
-            tileB->ttl(ttlB);
-            this->addResult(tileB);
+            this->addResult(colB.front());
         }
     }
 

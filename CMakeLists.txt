@@ -7,8 +7,23 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules")
 
+include(FetchContent)
+
+# Hedgehog 3.0
+FetchContent_Declare(
+	NewHedgehog
+	GIT_REPOSITORY git@github.com:ABardakoff/NewHedgehog.git
+	GIT_TAG		   main
+)
+FetchContent_GetProperties(NewHedgehog)
+if(NOT newhedgehog_POPULATED)
+	FetchContent_Populate(NewHedgehog)
+endif(NOT newhedgehog_POPULATED)
+
 # Need to defined variable Hedgehog_INCLUDE_DIR to the hedgehog path
-# hedgehog
+set(Hedgehog_INCLUDE_DIR ${newhedgehog_SOURCE_DIR})
+
+# Test NewHedgehog library
 find_package(Hedgehog REQUIRED)
 
 # OpenBLAS

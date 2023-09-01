@@ -8,20 +8,6 @@ find_package(CUDA     REQUIRED)
 find_package(NVTX     REQUIRED)
 find_package(MPI      REQUIRED)
 
-include(FetchContent)
-
-# TCLAP - Templatized Command Line Argument Parser
-FetchContent_Declare(
-    TCLAP
-    GIT_REPOSITORY https://github.com/mirror/tclap.git
-    GIT_TAG		   master
-)
-FetchContent_GetProperties(TCLAP)
-if(NOT tclap_POPULATED)
-    FetchContent_Populate(TCLAP)
-endif(NOT tclap_POPULATED)
-set(TCLAP_SOURCE_DIR ${tclap_SOURCE_DIR})
-
 add_library(dist_matmul_v2
     STATIC
         data.h

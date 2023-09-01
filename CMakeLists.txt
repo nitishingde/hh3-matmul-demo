@@ -26,6 +26,18 @@ set(Hedgehog_INCLUDE_DIR ${newhedgehog_SOURCE_DIR})
 # Test NewHedgehog library
 find_package(Hedgehog REQUIRED)
 
+# TCLAP - Templatized Command Line Argument Parser
+FetchContent_Declare(
+	TCLAP
+	GIT_REPOSITORY https://github.com/mirror/tclap.git
+	GIT_TAG        v1.2.5
+)
+FetchContent_GetProperties(TCLAP)
+if(NOT tclap_POPULATED)
+	FetchContent_Populate(TCLAP)
+endif(NOT tclap_POPULATED)
+set(TCLAP_SOURCE_DIR ${tclap_SOURCE_DIR})
+
 # OpenBLAS
 find_package(OpenBLAS QUIET)
 

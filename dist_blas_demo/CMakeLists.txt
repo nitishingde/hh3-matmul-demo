@@ -3,20 +3,6 @@ cmake_minimum_required(VERSION 3.12)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts")
 
-include(FetchContent)
-
-# TCLAP - Templatized Command Line Argument Parser
-FetchContent_Declare(
-    TCLAP
-    GIT_REPOSITORY https://github.com/mirror/tclap.git
-    GIT_TAG		   master
-)
-FetchContent_GetProperties(TCLAP)
-if(NOT tclap_POPULATED)
-    FetchContent_Populate(TCLAP)
-endif(NOT tclap_POPULATED)
-set(TCLAP_SOURCE_DIR ${tclap_SOURCE_DIR})
-
 find_package(MPI REQUIRED)
 
 add_library(blas_matmul

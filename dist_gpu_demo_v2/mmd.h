@@ -40,9 +40,9 @@ private:
 public:
     explicit MMD_WindowStrategy() = default;
 
-    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t windowSize, const int64_t productThreads) {
-        windowSize_     = windowSize;
+    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t productThreads, const int64_t windowSize) {
         productThreads_ = productThreads;
+        windowSize_     = windowSize;
         return *this;
     }
 
@@ -139,8 +139,8 @@ public:
     }
 
 private:
-    int64_t windowSize_     = 0;
     int64_t productThreads_ = 0;
+    int64_t windowSize_     = 0;
 };
 
 #endif //HH3_MATMUL_MMD_H

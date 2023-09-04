@@ -55,7 +55,7 @@ target_link_libraries(dist_matmul
         ${CUDA_CUBLAS_LIBRARIES}
         ${CUDA_LIBRARIES}
         ${Hedgehog_LIBRARIES}
-        MPI::MPI_C
+        MPI::MPI_CXX
         ${OpenBLAS_LIBRARIES}
 )
 

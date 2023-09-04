@@ -105,7 +105,14 @@ int main(int argc, char *argv[]) {
 #endif
 
     auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
-    strategy.builder(prodThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
+    auto time = strategy.builder(prodThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
+    if(isRootNodeId()) {
+        printf("[ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
+            (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time),
+            time
+        );
+        fflush(stdout);
+    }
 
 #ifndef NDEBUG
     // verify solution

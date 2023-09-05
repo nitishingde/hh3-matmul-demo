@@ -423,8 +423,10 @@ public:
 
         assert(job_ == nullptr);
 
-        job_ = job;
-        ttl_ = job->tilesFromMatrixA().size() * job->tilesFromMatrixB().size();
+        job_  = job;
+        ttl_  = job->tilesFromMatrixA().size() * job->tilesFromMatrixB().size();
+        ttlA_ = job->tilesFromMatrixB().size();
+        ttlB_ = job->tilesFromMatrixA().size();
         for(auto &colA = job->tilesFromMatrixA(); !colA.empty(); colA.pop_front()) {
             this->addResult(colA.front());
         }
@@ -434,6 +436,7 @@ public:
     }
 
     void execute(std::shared_ptr<TileA> tileA) override {
+        tileA->ttl(ttlA_);
         for(auto tileB: job_->tilesFromMatrixB()) {
             auto pair = std::make_shared<Pair>(std::make_tuple(tileA, tileB));
             this->addResult(pair);
@@ -442,6 +445,7 @@ public:
     }
 
     void execute(std::shared_ptr<TileB> tileB) override {
+        tileB->ttl(ttlB_);
         for(auto tileA: job_->tilesFromMatrixA()) {
             auto pair = std::make_shared<Pair>(std::make_tuple(tileA, tileB));
             this->addResult(pair);
@@ -474,27 +478,78 @@ public:
 private:
     bool                                               isDone_ = false;
     int64_t                                            ttl_    = 0;
+    int64_t                                            ttlA_   = 0;
+    int64_t                                            ttlB_   = 0;
     std::shared_ptr<GpuJob<MatrixType, IdA, IdB, IdC>> job_    = nullptr;
 };
 
 template<typename MatrixType, char Id>
-class HostToDeviceCopyTask: public hh::AbstractCUDATask<1, MatrixTile<MatrixType, Id>, MatrixTile<MatrixType, Id>> {
+class HostToDeviceCopyTask: public hh::AbstractCUDATask<1, MatrixTile<MatrixType, Id>, MatrixTile<MatrixType, Id>, GcMatrixTile<MatrixType, Id>> {
 private:
-    using Tile = MatrixTile<MatrixType, Id>;
+    using Tile   = MatrixTile<MatrixType, Id>;
+    using GcTile = GcMatrixTile<MatrixType, Id>;
 
 public:
-    explicit HostToDeviceCopyTask(int32_t threadCount = 1): hh::AbstractCUDATask<1, Tile, Tile>("H2D", threadCount, false, false) {}
+    explicit HostToDeviceCopyTask(int32_t threadCount = 1): hh::AbstractCUDATask<1, Tile, Tile, GcTile>("H2D", threadCount, false, false) {}
 
     void execute(std::shared_ptr<Tile> tile) override {
-        checkCudaErrors(cudaMemAdvise(tile->data(), tile->byteSize(), cudaMemoryAdvise::cudaMemAdviseSetReadMostly, this->deviceId()));
-        checkCudaErrors(cudaMemPrefetchAsync(tile->data(), tile->byteSize(), this->deviceId(), this->stream()));
+        assert(tile->major() == Major::COL);
+        assert(tile->leadingDimension() == tile->height());
+
+        auto cudaTile = std::static_pointer_cast<Tile>(this->getManagedMemory());
+        cudaTile->init(tile->rowIdx(), tile->colIdx(), tile->height(), tile->width());
+        checkCudaErrors(cudaMemcpyAsync(
+            cudaTile->data(),
+            reinterpret_cast<const void*>(tile->data()),
+            tile->byteSize(),
+            cudaMemcpyHostToDevice,
+            this->stream()
+        ));
+
+        cudaTile->recordEvent(this->stream(), this->deviceId());
+        this->addResult(cudaTile);
+
         tile->recordEvent(this->stream(), this->deviceId());
-        this->addResult(tile);
+        this->addResult(std::make_shared<GcTile>(tile));
     }
 
-    std::shared_ptr<hh::AbstractTask<1, Tile, Tile>>
+    std::shared_ptr<hh::AbstractTask<1, Tile, Tile, GcTile>>
     copy() override {
         return std::make_shared<HostToDeviceCopyTask>(this->numberThreads());
+    }
+};
+
+template<typename MatrixType, char IdA, char IdB>
+class GarbageCollectorTask: public hh::AbstractCUDATask<2, GcMatrixTile<MatrixType, IdA>, GcMatrixTile<MatrixType, IdB>, void*> {
+private:
+    using GcTileA = GcMatrixTile<MatrixType, IdA>;
+    using GcTileB = GcMatrixTile<MatrixType, IdB>;
+
+public:
+    explicit GarbageCollectorTask(int32_t threadCount = 1):
+        hh::AbstractCUDATask<2, GcTileA, GcTileB, void*>("GC", threadCount, false) {}
+
+    void execute(std::shared_ptr<GcTileA> data) override {
+        auto &tile = data->tile;
+        tile->used();
+        if(!tile->isMemoryManagerConnected()) return;
+
+        tile->synchronizeEvent(this->deviceId());
+        tile->returnToMemoryManager();
+    }
+
+    void execute(std::shared_ptr<GcTileB> data) override {
+        auto &tile = data->tile;
+        tile->used();
+        if(!tile->isMemoryManagerConnected()) return;
+
+        tile->synchronizeEvent(this->deviceId());
+        tile->returnToMemoryManager();
+    }
+
+    std::shared_ptr<hh::AbstractTask<2, GcTileA, GcTileB, void*>>
+    copy() override {
+        return std::make_shared<GarbageCollectorTask>(this->numberThreads());
     }
 };
 

@@ -14,6 +14,7 @@ struct Vec2 {
 
 enum class MemoryType {
     HOST,
+    CUDA,
     CUDA_UNIFIED_MEMORY,
 };
 
@@ -49,6 +50,9 @@ public:
         if(memoryType_ == MemoryType::HOST) {
             pData_ = new uint8_t[byteSize_];
         }
+        else if(memoryType_ == MemoryType::CUDA) {
+            checkCudaErrors(cudaMalloc(&pData_, byteSize_));
+        }
         else if(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY) {
             checkCudaErrors(cudaMallocManaged(&pData_, byteSize_));
         }
@@ -68,6 +72,9 @@ public:
         ttl_.store(-1);
         if(memoryType_ == MemoryType::HOST) {
             pData_ = new uint8_t[byteSize_];
+        }
+        else if(memoryType_ == MemoryType::CUDA) {
+            checkCudaErrors(cudaMalloc(&pData_, byteSize_));
         }
         else if(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY) {
             checkCudaErrors(cudaMallocManaged(&pData_, byteSize_));
@@ -112,7 +119,7 @@ public:
      * @param cudaStream
      */
     void recordEvent(cudaStream_t cudaStream, int32_t deviceId = 0) {
-        assert(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY);
+        assert(memoryType_ == MemoryType::CUDA or memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY);
         if (!cudaEventCreated_[deviceId]) {
             checkCudaErrors(cudaEventCreate(&cudaEvents_[deviceId]));
             cudaEventCreated_[deviceId] = true;
@@ -124,7 +131,7 @@ public:
      * Synchronize the cudaAsync API called previously.
      */
     void synchronizeEvent(int32_t deviceId = 0) {
-        assert(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY);
+        assert(memoryType_ == MemoryType::CUDA or memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY);
         if(cudaEventCreated_[deviceId]) {
             checkCudaErrors(cudaEventSynchronize(cudaEvents_[deviceId]));
         }
@@ -441,5 +448,10 @@ private:
     bool                               quit_      = false;
 };
 
+template<typename MatrixType, char Id>
+struct GcMatrixTile {
+    explicit GcMatrixTile(std::shared_ptr<MatrixTile<MatrixType, Id>> tile): tile(tile) {}
+    std::shared_ptr<MatrixTile<MatrixType, Id>> tile = nullptr;
+};
 
 #endif //HH3_MATMUL_DATA_H

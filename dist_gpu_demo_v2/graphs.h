@@ -8,18 +8,27 @@
 template<typename MatrixType, char IdA, char IdB, char IdC, char IdP>
 class OuterProductGpuGraph: public hh::Graph<1, GpuJob<MatrixType, IdA, IdB, IdC>, MatrixTile<MatrixType, IdP>> {
 private:
-    using TileA = MatrixTile<MatrixType, IdA>;
-    using TileB = MatrixTile<MatrixType, IdB>;
-    using TileP = MatrixTile<MatrixType, IdP>;
-    using Job   = GpuJob<MatrixType, IdA, IdB, IdC>;
-    using Pair  = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>>;
+    using TileA   = MatrixTile<MatrixType, IdA>;
+    using TileB   = MatrixTile<MatrixType, IdB>;
+    using TileP   = MatrixTile<MatrixType, IdP>;
+    using GcTileA = GcMatrixTile<MatrixType, IdA>;
+    using GcTileB = GcMatrixTile<MatrixType, IdB>;
+    using Job     = GpuJob<MatrixType, IdA, IdB, IdC>;
+    using Pair    = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>>;
 
 public:
-    explicit OuterProductGpuGraph(int64_t tileSize, int32_t threadCount = 4):
+    explicit OuterProductGpuGraph(int64_t tileSize, int64_t windowSize, int32_t threadCount = 4):
         hh::Graph<1, GpuJob<MatrixType, IdA, IdB, IdC>, MatrixTile<MatrixType, IdP>>() {
 
         auto h2dTaskA  = std::make_shared<HostToDeviceCopyTask<MatrixType, IdA>>();
+        h2dTaskA->connectMemoryManager(
+            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(windowSize, tileSize, MemoryType::CUDA)
+        );
         auto h2dTaskB  = std::make_shared<HostToDeviceCopyTask<MatrixType, IdB>>();
+        h2dTaskB->connectMemoryManager(
+            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(windowSize, tileSize, MemoryType::CUDA)
+        );
+        auto gcTask    = std::make_shared<GarbageCollectorTask<MatrixType, IdA, IdB>>();
         auto schedTask = std::make_shared<GpuJobSchedulerTask<MatrixType, IdA, IdB, IdC, IdP>>();
         auto prodTask  = std::make_shared<ProductTask<MatrixType, IdA, IdB, IdP>>(threadCount);
         prodTask->connectMemoryManager(
@@ -28,6 +37,8 @@ public:
 
         this->template input<Job>(schedTask);
         this->template edge<TileA>(schedTask, h2dTaskA);
+        this->template edge<GcTileA>(h2dTaskA, gcTask);
+        this->template edge<GcTileB>(h2dTaskB, gcTask);
         this->template edge<TileB>(schedTask, h2dTaskB);
         this->template edge<TileA>(h2dTaskA, schedTask);
         this->template edge<TileB>(h2dTaskB, schedTask);

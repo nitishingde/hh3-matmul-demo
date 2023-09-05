@@ -121,9 +121,9 @@ public:
         graph.waitForTermination();
         graph.createDotFile(
             dotFile,
-            hh::ColorScheme::EXECUTION,
-            hh::StructureOptions::ALL,
-            hh::DebugOptions::ALL,
+            hh::ColorScheme::WAIT,
+            hh::StructureOptions::QUEUE,
+            hh::DebugOptions::NONE,
             std::make_unique<hh::JetColor>(),
             false
         );

@@ -27,7 +27,7 @@ void printDataDistribution(std::shared_ptr<MatrixA> matrixA, std::shared_ptr<Mat
 
     for(int64_t row = 0; row < matrixA->matrixNumRowTiles(); ++row) {
         for(int64_t col = 0; col < matrixA->matrixNumColTiles(); ++col) {
-            printf("%2ld ", matrixB->owner(row, col));
+            printf("%2ld ", matrixA->owner(row, col));
         }
         printf("  ");
         for(int64_t col = 0; col < matrixC->matrixNumColTiles(); ++col) {

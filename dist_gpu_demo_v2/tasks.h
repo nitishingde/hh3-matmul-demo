@@ -133,8 +133,10 @@ private:
         auto& vecA = colTilesFromA_[k];
         auto& vecB = rowTilesFromB_[k];
 
-        for(auto &tileA: vecA) tileA->ttl(totalRowTilesB_);
-        for(auto &tileB: vecB) tileB->ttl(totalColTilesA_);
+        int64_t ttlA = windowWidth_  < int64_t(totalRowTilesB_)? int64_t(totalRowTilesB_+windowWidth_-1)/windowWidth_  : 1;
+        int64_t ttlB = windowHeight_ < int64_t(totalColTilesA_)? int64_t(totalColTilesA_+windowHeight_-1)/windowHeight_: 1;
+        for(auto &tileA: vecA) tileA->ttl(ttlA);
+        for(auto &tileB: vecB) tileB->ttl(ttlB);
 
         for(size_t i = 0; i < vecB.size(); i+=windowWidth_) {
             for(size_t j = 0; j < vecA.size(); j+=windowHeight_) {

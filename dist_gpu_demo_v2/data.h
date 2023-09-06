@@ -397,14 +397,27 @@ private:
 template<typename MatrixType, char IdA, char IdB, char IdC>
 class GpuJob {
 private:
-    using TileA = MatrixTile<MatrixType, IdA>;
-    using TileB = MatrixTile<MatrixType, IdB>;
+    using TileA      = MatrixTile<MatrixType, IdA>;
+    using TileB      = MatrixTile<MatrixType, IdB>;
+    using time_point = std::chrono::time_point<std::chrono::system_clock>;
 
 public:
     explicit GpuJob(bool shouldQuit = false): quit_(shouldQuit), gpuToken_(std::make_shared<GpuToken>(-1)) {}
 
     ~GpuJob() {
         finished();
+    }
+
+    void startTimer() {
+        startTime_ = std::chrono::system_clock::now();
+    }
+
+    void stopTimer() {
+        endTime_ = std::chrono::system_clock::now();
+    }
+
+    double timeIt() {
+        return double(std::chrono::duration_cast<std::chrono::nanoseconds>(endTime_ - startTime_).count());
     }
 
     void finished() {
@@ -442,10 +455,12 @@ public:
     }
 
 private:
-    std::shared_ptr<GpuToken>          gpuToken_  = nullptr;
-    std::deque<std::shared_ptr<TileA>> colA_      = {};
-    std::deque<std::shared_ptr<TileB>> rowB_      = {};
-    bool                               quit_      = false;
+    std::shared_ptr<GpuToken>                          gpuToken_  = nullptr;
+    std::deque<std::shared_ptr<TileA>>                 colA_      = {};
+    std::deque<std::shared_ptr<TileB>>                 rowB_      = {};
+    bool                                               quit_      = false;
+    std::chrono::time_point<std::chrono::system_clock> startTime_ = {};
+    std::chrono::time_point<std::chrono::system_clock> endTime_   = {};
 };
 
 template<typename MatrixType, char Id>

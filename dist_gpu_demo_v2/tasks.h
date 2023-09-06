@@ -425,6 +425,7 @@ public:
 
         assert(job_ == nullptr);
 
+        job->startTimer();
         job_  = job;
         ttl_  = job->tilesFromMatrixA().size() * job->tilesFromMatrixB().size();
         ttlA_ = job->tilesFromMatrixB().size();
@@ -459,6 +460,14 @@ public:
         ttl_--;
         if(ttl_ == 0) {
             job_->finished();
+
+            job_->stopTimer();
+            auto time = job_->timeIt();
+            jobCount_++;
+            minTime_ = std::min(minTime_, time);
+            avgTime_ = (avgTime_*(jobCount_-1) + time)/jobCount_;
+            maxTime_ = std::max(maxTime_, time);
+
             job_ = nullptr;
         }
 
@@ -477,12 +486,41 @@ public:
         return std::make_shared<GpuJobSchedulerTask<MatrixType, IdA, IdB, IdC, IdP>>();
     }
 
+    [[nodiscard]] std::string extraPrintingInformation() const override {
+        double      factor = 1;
+        std::string suffix = "ns";
+        if(maxTime_/1.e9 > .999) {
+            factor = 1.e9;
+            suffix = "s";
+        }
+        else if(maxTime_/1.e6 > .999) {
+            factor = 1.e6;
+            suffix = "ms";
+        }
+        else if(maxTime_/1.e3 > .999) {
+            factor = 1.e3;
+            suffix = "us";
+        }
+
+        auto min = std::to_string(minTime_/factor);
+        auto avg = std::to_string(avgTime_/factor);
+        auto max = std::to_string(maxTime_/factor);
+        return "Execution Time Per Job:\\n"
+            "Min: " + min.substr(0, min.find('.', 0)+4) + suffix + "\\n"
+            "Avg: " + avg.substr(0, avg.find('.', 0)+4) + suffix + "\\n"
+            "Max: " + max.substr(0, max.find('.', 0)+4) + suffix;
+    }
+
 private:
-    bool                                               isDone_ = false;
-    int64_t                                            ttl_    = 0;
-    int64_t                                            ttlA_   = 0;
-    int64_t                                            ttlB_   = 0;
-    std::shared_ptr<GpuJob<MatrixType, IdA, IdB, IdC>> job_    = nullptr;
+    bool                                               isDone_   = false;
+    int64_t                                            ttl_      = 0;
+    int64_t                                            ttlA_     = 0;
+    int64_t                                            ttlB_     = 0;
+    std::shared_ptr<GpuJob<MatrixType, IdA, IdB, IdC>> job_      = nullptr;
+    double                                             minTime_  = std::numeric_limits<double>::max();
+    double                                             maxTime_  = std::numeric_limits<double>::min();
+    double                                             avgTime_  = 0.;
+    int64_t                                            jobCount_ = 0;
 };
 
 template<typename MatrixType, char Id>

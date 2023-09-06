@@ -505,10 +505,13 @@ public:
         auto min = std::to_string(minTime_/factor);
         auto avg = std::to_string(avgTime_/factor);
         auto max = std::to_string(maxTime_/factor);
-        return "Execution Time Per Job:\\n"
+        return "#Jobs received: " + std::to_string(jobCount_) + "\\n"
+            "Execution Time Per Job:\\n"
             "Min: " + min.substr(0, min.find('.', 0)+4) + suffix + "\\n"
             "Avg: " + avg.substr(0, avg.find('.', 0)+4) + suffix + "\\n"
-            "Max: " + max.substr(0, max.find('.', 0)+4) + suffix;
+            "Max: " + max.substr(0, max.find('.', 0)+4) + suffix + "\\n"
+            "Total time spent on jobs: " + std::to_string(jobCount_*avgTime_/factor) + suffix
+            ;
     }
 
 private:

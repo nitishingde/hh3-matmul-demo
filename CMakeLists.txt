@@ -12,17 +12,17 @@ include(FetchContent)
 if(NOT Hedgehog_INCLUDE_DIR)
 	# Hedgehog 3.0
 	FetchContent_Declare(
-		NewHedgehog
-		GIT_REPOSITORY git@github.com:ABardakoff/NewHedgehog.git
-		GIT_TAG        main
+		Hedgehog
+		GIT_REPOSITORY git@github.com:usnistgov/hedgehog.git
+		GIT_TAG        master
 	)
-	FetchContent_GetProperties(NewHedgehog)
-	if(NOT newhedgehog_POPULATED)
-		FetchContent_Populate(NewHedgehog)
-	endif(NOT newhedgehog_POPULATED)
+	FetchContent_GetProperties(Hedgehog)
+	if(NOT hedgehog_POPULATED)
+		FetchContent_Populate(Hedgehog)
+	endif(NOT hedgehog_POPULATED)
 
-	# Need to defined variable Hedgehog_INCLUDE_DIR to the hedgehog path
-	set(Hedgehog_INCLUDE_DIR ${newhedgehog_SOURCE_DIR})
+	# Need to set variable Hedgehog_INCLUDE_DIR to the downloaded hedgehog src code
+	set(Hedgehog_INCLUDE_DIR ${hedgehog_SOURCE_DIR})
 endif(NOT Hedgehog_INCLUDE_DIR)
 
 # Test NewHedgehog library

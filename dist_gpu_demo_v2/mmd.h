@@ -119,19 +119,32 @@ public:
         graph.finishPushingData();
 
         graph.waitForTermination();
+#if NDEBUG
         graph.createDotFile(
             dotFile,
             hh::ColorScheme::WAIT,
             hh::StructureOptions::QUEUE,
+            hh::InputOptions::GATHERED,
             hh::DebugOptions::NONE,
             std::make_unique<hh::JetColor>(),
             false
         );
+#else
+        graph.createDotFile(
+            dotFile,
+            hh::ColorScheme::WAIT,
+            hh::StructureOptions::QUEUE,
+            hh::InputOptions::SEPARATED,
+            hh::DebugOptions::NONE,
+            std::make_unique<hh::JetColor>(),
+            false
+        );
+#endif
 
         double time = double((
-                graph.core()->executionDuration() == std::chrono::nanoseconds::zero()?
+                graph.core()->dequeueExecDuration() == std::chrono::nanoseconds::zero()?
                     std::chrono::system_clock::now() - graph.core()->startExecutionTimeStamp():
-                    graph.core()->executionDuration()
+                    graph.core()->dequeueExecDuration()
             ).count())/1.e9;
         double maxTime = 0;
         checkMpiErrors(MPI_Reduce(&time, &maxTime, 1, MPI_DOUBLE, MPI_MAX, 0, mpiComm));

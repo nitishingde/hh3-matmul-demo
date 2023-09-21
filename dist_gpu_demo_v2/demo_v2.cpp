@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
     constexpr char       IdA        = 'a';
     constexpr char       IdB        = 'b';
     constexpr char       IdC        = 'c';
-    constexpr MemoryType memoryType = MemoryType::CUDA_UNIFIED_MEMORY;
+    constexpr MemoryType memoryType = MemoryType::HOST;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
     windowSize = genWindowSize<MatrixType>(T, prodThreads, windowSize);

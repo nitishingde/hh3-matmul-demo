@@ -50,7 +50,7 @@ find_package(NVTX QUIET)
 # MPI
 find_package(MPI QUIET)
 
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${Hedgehog_CXX_FLAGS})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Hedgehog_CXX_FLAGS}")
 
 if (NOT MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra -Werror -pedantic")

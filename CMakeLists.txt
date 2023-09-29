@@ -13,7 +13,7 @@ if(NOT Hedgehog_INCLUDE_DIR)
 	# Hedgehog 3.0
 	FetchContent_Declare(
 		Hedgehog
-		GIT_REPOSITORY git@github.com:usnistgov/hedgehog.git
+		GIT_REPOSITORY https://github.com/usnistgov/hedgehog.git
 		GIT_TAG        master
 	)
 	FetchContent_GetProperties(Hedgehog)

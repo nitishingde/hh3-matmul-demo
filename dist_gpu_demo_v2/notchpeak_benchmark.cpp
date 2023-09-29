@@ -5,13 +5,15 @@ int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, prodThreads, windowSize, path, host] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
 
-    using MatrixType = float;
+    using MatrixType = double;
 
     constexpr char       IdA        = 'a';
     constexpr char       IdB        = 'b';
     constexpr char       IdC        = 'c';
-    constexpr MemoryType memoryType = MemoryType::CUDA_UNIFIED_MEMORY;
+    constexpr MemoryType memoryType = MemoryType::HOST;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
+
+    std::ofstream csvFile;
 
     windowSize = genWindowSize<MatrixType>(T, prodThreads, windowSize);
     printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld][windowSize %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads, windowSize);
@@ -42,6 +44,9 @@ int main(int argc, char *argv[]) {
 
     if(isRootNodeId()) {
         printDataDistribution<MatrixType, IdA, IdB, IdC>(matrixA, matrixB, matrixC);
+        auto fileName = "./results" + std::to_string(M/1024) + std::to_string(T/1024) + "k_" + std::to_string(getNumNodes()) + ".csv";
+        csvFile.open(fileName);
+        csvFile << "iteration, gflops, time" << std::endl;
     }
 
     auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
@@ -51,9 +56,11 @@ int main(int argc, char *argv[]) {
     for(int32_t iter = 0; iter < ITER; ++iter) {
         times[iter]  = strategy.builder(prodThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot");
         if(isRootNodeId()) {
+            double gflops = (double(M) * double(K) * double(N) * double(2)) / (1.e9 * times[iter]);
+            csvFile << iter+1 << ", " << gflops << ", " << times[iter] << std::endl;
             printf("[Iterations: %3d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
                 iter+1, ITER,
-                (double(M) * double(K) * double(N) * double(2)) / (1.e9 * times[iter]),
+                gflops,
                 times[iter]
             );
             fflush(stdout);

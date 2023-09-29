@@ -1,5 +1,6 @@
 #include "mmd.h"
 #include "matrix_utility.h"
+#include <filesystem>
 
 int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, prodThreads, windowSize, path, host] = parseArgs(argc, argv);
@@ -47,6 +48,8 @@ int main(int argc, char *argv[]) {
         auto fileName = "./results_" + std::to_string(M/1024) + "k_" + std::to_string(T/1024) + "k_" + std::to_string(getNumNodes()) + ".csv";
         csvFile.open(fileName);
         csvFile << "iteration, gflops, time" << std::endl;
+        std::filesystem::remove(path);
+        std::filesystem::create_directory(path);
     }
 
     auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();

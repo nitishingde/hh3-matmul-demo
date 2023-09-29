@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 
     if(isRootNodeId()) {
         printDataDistribution<MatrixType, IdA, IdB, IdC>(matrixA, matrixB, matrixC);
-        auto fileName = "./results" + std::to_string(M/1024) + std::to_string(T/1024) + "k_" + std::to_string(getNumNodes()) + ".csv";
+        auto fileName = "./results_" + std::to_string(M/1024) + "k_" + std::to_string(T/1024) + "k_" + std::to_string(getNumNodes()) + ".csv";
         csvFile.open(fileName);
         csvFile << "iteration, gflops, time" << std::endl;
     }

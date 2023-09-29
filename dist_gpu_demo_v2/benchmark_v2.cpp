@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
 
     std::ofstream csvFile;
 
-    windowSize = genWindowSize<MatrixType>(T, prodThreads, windowSize);
+    windowSize = genWindowSize<MatrixType>(M, N, T, prodThreads, windowSize);
     printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld][windowSize %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads, windowSize);
     fflush(stdout);
 

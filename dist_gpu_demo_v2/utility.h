@@ -201,15 +201,24 @@ inline int32_t tagGenerator() {
 // MM --------------------------------------------------------------------------------------------------------------- //
 
 template<typename MatrixType>
-int64_t genWindowSize(const int64_t tileSize, const int64_t prodTilesPerDev, const int64_t suggestedWindowSize = -1) {
+int64_t genWindowSize(const int64_t M, const int64_t N, const int64_t tileSize, const int64_t prodTilesPerDev, const int64_t suggestedWindowSize = -1) {
+    int64_t tilesInCol            = (M+tileSize-1)/tileSize;
+    int64_t tilesInRow            = (N+tileSize-1)/tileSize;
+    int64_t tilesInColPerNode     = (tilesInCol+sGridP-1)/sGridP;
+    int64_t tilesInRowPerNode     = (tilesInRow+sGridQ-1)/sGridQ;
+    int64_t maxTilesPerDimPerNode = std::max(tilesInColPerNode, tilesInRowPerNode);
+
     cudaDeviceProp cudaDeviceProp = {};
     checkCudaErrors(cudaGetDeviceProperties(&cudaDeviceProp, 0));
-    int64_t tilesPerDev = int64_t(cudaDeviceProp.totalGlobalMem)/int64_t(tileSize*tileSize*sizeof(MatrixType));
+    int64_t tilesPerDev   = int64_t(cudaDeviceProp.totalGlobalMem)/int64_t(tileSize*tileSize*sizeof(MatrixType));
+    int64_t maxWindowSize = (tilesPerDev-prodTilesPerDev)/2;
+
     // wh + ww + prodTilesPerDev = tilesPerDev, let wh = ww
     if(suggestedWindowSize <= 0) {
-        return (tilesPerDev-prodTilesPerDev)/2;
+        return std::min(maxTilesPerDimPerNode, maxWindowSize);
     }
-    return std::min(suggestedWindowSize, (tilesPerDev-prodTilesPerDev)/2);
+
+    return std::min(suggestedWindowSize, maxWindowSize);
 }
 
 #endif //HH3_MATMUL_UTILITY_H

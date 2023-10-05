@@ -425,7 +425,7 @@ public:
 
         assert(job_ == nullptr);
 
-        job->startTimer();
+        dotTimer_.start();
         job_  = job;
         ttl_  = job->tilesFromMatrixA().size() * job->tilesFromMatrixB().size();
         ttlA_ = job->tilesFromMatrixB().size();
@@ -460,15 +460,8 @@ public:
         ttl_--;
         if(ttl_ == 0) {
             job_->finished();
-
-            job_->stopTimer();
-            auto time = job_->timeIt();
-            jobCount_++;
-            minTime_ = std::min(minTime_, time);
-            avgTime_ = (avgTime_*(jobCount_-1) + time)/jobCount_;
-            maxTime_ = std::max(maxTime_, time);
-
             job_ = nullptr;
+            dotTimer_.stop();
         }
 
         if(tileP->isMemoryManagerConnected()) {
@@ -487,30 +480,18 @@ public:
     }
 
     [[nodiscard]] std::string extraPrintingInformation() const override {
-        double      factor = 1;
-        std::string suffix = "ns";
-        if(maxTime_/1.e9 > .999) {
-            factor = 1.e9;
-            suffix = "s";
-        }
-        else if(maxTime_/1.e6 > .999) {
-            factor = 1.e6;
-            suffix = "ms";
-        }
-        else if(maxTime_/1.e3 > .999) {
-            factor = 1.e3;
-            suffix = "us";
-        }
+        auto dotTimer = this->dotTimer_;
+        auto suffix = dotTimer.format();
 
-        auto min = std::to_string(minTime_/factor);
-        auto avg = std::to_string(avgTime_/factor);
-        auto max = std::to_string(maxTime_/factor);
-        return "#Jobs received: " + std::to_string(jobCount_) + "\\n"
+        auto min = std::to_string(dotTimer.min());
+        auto avg = std::to_string(dotTimer.avg());
+        auto max = std::to_string(dotTimer.max());
+        return "#Jobs received: " + std::to_string(dotTimer.count()) + "\\n"
             "Execution Time Per Job:\\n"
             "Min: " + min.substr(0, min.find('.', 0)+4) + suffix + "\\n"
             "Avg: " + avg.substr(0, avg.find('.', 0)+4) + suffix + "\\n"
             "Max: " + max.substr(0, max.find('.', 0)+4) + suffix + "\\n"
-            "Total time spent on jobs: " + std::to_string(jobCount_*avgTime_/factor) + suffix
+            "Total time spent on jobs: " + std::to_string(dotTimer.totalTime()) + suffix
             ;
     }
 
@@ -520,10 +501,7 @@ private:
     int64_t                                            ttlA_     = 0;
     int64_t                                            ttlB_     = 0;
     std::shared_ptr<GpuJob<MatrixType, IdA, IdB, IdC>> job_      = nullptr;
-    double                                             minTime_  = std::numeric_limits<double>::max();
-    double                                             maxTime_  = std::numeric_limits<double>::min();
-    double                                             avgTime_  = 0.;
-    int64_t                                            jobCount_ = 0;
+    DotTimer                                           dotTimer_   {};
 };
 
 template<typename MatrixType, char Id>
@@ -639,6 +617,7 @@ public:
         tileA->synchronizeEvent(this->deviceId());
         tileB->synchronizeEvent(this->deviceId());
 
+        dotTimer_.start();
         if constexpr(std::is_same_v<MatrixType, float>) {
             checkCudaErrors(cublasSgemm_v2(
                 handle_, CUBLAS_OP_N, CUBLAS_OP_N,
@@ -660,7 +639,9 @@ public:
         else {
             throw std::runtime_error("Datatype not supported for cuda product task.");
         }
+
         checkCudaErrors(cudaStreamSynchronize(this->stream()));
+        dotTimer_.stop();
 
         checkCudaErrors(cudaMemPrefetchAsync(
             tileP->data(),
@@ -682,12 +663,35 @@ public:
         }
     }
 
+    [[nodiscard]] std::string extraPrintingInformation() const override {
+        DotTimer dotTimer;
+        for(auto pNode: this->group()) {
+            auto pTask = dynamic_cast<ProductTask const *>(pNode);
+            dotTimer.merge(pTask->dotTimer_);
+        }
+
+        auto suffix = dotTimer.format();
+
+        auto min = std::to_string(dotTimer.min());
+        auto avg = std::to_string(dotTimer.avg());
+        auto max = std::to_string(dotTimer.max());
+
+        return "#Gemms received: " + std::to_string(dotTimer.count()) + "\\n"
+            "Execution Time Per Gemm:\\n"
+            "Min: " + min.substr(0, min.find('.', 0)+4) + suffix + "\\n"
+            "Avg: " + avg.substr(0, avg.find('.', 0)+4) + suffix + "\\n"
+            "Max: " + max.substr(0, max.find('.', 0)+4) + suffix + "\\n"
+            "Total time spent on gemms: " + std::to_string(dotTimer.totalTime()) + suffix
+            ;
+    }
+
     std::shared_ptr<hh::AbstractTask<1, Pair, TileP>>
     copy() override {
         return std::make_shared<ProductTask>(this->numberThreads());
     }
 private:
-    cublasHandle_t handle_{};
+    cublasHandle_t handle_  {};
+    DotTimer       dotTimer_{};
 };
 
 template<typename MatrixType, char IdC, char IdP>
@@ -709,17 +713,41 @@ public:
         auto tileP = std::get<std::shared_ptr<TileP>>(*pair);
 
         tileP->synchronizeEvent();
+        dotTimer_.start();
         accumulate(
             (MatrixType*)tileC->data(), tileC->leadingDimension(),
             (MatrixType*)tileP->data(), tileP->leadingDimension(),
             tileC->width(), tileC->height()
         );
+        dotTimer_.stop();
 
         this->addResult(tileC);
         if(tileP->isMemoryManagerConnected()) {
             tileP->used();
             tileP->returnToMemoryManager();
         }
+    }
+
+    [[nodiscard]] std::string extraPrintingInformation() const override {
+        DotTimer dotTimer;
+        for(auto pNode: this->group()) {
+            auto pTask = dynamic_cast<AccumulateTask const *>(pNode);
+            dotTimer.merge(pTask->dotTimer_);
+        }
+
+        auto suffix = dotTimer.format();
+
+        auto min = std::to_string(dotTimer.min());
+        auto avg = std::to_string(dotTimer.avg());
+        auto max = std::to_string(dotTimer.max());
+
+        return "#Accumaltes received: " + std::to_string(dotTimer.count()) + "\\n"
+            "Execution Time Per accumulate:\\n"
+            "Min: " + min.substr(0, min.find('.', 0)+4) + suffix + "\\n"
+            "Avg: " + avg.substr(0, avg.find('.', 0)+4) + suffix + "\\n"
+            "Max: " + max.substr(0, max.find('.', 0)+4) + suffix + "\\n"
+            "Total time spent on accumulation: " + std::to_string(dotTimer.totalTime()) + suffix
+            ;
     }
 
     std::shared_ptr<hh::AbstractTask<1, Pair, TileC>>
@@ -739,6 +767,9 @@ private:
             }
         }
     }
+
+private:
+    DotTimer dotTimer_{};
 };
 
 #endif //HH3_MATMUL_TASKS

@@ -406,18 +406,6 @@ public:
         finished();
     }
 
-    void startTimer() {
-        startTime_ = std::chrono::system_clock::now();
-    }
-
-    void stopTimer() {
-        endTime_ = std::chrono::system_clock::now();
-    }
-
-    double timeIt() {
-        return double(std::chrono::duration_cast<std::chrono::nanoseconds>(endTime_ - startTime_).count());
-    }
-
     void finished() {
         if(gpuToken_ and gpuToken_->isMemoryManagerConnected()) {
             gpuToken_->returnToMemoryManager();
@@ -457,14 +445,80 @@ private:
     std::deque<std::shared_ptr<TileA>>                 colA_      = {};
     std::deque<std::shared_ptr<TileB>>                 rowB_      = {};
     bool                                               quit_      = false;
-    std::chrono::time_point<std::chrono::system_clock> startTime_ = {};
-    std::chrono::time_point<std::chrono::system_clock> endTime_   = {};
 };
 
 template<typename MatrixType, char Id>
 struct GcMatrixTile {
     explicit GcMatrixTile(std::shared_ptr<MatrixTile<MatrixType, Id>> tile): tile(tile) {}
     std::shared_ptr<MatrixTile<MatrixType, Id>> tile = nullptr;
+};
+
+class DotTimer {
+public:
+    explicit DotTimer() = default;
+
+    void start() {
+        isStarted_ = true;
+        startTime_ = std::chrono::system_clock::now();
+    }
+
+    void stop() {
+        endTime_ = std::chrono::system_clock::now();
+        if(!isStarted_) throw std::runtime_error("DotTimer::stop() is called before calling DotTimer::start()\n");
+        isStarted_ = false;
+        log();
+    }
+
+    void merge(const DotTimer &dotTimer) {
+        count_ += dotTimer.count_;
+        sum_   += dotTimer.sum_;
+        min_    = std::min(min_, dotTimer.min_);
+        max_    = std::max(max_, dotTimer.max_);
+    }
+
+    [[nodiscard]] std::string format() {
+        if(min_/1.e9 > .999) {
+            factor_ = 1.e9;
+            suffix_ = "s";
+        }
+        else if(min_/1.e6 > .999) {
+            factor_ = 1.e6;
+            suffix_ = "ms";
+        }
+        else if(min_/1.e3 > .999) {
+            factor_ = 1.e3;
+            suffix_ = "us";
+        }
+
+        return suffix_;
+    }
+
+    // Getters
+    [[nodiscard]] double  min()       const { return min_/factor_;       }
+    [[nodiscard]] double  avg()       const { return totalTime()/count_; }
+    [[nodiscard]] double  max()       const { return max_/factor_;       }
+    [[nodiscard]] double  totalTime() const { return sum_/factor_;       }
+    [[nodiscard]] int32_t count()     const { return count_;             }
+
+private:
+    void log() {
+        auto time = double(std::chrono::duration_cast<std::chrono::nanoseconds>(endTime_ - startTime_).count());
+        count_++;
+        sum_ += time;
+        min_  = std::min(min_, time);
+        max_  = std::max(max_, time);
+    }
+
+private:
+    bool                                               isStarted_ = false;
+    std::chrono::time_point<std::chrono::system_clock> startTime_ = {};
+    std::chrono::time_point<std::chrono::system_clock> endTime_   = {};
+    double                                             min_       = std::numeric_limits<double>::max();
+    double                                             max_       = std::numeric_limits<double>::min();
+    double                                             sum_       = 0.f;
+    int32_t                                            count_     = 0;
+    double                                             factor_    = 1;
+    std::string                                        suffix_    = "ns";
 };
 
 #endif //HH3_MATMUL_DATA_H

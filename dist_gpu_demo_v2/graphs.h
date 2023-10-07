@@ -17,7 +17,7 @@ private:
     using Pair    = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>>;
 
 public:
-    explicit OuterProductGpuGraph(int64_t tileSize, int64_t windowSize, int32_t threadCount = 4):
+    explicit OuterProductGpuGraph(int64_t tileSize, int64_t windowSize, int32_t productThreads = 4, int32_t computeTiles = 4):
         hh::Graph<1, GpuJob<MatrixType, IdA, IdB, IdC>, MatrixTile<MatrixType, IdP>>() {
 
         auto h2dTaskA  = std::make_shared<HostToDeviceCopyTask<MatrixType, IdA>>();
@@ -30,9 +30,9 @@ public:
         );
         auto gcTask    = std::make_shared<GarbageCollectorTask<MatrixType, IdA, IdB>>();
         auto schedTask = std::make_shared<GpuJobSchedulerTask<MatrixType, IdA, IdB, IdC, IdP>>();
-        auto prodTask  = std::make_shared<ProductTask<MatrixType, IdA, IdB, IdP>>(threadCount);
+        auto prodTask  = std::make_shared<ProductTask<MatrixType, IdA, IdB, IdP>>(productThreads);
         prodTask->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileP, int64_t, MemoryType>>(threadCount, tileSize, MemoryType::CUDA_UNIFIED_MEMORY)
+            std::make_shared<hh::StaticMemoryManager<TileP, int64_t, MemoryType>>(computeTiles, tileSize, MemoryType::CUDA_UNIFIED_MEMORY)
         );
 
         this->template input<Job>(schedTask);

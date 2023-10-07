@@ -40,9 +40,12 @@ private:
 public:
     explicit MMD_WindowStrategy() = default;
 
-    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t productThreads, const int64_t windowSize) {
-        productThreads_ = productThreads;
-        windowSize_     = windowSize;
+    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t accumulateThreads, const int64_t computeTiles, const int64_t lookAhead, const int64_t productThreads, const int64_t windowSize) {
+        accumulateThreads_ = accumulateThreads;
+        computeTiles_      = computeTiles;
+        lookAhead_         = lookAhead;
+        productThreads_    = productThreads;
+        windowSize_        = windowSize;
         return *this;
     }
 
@@ -83,19 +86,19 @@ public:
         auto jobGenTask         = std::make_shared<GpuJobGeneratorTask<MatrixType, IdA, IdB, IdC>>(windowSize_);
         jobGenTask->connectMemoryManager(std::make_shared<GpuTokenMemoryManager>(deviceIds));
         auto execPipeline       = std::make_shared<OuterProductExecutionPipeline<MatrixType, IdA, IdB, IdC, IdP>>(
-            std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC, IdP>>(T, windowSize_, productThreads_), deviceIds
+            std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC, IdP>>(T, windowSize_, productThreads_, computeTiles_), deviceIds
         );
         auto compStateManager   = std::make_shared<OuterProductComputationStateManager<MatrixType, IdA, IdB, IdC, IdP>>(
             std::make_shared<OuterProductComputationState<MatrixType, IdA, IdB, IdC, IdP>>(MT, KT, NT)
         );
-        auto accTask            = std::make_shared<AccumulateTask<MatrixType, IdC, IdP>>(productThreads_);
+        auto accTask            = std::make_shared<AccumulateTask<MatrixType, IdC, IdP>>(accumulateThreads_);
         auto dwTaskA            = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
         dwTaskA->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(((MT+P-1)/P)*(2*G), T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(((MT+P-1)/P)*(G*lookAhead_), T, memoryType)
         );
         auto dwTaskB            = std::make_shared<MatrixWarehouseTask<MatrixType, IdB>>();
         dwTaskB->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(((NT+Q-1)/Q)*(2*G), T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(((NT+Q-1)/Q)*(G*lookAhead_), T, memoryType)
         );
 
         graph.template input<Triplet>(inputStateManager);
@@ -152,8 +155,11 @@ public:
     }
 
 private:
-    int64_t productThreads_ = 0;
-    int64_t windowSize_     = 0;
+    int64_t accumulateThreads_ = 0;
+    int64_t computeTiles_      = 0;
+    int64_t lookAhead_         = 0;
+    int64_t productThreads_    = 0;
+    int64_t windowSize_        = 0;
 };
 
 #endif //HH3_MATMUL_MMD_H

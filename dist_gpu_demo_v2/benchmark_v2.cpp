@@ -3,7 +3,7 @@
 #include <filesystem>
 
 int main(int argc, char *argv[]) {
-    auto [p, q, M, K, N, T, prodThreads, windowSize, path, host] = parseArgs(argc, argv);
+    auto [p, q, M, K, N, T, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles, path, host, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
 
     using MatrixType = double;
@@ -16,8 +16,8 @@ int main(int argc, char *argv[]) {
 
     std::ofstream csvFile;
 
-    windowSize = genWindowSize<MatrixType>(M, N, T, prodThreads, windowSize);
-    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld][windowSize %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads, windowSize);
+    windowSize = genWindowSize<MatrixType>(M, N, T, computeTiles, windowSize);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][MT/p %ld][KT %ld][NT/q %ld][productThreads %ld][accumulateThreads %ld][windowSize %ld][lookAhead %ld][computeTiles %ld]\n", getNodeId(), p, q, M, K, N, T, (((M+T-1)/T)+p-1)/p, (K+T-1)/T, (((N+T-1)/T)+q-1)/q, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles);
     fflush(stdout);
 
     int32_t gpuCount = 0;
@@ -45,11 +45,10 @@ int main(int argc, char *argv[]) {
 
     if(isRootNodeId()) {
         printDataDistribution<MatrixType, IdA, IdB, IdC>(matrixA, matrixB, matrixC);
-        auto fileName = "./results_" + std::to_string(M/1024) + "k_" + std::to_string(T/1024) + "k_" + std::to_string(getNumNodes()) + ".csv";
-        csvFile.open(fileName);
-        csvFile << "iteration, gflops, time" << std::endl;
-        std::filesystem::remove(path);
+        std::filesystem::remove_all(path);
         std::filesystem::create_directory(path);
+        csvFile.open(resultsFile);
+        csvFile << "iteration, gflops, time" << std::endl;
     }
 
     auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
@@ -57,7 +56,7 @@ int main(int argc, char *argv[]) {
     constexpr int32_t ITER = 10;
     double times[ITER];
     for(int32_t iter = 0; iter < ITER; ++iter) {
-        times[iter]  = strategy.builder(prodThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot");
+        times[iter]  = strategy.builder(accumulateThreads, computeTiles, lookAhead, productThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot");
         if(isRootNodeId()) {
             double gflops = (double(M) * double(K) * double(N) * double(2)) / (1.e9 * times[iter]);
             csvFile << iter+1 << ", " << gflops << ", " << times[iter] << std::endl;

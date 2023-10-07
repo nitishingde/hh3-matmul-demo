@@ -129,6 +129,13 @@ private:
 // Argument parser -------------------------------------------------------------------------------------------------- //
 
 auto parseArgs(int argc, char **argv) {
+    int64_t prodThreads = 4;
+#if HH_USE_CUDA
+    cudaDeviceProp cudaDeviceProp{};
+    cudaGetDeviceProperties(&cudaDeviceProp, 0);
+    prodThreads = cudaDeviceProp.asyncEngineCount;
+#endif
+
     try {
         TCLAP::CmdLine cmd("Command description message", ' ', "1.0");
 
@@ -144,14 +151,22 @@ auto parseArgs(int argc, char **argv) {
         cmd.add(argN);
         TCLAP::ValueArg<int64_t> argT("T", "tileSize", "tile size", false, 8192, "non negative integer value");
         cmd.add(argT);
-        TCLAP::ValueArg<int64_t> argProdThreads("t", "prod", "product threads", false, 4, "non negative integer value");
-        cmd.add(argProdThreads);
-        TCLAP::ValueArg<int64_t> argW("W", "windowSize", "window size", false, -1, "non negative integer value");
-        cmd.add(argW);
-        TCLAP::ValueArg<std::string> argPath("P", "path", "scratch/tmp dir path", false, "./", "dir path");
+        TCLAP::ValueArg<int64_t> argProductThreads("t", "prod", "product threads", false, prodThreads, "non negative integer value");
+        cmd.add(argProductThreads);
+        TCLAP::ValueArg<int64_t> argAccumulateThreads("a", "acc", "accumulate threads", false, 4, "non negative integer value");
+        cmd.add(argAccumulateThreads);
+        TCLAP::ValueArg<int64_t> argWindowSize("W", "windowSize", "window size", false, -1, "non negative integer value");
+        cmd.add(argWindowSize);
+        TCLAP::ValueArg<int64_t> argLookAhead("l", "lookAhead", "look ahead factor", false, 2, "non negative integer value");
+        cmd.add(argLookAhead);
+        TCLAP::ValueArg<int64_t> argComputeTiles("c", "computeTiles", "computation tiles", false, 32, "non negative integer value");
+        cmd.add(argComputeTiles);
+        TCLAP::ValueArg<std::string> argPath("P", "path", "scratch/tmp dir path", false, "./dots/", "dir path");
         cmd.add(argPath);
         TCLAP::ValueArg<std::string> argHostFile("H", "hostfile", "path to hostfile", false, "", "file path");
         cmd.add(argHostFile);
+        TCLAP::ValueArg<std::string> results("R", "results", "store results in csv format", false, "./results.csv", "file path");
+        cmd.add(results);
 
         cmd.parse(argc, argv);
         return std::make_tuple(
@@ -161,10 +176,14 @@ auto parseArgs(int argc, char **argv) {
             argK.getValue(),
             argN.getValue(),
             argT.getValue(),
-            argProdThreads.getValue(),
-            argW.getValue(),
+            argProductThreads.getValue(),
+            argAccumulateThreads.getValue(),
+            argWindowSize.getValue(),
+            argLookAhead.getValue(),
+            argComputeTiles.getValue(),
             argPath.getValue(),
-            argHostFile.getValue()
+            argHostFile.getValue(),
+            results.getValue()
         );
     }
     catch (TCLAP::ArgException &e) {
@@ -176,10 +195,14 @@ auto parseArgs(int argc, char **argv) {
             int64_t(32768),
             int64_t(32768),
             int64_t(32768),
+            int64_t(prodThreads),
             int64_t(4),
             int64_t(-1),
+            int64_t(2),
+            int64_t(32),
             std::string("./"),
-            std::string("")
+            std::string(""),
+            std::string("./results.csv")
         );
     }
 }

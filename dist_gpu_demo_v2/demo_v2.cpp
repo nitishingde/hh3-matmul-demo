@@ -58,7 +58,7 @@ void printMatrix(MatrixType *mat, int64_t height, int64_t width, const char *msg
 #endif
 
 int main(int argc, char *argv[]) {
-    auto [p, q, M, K, N, T, prodThreads, windowSize, path, host] = parseArgs(argc, argv);
+    auto [p, q, M, K, N, T, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles, path, host, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
 
     using MatrixType = float;
@@ -69,8 +69,8 @@ int main(int argc, char *argv[]) {
     constexpr MemoryType memoryType = MemoryType::HOST;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
-    windowSize = genWindowSize<MatrixType>(M, N, T, prodThreads, windowSize);
-    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][prodThreads %ld][windowSize %ld]\n", getNodeId(), p, q, M, K, N, T, prodThreads, windowSize);
+    windowSize = genWindowSize<MatrixType>(M, N, T, computeTiles, windowSize);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][MT/p %ld][KT %ld][NT/q %ld][productThreads %ld][accumulateThreads %ld][windowSize %ld][lookAhead %ld][computeTiles %ld]\n", getNodeId(), p, q, M, K, N, T, (((M+T-1)/T)+p-1)/p, (K+T-1)/T, (((N+T-1)/T)+q-1)/q, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles);
     fflush(stdout);
 
     int32_t gpuCount = 0;
@@ -98,6 +98,8 @@ int main(int argc, char *argv[]) {
 
     if(isRootNodeId()) {
         printDataDistribution<MatrixType, IdA, IdB, IdC>(matrixA, matrixB, matrixC);
+        std::filesystem::remove_all(path);
+        std::filesystem::create_directory(path);
     }
 
 #ifndef NDEBUG
@@ -105,7 +107,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
-    auto time = strategy.builder(prodThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
+    auto time = strategy.builder(accumulateThreads, computeTiles, lookAhead, productThreads, windowSize).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
     if(isRootNodeId()) {
         printf("[ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
             (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time),

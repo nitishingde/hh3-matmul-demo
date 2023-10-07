@@ -397,7 +397,6 @@ class GpuJob {
 private:
     using TileA      = MatrixTile<MatrixType, IdA>;
     using TileB      = MatrixTile<MatrixType, IdB>;
-    using time_point = std::chrono::time_point<std::chrono::system_clock>;
 
 public:
     explicit GpuJob(bool shouldQuit = false): quit_(shouldQuit), gpuToken_(std::make_shared<GpuToken>(-1)) {}
@@ -517,8 +516,8 @@ private:
     double                                             max_       = std::numeric_limits<double>::min();
     double                                             sum_       = 0.f;
     int32_t                                            count_     = 0;
-    double                                             factor_    = 1;
-    std::string                                        suffix_    = "ns";
+    double                                             factor_    = 1.e9;
+    std::string                                        suffix_    = "s";
 };
 
 #endif //HH3_MATMUL_DATA_H

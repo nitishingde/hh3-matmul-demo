@@ -40,4 +40,19 @@ void printDataDistribution(std::shared_ptr<MatrixA> matrixA, std::shared_ptr<Mat
     fflush(stdout);
 }
 
+template<class MatrixType, char Id, class Matrix = MatrixContainer<MatrixType, Id>>
+void printDataDistribution(std::shared_ptr<Matrix> matrix) {
+    printf("Data distribution for matrix-%c:\n", Id);
+    fflush(stdout);
+    for(int64_t row = 0; row < matrix->matrixNumRowTiles(); ++row) {
+        for(int64_t col = 0; col < matrix->matrixNumColTiles(); ++col) {
+            printf("%2ld ", matrix->owner(row, col));
+        }
+        printf("\n");
+        fflush(stdout);
+    }
+    printf("\n");
+    fflush(stdout);
+}
+
 #endif //HH3_MATMUL_MATRIX_UTILITY_H

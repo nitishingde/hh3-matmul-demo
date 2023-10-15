@@ -83,12 +83,12 @@ void __checkMpiErrors(const int errorCode, const char *file, const int line) {
 
 class MpiGlobalLockGuard {
 public:
-    explicit MpiGlobalLockGuard(int *argc, char ***argv, const int64_t p, const int64_t q) {
+    explicit MpiGlobalLockGuard(int *argc, char ***argv, const int64_t p, const int64_t q, const int32_t flag = MPI_THREAD_MULTIPLE) {
         sGridP = p;
         sGridQ = q;
 
         int32_t provided;
-        checkMpiErrors(MPI_Init_thread(argc, argv, MPI_THREAD_MULTIPLE, &provided));
+        checkMpiErrors(MPI_Init_thread(argc, argv, flag, &provided));
         init();
         int32_t len = -1;
         sHostName.resize(MPI_MAX_PROCESSOR_NAME);

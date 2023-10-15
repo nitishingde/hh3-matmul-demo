@@ -24,6 +24,8 @@ public:
         std::string dotFile
     ) = 0;
 
+    virtual std::string toString() = 0;
+
 protected:
 #ifdef HH_USE_CUDA
     cudaDeviceProp cudaDeviceProp_ = {};
@@ -152,6 +154,10 @@ public:
         double maxTime = 0;
         checkMpiErrors(MPI_Reduce(&time, &maxTime, 1, MPI_DOUBLE, MPI_MAX, 0, mpiComm));
         return maxTime;
+    }
+
+    std::string toString() override {
+        return NAME(MMD_WindowStrategy);
     }
 
 private:

@@ -60,7 +60,8 @@ int main(int argc, char *argv[]) {
         if(isRootNodeId()) {
             double gflops = (double(M) * double(K) * double(N) * double(2)) / (1.e9 * times[iter]);
             csvFile << iter+1 << ", " << gflops << ", " << times[iter] << std::endl;
-            printf("[Iterations: %3d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
+            printf("[%s][Iterations: %3d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
+                strategy.toString().c_str(),
                 iter+1, ITER,
                 gflops,
                 times[iter]
@@ -74,7 +75,8 @@ int main(int argc, char *argv[]) {
         double minTime = *std::min_element(times, times+ITER);
         double avgTime = std::accumulate(times, times+ITER, 0.0)/double(ITER);
         double maxTime = *std::max_element(times, times+ITER);
-        printf("[Iterations: %3d/%d][ Max " GREEN("%9.3f") " gflops ][ Avg " CYAN("%9.3f") " gflops ][ Min " RED("%9.3f") " gflops ][ Min " GREEN("%8.3f") " secs ][ Avg " CYAN("%8.3f") " secs ][ Max " RED("%8.3f") " secs ]\n",
+        printf("[%s][Iterations: %3d/%d][ Max " GREEN("%9.3f") " gflops ][ Avg " CYAN("%9.3f") " gflops ][ Min " RED("%9.3f") " gflops ][ Min " GREEN("%8.3f") " secs ][ Avg " CYAN("%8.3f") " secs ][ Max " RED("%8.3f") " secs ]\n",
+            strategy.toString().c_str(),
             ITER, ITER,
             gflop/minTime,
             gflop/avgTime,

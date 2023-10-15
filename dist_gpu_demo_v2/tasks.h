@@ -172,6 +172,173 @@ private:
     Grid<std::shared_ptr<TileB>> rowTilesFromB_     = {};
 };
 
+template<typename MatrixType, char Id, char IdA = 'a', char IdB = 'b', char IdC = 'c'>
+class MatrixWarehousePrefetchTask: public hh::AbstractTask<
+        2,
+        std::tuple<std::shared_ptr<MatrixContainer<MatrixType, Id>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>,
+        DbRequest<Id>,
+        MatrixTile<MatrixType, Id>
+    >{
+private:
+    using Matrix     = MatrixContainer<MatrixType, Id>;
+    using MatrixC    = MatrixContainer<MatrixType, IdC>;
+    using Pair       = std::tuple<std::shared_ptr<MatrixContainer<MatrixType, Id>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>;
+    using Tile       = MatrixTile<MatrixType, Id>;
+    using DB_Request = DbRequest<Id>;
+
+public:
+    explicit MatrixWarehousePrefetchTask(std::mutex *pMpiMutex, std::atomic_int32_t *pStop):
+        hh::AbstractTask<2, Pair, DB_Request, Tile>("Prefetch Task", 1, false), pMpiMutex_(pMpiMutex), pStop_(pStop) {
+        assert(pMpiMutex != nullptr);
+        assert(pStop != nullptr);
+        tagOffset_ = (Id == IdA? 0: 100000);
+    }
+
+    void execute(std::shared_ptr<Pair> pair) override {
+        assert(Id == IdA or Id == IdB);
+        assert(pMpiMutex_ != nullptr);
+        assert(pStop_ != nullptr);
+        matrix_      = std::get<std::shared_ptr<Matrix>>(*pair);
+        auto matrixC = std::get<std::shared_ptr<MatrixC>>(*pair);
+
+        // initiate all the mpi isends
+        // FIXME: this is hardcoded for prototyping. if successful, need to come up with a generic way to establish dependencies
+        if constexpr(Id == IdA) {
+            std::lock_guard lockGuard(*pMpiMutex_);
+            for(int64_t rowIdx = 0; rowIdx < matrix_->matrixNumRowTiles(); rowIdx++) {
+                std::vector<std::shared_ptr<Tile>> tiles = {};
+                for(int64_t colIdx = 0; colIdx < matrix_->matrixNumColTiles(); colIdx++) {
+                    if(auto tile = matrix_->tile(rowIdx, colIdx); tile != nullptr) {
+                        tiles.emplace_back(tile);
+                    }
+                }
+                if(tiles.empty()) continue;
+
+                std::vector<bool> done(getNumNodes(), false);
+                done[getNodeId()] = true;
+                for(int64_t colIdx = 0; colIdx < matrixC->matrixNumColTiles(); colIdx++) {
+                    auto destination = matrixC->owner(rowIdx, colIdx);
+                    if(done[destination]) continue;
+
+                    done[destination] = true;
+                    for(const std::shared_ptr<Tile> &tile: tiles) {
+                        mpiSends_.emplace_back(MPI_Request{});
+                        int32_t tag = tagOffset_ + tile->rowIdx()*matrix_->matrixNumColTiles() + tile->colIdx();
+                        checkMpiErrors(MPI_Issend(tile->data(), tile->byteSize(), MPI_CHAR, destination, tag, matrix_->mpiComm(), &mpiSends_.back()));
+                    }
+                }
+            }
+        }
+        else if constexpr(Id == IdB) {
+            std::lock_guard lockGuard(*pMpiMutex_);
+            for(int64_t colIdx = 0; colIdx < matrix_->matrixNumColTiles(); colIdx++) {
+                std::vector<std::shared_ptr<Tile>> tiles = {};
+                for(int64_t rowIdx = 0; rowIdx < matrix_->matrixNumColTiles(); rowIdx++) {
+                    if(auto tile = matrix_->tile(rowIdx, colIdx); tile != nullptr) {
+                        tiles.emplace_back(tile);
+                    }
+                }
+
+                if(tiles.empty()) continue;
+
+                std::vector<bool> done(getNumNodes(), false);
+                done[getNodeId()] = true;
+                for(int64_t rowIdx = 0; rowIdx < matrix_->matrixNumColTiles(); rowIdx++) {
+                    auto destination = matrixC->owner(rowIdx, colIdx);
+                    if(done[destination]) continue;
+
+                    done[destination] = true;
+                    for(const std::shared_ptr<Tile> &tile: tiles) {
+                        mpiSends_.emplace_back(MPI_Request{});
+                        int32_t tag = tagOffset_ + tile->rowIdx()*matrix_->matrixNumColTiles() + tile->colIdx();
+                        checkMpiErrors(MPI_Issend(tile->data(), tile->byteSize(), MPI_CHAR, destination, tag, matrix_->mpiComm(), &mpiSends_.back()));
+                    }
+                }
+            }
+        }
+        else {
+            throw std::runtime_error("MatrixWarehousePrefetchTask-Id\n");
+        }
+
+        for(pStop_->fetch_sub(1); pStop_->load();) {
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for(4ms);
+        }
+    }
+
+    void execute(std::shared_ptr<DB_Request> dbRequest) override {
+        if(dbRequest->quit) return;
+
+        requests_.emplace_back(dbRequest);
+        handleRequests();
+    }
+
+    [[nodiscard]] std::string extraPrintingInformation() const override {
+        DotTimer dotTimer;
+        dotTimer.merge(dotTimer_);
+
+        double tileSize = (matrix_->tileDim()*matrix_->tileDim()*sizeof(MatrixType))/(1024.*1024.);
+        auto minBw = std::to_string(tileSize/dotTimer.max());
+        auto avgBw = std::to_string(tileSize/dotTimer.avg());
+        auto maxBw = std::to_string(tileSize/dotTimer.min());
+
+        auto min   = std::to_string(dotTimer.min());
+        auto avg   = std::to_string(dotTimer.avg());
+        auto max   = std::to_string(dotTimer.max());
+
+        return "#Requests received: " + std::to_string(dotTimer.count()) + "\\n"
+            "Bandwidth per request:\\n"
+            "Min: " + minBw.substr(0, minBw.find('.', 0)+4) + "MB/s\\n"
+            "Avg: " + avgBw.substr(0, avgBw.find('.', 0)+4) + "MB/s\\n"
+            "Max: " + maxBw.substr(0, maxBw.find('.', 0)+4) + "MB/s\\n"
+            "Time per request:\\n"
+            "Min: " + min.substr(0, min.find('.', 0)+4)  + "s\\n"
+            "Avg: " + avg.substr(0, avg.find('.', 0)+4)  + "s\\n"
+            "Max: " + max.substr(0, max.find('.', 0)+4)  + "s\\n"
+            "Total time spent on requests: " + std::to_string(dotTimer.totalTime()) + "s"
+            ;
+    }
+
+private:
+    void handleRequests() {
+        if(matrix_ == nullptr) return;
+
+        for(; !requests_.empty(); requests_.pop_front()) {
+            auto dbRequest = requests_.front();
+            if(auto tile = matrix_->tile(dbRequest->rowIdx, dbRequest->colIdx); tile != nullptr) {
+                this->addResult(tile);
+                continue;
+            }
+
+            // MPI receive
+            auto tile   = std::static_pointer_cast<Tile>(this->getManagedMemory());
+            auto rowIdx = dbRequest->rowIdx, colIdx = dbRequest->colIdx;
+            tile->init(rowIdx, colIdx,  matrix_->tileHeight(rowIdx, colIdx), matrix_->tileWidth(rowIdx, colIdx));
+            int32_t tag = tagOffset_ + dbRequest->rowIdx*matrix_->matrixNumColTiles() + dbRequest->colIdx;
+
+            {
+                using namespace std::chrono_literals;
+                std::this_thread::sleep_for(4ms);
+                std::lock_guard lockGuard(*pMpiMutex_);
+                dotTimer_.start();
+                checkMpiErrors(MPI_Recv(tile->data(), tile->byteSize(), MPI_CHAR, matrix_->owner(dbRequest->rowIdx, dbRequest->colIdx), tag, matrix_->mpiComm(), MPI_STATUS_IGNORE));
+                dotTimer_.stop();
+
+                this->addResult(tile);
+            }
+        }
+    }
+
+private:
+    std::mutex                              *pMpiMutex_ = nullptr;
+    std::atomic_int32_t                     *pStop_     = nullptr;
+    std::shared_ptr<Matrix>                 matrix_     = nullptr;
+    std::deque<std::shared_ptr<DB_Request>> requests_   = {};
+    DotTimer                                dotTimer_     {};
+    int32_t                                 tagOffset_  = 0;
+    std::vector<MPI_Request>                mpiSends_   = {};
+};
+
 template<typename MatrixType, char Id>
 class MatrixWarehouseTask: public hh::AbstractTask<2, MatrixContainer<MatrixType, Id>, DbRequest<Id>, MatrixTile<MatrixType, Id>> {
 private:

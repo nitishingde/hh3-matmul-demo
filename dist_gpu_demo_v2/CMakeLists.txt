@@ -40,8 +40,8 @@ target_link_libraries(dist_matmul_v2
         ${OpenBLAS_LIBRARIES}
 )
 
-add_executable(demo_v2 demo_v2.cpp)
-target_link_libraries(demo_v2
+add_executable(demo1_v2 demo1_v2.cpp)
+target_link_libraries(demo1_v2
     PUBLIC
         dist_matmul_v2
 )
@@ -52,8 +52,8 @@ target_link_libraries(demo_v2_tests
         dist_matmul_v2
 )
 
-add_executable(benchmark_v2 benchmark_v2.cpp)
-target_link_libraries(benchmark_v2
+add_executable(benchmark1_v2 benchmark1_v2.cpp)
+target_link_libraries(benchmark1_v2
     PUBLIC
         dist_matmul_v2
 )

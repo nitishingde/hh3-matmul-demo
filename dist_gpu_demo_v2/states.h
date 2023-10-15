@@ -10,13 +10,17 @@ class InputState: public hh::AbstractState<
         MatrixContainer<MatrixType, IdA>,
         MatrixContainer<MatrixType, IdB>,
         MatrixContainer<MatrixType, IdC>,
-        std::tuple<std::shared_ptr<MatrixContainer<MatrixType, IdA>>, std::shared_ptr<MatrixContainer<MatrixType, IdB>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>
+        std::tuple<std::shared_ptr<MatrixContainer<MatrixType, IdA>>, std::shared_ptr<MatrixContainer<MatrixType, IdB>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>,
+        std::tuple<std::shared_ptr<MatrixContainer<MatrixType, IdA>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>,
+        std::tuple<std::shared_ptr<MatrixContainer<MatrixType, IdB>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>
     > {
 private:
-    using MatrixA = MatrixContainer<MatrixType, IdA>;
-    using MatrixB = MatrixContainer<MatrixType, IdB>;
-    using MatrixC = MatrixContainer<MatrixType, IdC>;
-    using Triplet = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
+    using MatrixA  = MatrixContainer<MatrixType, IdA>;
+    using MatrixB  = MatrixContainer<MatrixType, IdB>;
+    using MatrixC  = MatrixContainer<MatrixType, IdC>;
+    using Triplet  = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
+    using MatAMatC = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixC>>;
+    using MatBMatC = std::tuple<std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
 
 public:
     void execute(std::shared_ptr<Triplet> triplet) override {
@@ -29,6 +33,8 @@ public:
 
         this->addResult(matrixA);
         this->addResult(matrixB);
+        this->addResult(std::make_shared<MatAMatC>(std::make_tuple(matrixA, matrixC)));
+        this->addResult(std::make_shared<MatBMatC>(std::make_tuple(matrixB, matrixC)));
         this->addResult(matrixC);
         this->addResult(triplet);
     };

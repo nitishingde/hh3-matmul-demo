@@ -4,6 +4,7 @@
 #include <mpi.h>
 #include <string>
 #include <tclap/CmdLine.h>
+#include <unistd.h>
 
 // LOG -------------------------------------------------------------------------------------------------------------- //
 
@@ -27,8 +28,10 @@
 
 #ifndef NDEBUG
 #define LOG() printf("[Node %ld][%s:%d]\n", getNodeId(), __FILE__, __LINE__)
+#define LOG_THREAD_COUNT() printf("[Node %ld][%s:%d][ThreadCount %d]\n", getNodeId(), __FILE__, __LINE__, getThreadCount())
 #else
 #define LOG()
+#define LOG_THREAD_COUNT()
 #endif
 
 // MPI Related ------------------------------------------------------------------------------------------------------ //
@@ -242,6 +245,17 @@ int64_t genWindowSize(const int64_t M, const int64_t N, const int64_t tileSize, 
     }
 
     return std::min(suggestedWindowSize, maxWindowSize);
+}
+
+int getThreadCount() {
+    auto pid = getpid();
+    int count = 0;
+    for(const auto &dirEntry: std::filesystem::directory_iterator("/proc/"+std::to_string(pid)+"/task/")) {
+        if(dirEntry.is_directory()) {
+            count++;
+        }
+    }
+    return count;
 }
 
 #endif //HH3_MATMUL_UTILITY_H

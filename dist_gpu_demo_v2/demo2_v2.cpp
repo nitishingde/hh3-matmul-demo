@@ -59,7 +59,7 @@ void printMatrix(MatrixType *mat, int64_t height, int64_t width, const char *msg
 
 int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles, path, host, resultsFile] = parseArgs(argc, argv);
-    MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
+    MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q, MPI_THREAD_SERIALIZED);
 
     using MatrixType = float;
 

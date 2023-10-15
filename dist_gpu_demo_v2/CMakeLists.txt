@@ -46,6 +46,12 @@ target_link_libraries(demo1_v2
         dist_matmul_v2
 )
 
+add_executable(demo2_v2 demo2_v2.cpp)
+target_link_libraries(demo2_v2
+    PUBLIC
+        dist_matmul_v2
+)
+
 add_executable(demo_v2_tests test.cpp)
 target_link_libraries(demo_v2_tests
     PUBLIC
@@ -54,6 +60,12 @@ target_link_libraries(demo_v2_tests
 
 add_executable(benchmark1_v2 benchmark1_v2.cpp)
 target_link_libraries(benchmark1_v2
+    PUBLIC
+        dist_matmul_v2
+)
+
+add_executable(benchmark2_v2 benchmark2_v2.cpp)
+target_link_libraries(benchmark2_v2
     PUBLIC
         dist_matmul_v2
 )

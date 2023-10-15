@@ -500,7 +500,7 @@ private:
             InterNodeResponse response = {};
             auto tile = matrix_->tile(request.rowIdx(), request.colIdx());
             response.pData = tile;
-            checkMpiErrors(MPI_Isend(tile->data(), tile->byteSize(), MPI_BYTE, mpiStatus.MPI_SOURCE, request.tagId(), matrix_->mpiComm(), &response.mpiRequest));
+            checkMpiErrors(MPI_Issend(tile->data(), tile->byteSize(), MPI_BYTE, mpiStatus.MPI_SOURCE, request.tagId(), matrix_->mpiComm(), &response.mpiRequest));
             outgoingResponses_.emplace_back(response);
         }
     }

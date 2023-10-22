@@ -44,19 +44,22 @@ public:
         rowIdx_(rowIdx), colIdx_(colIdx),
         byteSize_(width*height*sizeof(MatrixType)),
         height_(height), width_(width),
+        memoryType_(memoryType), major_(major), memoryOwner_(MemoryOwner::WORKSPACE), memoryState_(MemoryState::SHARED) {
+
+        allocate();
+        ttl_.store(-1);
+        initCudaEvent();
+    }
+
+    explicit MatrixTile(void *pData, const int64_t rowIdx, const int64_t colIdx, const int64_t height, const int64_t width, const MemoryType memoryType, const Major major = Major::COL):
+        pData_(pData),
+        rowIdx_(rowIdx), colIdx_(colIdx),
+        byteSize_(width*height*sizeof(MatrixType)),
+        height_(height), width_(width),
         memoryType_(memoryType), major_(major), memoryOwner_(MemoryOwner::USER), memoryState_(MemoryState::SHARED) {
 
+        assert(pData != nullptr);
         ttl_.store(-1);
-        if(memoryType_ == MemoryType::HOST) {
-            pData_ = new uint8_t[byteSize_];
-        }
-        else if(memoryType_ == MemoryType::CUDA) {
-            checkCudaErrors(cudaMalloc(&pData_, byteSize_));
-        }
-        else if(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY) {
-            checkCudaErrors(cudaMallocManaged(&pData_, byteSize_));
-        }
-
         initCudaEvent();
     }
 
@@ -69,26 +72,39 @@ public:
         memoryOwner_(MemoryOwner::WORKSPACE),
         memoryState_(MemoryState::SHARED) {
 
+        allocate();
         ttl_.store(-1);
-        if(memoryType_ == MemoryType::HOST) {
-            pData_ = new uint8_t[byteSize_];
-        }
-        else if(memoryType_ == MemoryType::CUDA) {
-            checkCudaErrors(cudaMalloc(&pData_, byteSize_));
-        }
-        else if(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY) {
-            checkCudaErrors(cudaMallocManaged(&pData_, byteSize_));
-        }
+        initCudaEvent();
+    }
 
+    // For memory management
+    explicit MatrixTile(void *pData, const int64_t tileSize, const MemoryType memoryType):
+        pData_(pData),
+        byteSize_(tileSize*tileSize*sizeof(MatrixType)),
+        width_(tileSize),
+        height_(tileSize),
+        memoryType_(memoryType),
+        memoryOwner_(MemoryOwner::USER),
+        memoryState_(MemoryState::SHARED) {
+
+        assert(pData != nullptr);
+        ttl_.store(-1);
         initCudaEvent();
     }
 
     ~MatrixTile() override {
-        if(memoryType_ == MemoryType::HOST) {
-            delete[] static_cast<uint8_t*>(pData_);
-        }
-        else if(memoryType_ == MemoryType::CUDA_UNIFIED_MEMORY) {
-            checkCudaErrors(cudaFree(pData_));
+        if(memoryOwner_ == MemoryOwner::WORKSPACE) {
+            switch(memoryType_) {
+                case MemoryType::CUDA:
+                case MemoryType::CUDA_UNIFIED_MEMORY:
+                    checkCudaErrors(cudaFree(pData_));
+                    break;
+
+                case MemoryType::HOST:
+                default:
+                    delete[] static_cast<uint8_t*>(pData_);
+                    break;
+            }
         }
 
         for(size_t id = 0; id < cudaEvents_.size(); ++id) {
@@ -166,6 +182,25 @@ public:
     void ttl(const int64_t ttl)                     { ttl_.store(ttl);            }
 
 private:
+    void allocate() {
+        assert(memoryOwner_ == MemoryOwner::WORKSPACE);
+
+        switch(memoryType_) {
+            case MemoryType::CUDA:
+                checkCudaErrors(cudaMalloc(&pData_, byteSize_));
+                break;
+
+            case MemoryType::CUDA_UNIFIED_MEMORY:
+                checkCudaErrors(cudaMallocManaged(&pData_, byteSize_));
+                break;
+
+            case MemoryType::HOST:
+            default:
+                pData_ = new uint8_t[byteSize_];
+                break;
+        }
+    }
+
     void initCudaEvent() {
         int32_t gpuCount = 0;
         checkCudaErrors(cudaGetDeviceCount(&gpuCount));
@@ -249,6 +284,22 @@ public:
     }
 
 protected:
+    void allocate() {
+        switch(tileMemoryType_) {
+            case MemoryType::CUDA_UNIFIED_MEMORY:
+                checkCudaErrors(cudaMallocManaged(&pData_, byteSize_));
+                break;
+
+            case MemoryType::HOST:
+            default:
+                pData_ = new uint8_t[byteSize_];
+                break;
+        }
+    }
+
+protected:
+    uint8_t                     *pData_         = nullptr;
+    int64_t                     byteSize_       = 0;
     MemoryType                  tileMemoryType_ = MemoryType::HOST;
     Grid<std::shared_ptr<Tile>> tileGrid_       = {};
     Grid<int64_t>               tileOwnership_  = {};
@@ -273,14 +324,32 @@ public:
         init();
     }
 
+    ~TwoDBlockCyclicMatrix() {
+        delete[] this->pData_;
+        this->pData_    = nullptr;
+        this->byteSize_ = 0;
+    }
+
+
     bool init() override {
         const auto MT = this->matrixNumRowTiles();
         const auto NT = this->matrixNumColTiles();
         int64_t p0 = this->nodeId_/this->qGridDim_, q0 = this->nodeId_%this->qGridDim_;
+
+        this->byteSize_ = 0;
         for(int64_t p = p0; p < MT; p+=this->pGridDim_) {
             for(int64_t q = q0; q < NT; q+=this->qGridDim_) {
-                auto tile = std::make_shared<Tile>(p, q, this->tileHeight(p, q), this->tileWidth(p, q), this->tileMemoryType_);
+                this->byteSize_ += this->tileHeight(p, q)*this->tileWidth(p, q)*sizeof(MatrixType);
+            }
+        }
+        this->allocate();
+
+        int64_t pos = 0;
+        for(int64_t p = p0; p < MT; p+=this->pGridDim_) {
+            for(int64_t q = q0; q < NT; q+=this->qGridDim_) {
+                auto tile  = std::make_shared<Tile>((void*)&(this->pData_[pos]), p, q, this->tileHeight(p, q), this->tileWidth(p, q), this->tileMemoryType_);
                 auto pData = (MatrixType *)tile->data();
+                pos       += tile->byteSize();
                 for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = fast_rand()%10;
                 this->tileGrid_[p][q] = tile;
             }
@@ -311,6 +380,12 @@ public:
         init();
     }
 
+    ~TwoDBlockCyclicContiguousSubMatrix() {
+        delete[] this->pData_;
+        this->pData_    = nullptr;
+        this->byteSize_ = 0;
+    }
+
     bool init() override {
         const auto MT = this->matrixNumRowTiles();
         const auto NT = this->matrixNumColTiles();
@@ -329,11 +404,23 @@ public:
             return a[0] < b[0];
         });
 
+        this->byteSize_ = 0;
         for(int64_t r = 0; r < MT; ++r) {
             for(int64_t c = 0; c < NT; ++c) {
                 if(this->tileOwnership_[r][c] == this->nodeId_) {
-                    auto tile = std::make_shared<Tile>(r, c, this->tileHeight(r, c), this->tileWidth(r, c), this->tileMemoryType_);
+                    this->byteSize_ += this->tileHeight(r, c)*this->tileWidth(r, c)*sizeof(MatrixType);
+                }
+            }
+        }
+        this->allocate();
+
+        int64_t pos = 0;
+        for(int64_t r = 0; r < MT; ++r) {
+            for(int64_t c = 0; c < NT; ++c) {
+                if(this->tileOwnership_[r][c] == this->nodeId_) {
+                    auto tile  = std::make_shared<Tile>((void*)&(this->pData_[pos]), r, c, this->tileHeight(r, c), this->tileWidth(r, c), this->tileMemoryType_);
                     auto pData = (MatrixType *)tile->data();
+                    pos       += tile->byteSize();
                     for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = fast_rand()%10;
                     this->tileGrid_[r][c] = tile;
                 }

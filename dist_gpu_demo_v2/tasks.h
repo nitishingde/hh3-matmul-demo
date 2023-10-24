@@ -103,8 +103,6 @@ public:
             }
         }
 
-        this->addResult(std::make_shared<DbRequest<IdA>>(0, 0, true));
-        this->addResult(std::make_shared<DbRequest<IdB>>(0, 0, true));
         for(int64_t kt = 0; kt < KT; ++kt) {
             genJobsIfReady(kt);
         }
@@ -267,8 +265,6 @@ public:
     }
 
     void execute(std::shared_ptr<DB_Request> dbRequest) override {
-        if(dbRequest->quit) return;
-
         requests_.emplace_back(dbRequest);
         handleRequests();
     }
@@ -401,7 +397,7 @@ public:
         matrix_ = matrix;
         liveNodeCounter_.store(matrix_->numNodes());
         liveNodeList_ = std::vector<bool>(matrix_->numNodes(), true);
-        daemon_ = std::thread(&MatrixWarehouseTask::daemon, this);
+        daemon_       = std::thread(&MatrixWarehouseTask::daemon, this);
 
         for(; !dbRequests_.empty(); dbRequests_.pop_front()) {
             handleDbRequest(dbRequests_.front());
@@ -422,12 +418,12 @@ public:
     }
 
     [[nodiscard]] bool canTerminate() const override {
-        return isStarted_ and liveNodeCounter_ == 0 and outgoingRequests_.empty() and incomingResponses_.empty() and outgoingResponses_.empty();
+        return hh::AbstractTask<2, Matrix, DB_Request, Tile>::canTerminate() and liveNodeCounter_ == 0 and outgoingRequests_.empty() and incomingResponses_.empty() and outgoingResponses_.empty();
     }
 
 private:
     void handleDbRequest(std::shared_ptr<DB_Request> dbRequest) {
-        if(dbRequest->quit and liveNodeList_[matrix_->nodeId()]) {
+        if(hh::AbstractTask<2, Matrix, DB_Request, Tile>::canTerminate() and liveNodeList_[matrix_->nodeId()]) {
             liveNodeList_[matrix_->nodeId()] = false;
             liveNodeCounter_.store(std::accumulate(liveNodeList_.begin(), liveNodeList_.end(), 0));
             for(int64_t node = 0; node < matrix_->numNodes(); ++node) {
@@ -539,7 +535,6 @@ private:
 
     void daemon() {
         using namespace std::chrono_literals;
-        isStarted_ = true;
         while(!canTerminate()) {
             processOutgoingRequests();
             processIncomingRequests();
@@ -552,7 +547,6 @@ private:
 private:
     std::shared_ptr<Matrix>                matrix_             = nullptr;
     std::thread                            daemon_             = {};
-    bool                                   isStarted_          = false;
     std::mutex                             mutex_              = {};
     std::list<std::shared_ptr<DB_Request>> dbRequests_         = {};
     std::list<InterNodeRequest>            outgoingRequests_   = {};

@@ -439,10 +439,9 @@ template<char Id>
 struct DbRequest {
     int64_t rowIdx = -1;
     int64_t colIdx = -1;
-    bool    quit   = false;
 //    int64_t priority = 0; // zero is the highest priority
 //    int64_t deviceId = 0;
-    explicit DbRequest(const int64_t r, const int64_t c, const bool q = false): rowIdx(r), colIdx(c), quit(q) {}
+    explicit DbRequest(const int64_t r, const int64_t c): rowIdx(r), colIdx(c) {}
 };
 
 struct GpuToken: public hh::ManagedMemory {

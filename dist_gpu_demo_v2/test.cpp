@@ -51,8 +51,6 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
             graph.pushData(std::make_shared<DbRequest<IdB>>(k, col));
         }
     }
-    graph.pushData(std::make_shared<DbRequest<IdA>>(-1, -1, true));
-    graph.pushData(std::make_shared<DbRequest<IdB>>(-1, -1, true));
     graph.finishPushingData();
 
     int32_t countA = 0, countB = 0;
@@ -147,10 +145,13 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
     matrixInit(matrixB);
     matrixInit(matrixC);
 
+    std::mutex mpiMutex;
+    std::atomic_int32_t stop = 2;
+
     auto graph = hh::Graph<4, MatAMatC, MatBMatC, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB>();
-    auto taskA = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdA>>();
+    auto taskA = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdA>>(&mpiMutex, &stop);
     taskA->connectMemoryManager(std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(4, T, memoryType));
-    auto taskB = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdB>>();
+    auto taskB = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdB>>(&mpiMutex, &stop);
     taskB->connectMemoryManager(std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(4, T, memoryType));
 
     graph.input<MatAMatC>(taskA);
@@ -276,7 +277,7 @@ int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles, path, host, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
 
-//    testMatrixWarehouseTask(p, q, M, K, N, T);
+    testMatrixWarehouseTask(p, q, M, K, N, T);
     testMatrixWarehousePrefetchTask(p, q, M, K, N, T);
 
     return 0;

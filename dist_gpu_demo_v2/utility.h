@@ -41,6 +41,7 @@ static int32_t sMpiNumNodes  = -1;
 static int64_t sGridP        = -1;
 static int64_t sGridQ        = -1;
 static std::string sHostName = {};
+std::mutex         mpiMutex  = {};
 
 [[nodiscard]] int64_t getNodeId() {
     return sMpiNodeId;

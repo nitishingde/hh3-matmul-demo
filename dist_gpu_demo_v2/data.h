@@ -437,11 +437,18 @@ public:
 
 template<char Id>
 struct DbRequest {
-    int64_t rowIdx = -1;
-    int64_t colIdx = -1;
-//    int64_t priority = 0; // zero is the highest priority
-//    int64_t deviceId = 0;
-    explicit DbRequest(const int64_t r, const int64_t c): rowIdx(r), colIdx(c) {}
+    int64_t                                   srcNode = {};
+    std::vector<std::tuple<int64_t, int64_t>> indices = {};
+
+    explicit DbRequest(int64_t srcNode): srcNode(srcNode) {}
+
+    explicit DbRequest(int64_t rowIdx, int64_t colIdx) {
+        indices.emplace_back(rowIdx, colIdx);
+    }
+
+    void addIndex(int64_t rowIdx, int64_t colIdx) {
+        indices.emplace_back(rowIdx, colIdx);
+    }
 };
 
 struct GpuToken: public hh::ManagedMemory {

@@ -217,7 +217,6 @@ public:
         auto [P, Q] = getGridDim();
         auto G      = deviceIds.size();
 
-        std::mutex mpiMutex;
         std::atomic_int32_t stop = 2;
 
         // Generate graph
@@ -237,11 +236,11 @@ public:
             std::make_shared<OuterProductComputationState<MatrixType, IdA, IdB, IdC, IdP>>(MT, KT, NT)
         );
         auto accTask            = std::make_shared<AccumulateTask<MatrixType, IdC, IdP>>(accumulateThreads_);
-        auto dwTaskA            = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdA>>(&mpiMutex, &stop);
+        auto dwTaskA            = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdA>>(&stop);
         dwTaskA->connectMemoryManager(
             std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(((MT+P-1)/P)*(G*lookAhead_), T, memoryType)
         );
-        auto dwTaskB            = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdB>>(&mpiMutex, &stop);
+        auto dwTaskB            = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdB>>(&stop);
         dwTaskB->connectMemoryManager(
             std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(((NT+Q-1)/Q)*(G*lookAhead_), T, memoryType)
         );

@@ -2,6 +2,30 @@
 #include "utility.h"
 #include "matrix_utility.h"
 
+template<typename MatrixType, char Id>
+void matrixInit(std::shared_ptr<MatrixContainer<MatrixType, Id>> matrix) {
+    for(int64_t rowIdx = 0; rowIdx < matrix->matrixNumRowTiles(); ++rowIdx) {
+        for(int64_t colIdx = 0; colIdx < matrix->matrixNumColTiles(); ++colIdx) {
+            if(auto tile = matrix->tile(rowIdx, colIdx)) {
+                auto pData = (MatrixType *)tile->data();
+                for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = MatrixType(getNodeId()*1000+rowIdx*100+colIdx*10);
+            }
+        }
+    }
+}
+
+template<typename MatrixType, char Id>
+void printTile(std::shared_ptr<MatrixTile<MatrixType, Id>> tile) {
+    auto pData = (MatrixType *) tile->data();
+    for(uint32_t r = 0; r < tile->height(); ++r) {
+        for(uint32_t c = 0; c < tile->width(); ++c) {
+            printf("%f ", pData[c*tile->height() + r]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
 void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t N, int64_t T) {
     constexpr char       IdA        = 'a';
     constexpr char       IdB        = 'b';
@@ -16,6 +40,9 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
 
     auto matrixA = std::make_shared<TwoDBlockCyclicContiguousSubMatrix<MatrixType, IdA>>(memoryType, M, K, T, p, q, mpiComm);
     auto matrixB = std::make_shared<TwoDBlockCyclicContiguousSubMatrix<MatrixType, IdB>>(memoryType, K, N, T, p, q, mpiComm);
+
+    matrixInit<MatrixType, IdA>(matrixA);
+    matrixInit<MatrixType, IdB>(matrixB);
 
     printf("[p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][MT %ld][KT %ld][NT %ld]\n", p, q, M, K, N, T, matrixA->matrixNumRowTiles(), matrixA->matrixNumColTiles(), matrixB->matrixNumColTiles());
     fflush(stdout);
@@ -43,12 +70,34 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
 
     graph.pushData(std::static_pointer_cast<MatrixA>(matrixA));
     graph.pushData(std::static_pointer_cast<MatrixB>(matrixB));
-    for(int64_t k = 0; k < matrixA->matrixNumColTiles(); ++k) {
-        for(int64_t row = 0; row < matrixB->matrixNumRowTiles(); ++row) {
-            graph.pushData(std::make_shared<DbRequest<IdA>>(row, k));
+
+    for(int64_t kt = 0; kt < matrixA->matrixNumColTiles(); ++kt) {
+        {
+            std::unordered_map<int64_t, std::shared_ptr<DbRequest<IdA>>> requestsA;
+            for(int64_t row = 0; row < matrixA->matrixNumRowTiles(); ++row) {
+                auto srcNode = matrixA->owner(row, kt);
+                if(!requestsA.contains(srcNode)) {
+                    requestsA.insert(std::make_pair(srcNode, std::make_shared<DbRequest<IdA>>(srcNode)));
+                }
+                requestsA[srcNode]->addIndex(row, kt);
+            }
+            for(auto [srcNode, requestA]: requestsA) {
+                graph.pushData(requestA);
+            }
         }
-        for(int64_t col = 0; col < matrixB->matrixNumColTiles(); ++col) {
-            graph.pushData(std::make_shared<DbRequest<IdB>>(k, col));
+
+        {
+            std::unordered_map<int64_t, std::shared_ptr<DbRequest<IdB>>> requestsB;
+            for(int64_t col = 0; col < matrixB->matrixNumColTiles(); ++col) {
+                auto srcNode = matrixB->owner(kt, col);
+                if(!requestsB.contains(srcNode)) {
+                    requestsB.insert(std::make_pair(srcNode, std::make_shared<DbRequest<IdB>>(srcNode)));
+                }
+                requestsB[srcNode]->addIndex(kt, col);
+            }
+            for(auto [srcNode, requestB]: requestsB) {
+                graph.pushData(requestB);
+            }
         }
     }
     graph.finishPushingData();
@@ -59,14 +108,7 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
             [&countA](std::shared_ptr<MatrixTile<MatrixType, IdA>> &tile) {
                 if(isRootNodeId()) {
                     printf("[node %ld][count %2d] tileA(%ld, %ld)>>\n", getNodeId(), countA, tile->rowIdx(), tile->colIdx());
-//                    auto pData = (MatrixType *) tile->data();
-//                    for(uint32_t r = 0; r < tile->height(); ++r) {
-//                        for(uint32_t c = 0; c < tile->width(); ++c) {
-//                            printf("%f ", pData[c * tile->height() + r]);
-//                        }
-//                        printf("\n");
-//                    }
-//                    printf("\n");
+                    printTile(tile);
                     fflush(stdout);
                 }
                 countA++;
@@ -76,14 +118,7 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
             [&countB](std::shared_ptr<MatrixTile<MatrixType, IdB>> &tile) {
                 if(isRootNodeId()) {
                     printf("[node %ld][count %2d] tileB(%ld, %ld)>>\n", getNodeId(), countB, tile->rowIdx(), tile->colIdx());
-//                    auto pData = (MatrixType *) tile->data();
-//                    for(uint32_t r = 0; r < tile->height(); ++r) {
-//                        for(uint32_t c = 0; c < tile->width(); ++c) {
-//                            printf("%f ", pData[c * tile->height() + r]);
-//                        }
-//                        printf("\n");
-//                    }
-//                    printf("\n");
+                    printTile(tile);
                     fflush(stdout);
                 }
                 tile->ttl(0);
@@ -94,7 +129,9 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
         );
     }
 
-    printf("[Mode %ld][CountA = %d][CountB = %d]\n", getNodeId(), countA, countB);
+    fflush(stdout);
+    checkMpiErrors(MPI_Barrier(mpiComm));
+    printf("[Node %ld][CountA = %d][CountB = %d]\n", getNodeId(), countA, countB);
     fflush(stdout);
     graph.waitForTermination();
 
@@ -130,28 +167,16 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
     auto matrixB = std::make_shared<TwoDBlockCyclicContiguousSubMatrix<MatrixType, IdB>>(memoryType, K, N, T, p, q, mpiComm);
     auto matrixC = std::make_shared<TwoDBlockCyclicContiguousSubMatrix<MatrixType, IdC>>(memoryType, M, N, T, p, q, mpiComm);
 
-    auto matrixInit = [](auto matrix) {
-        for(int64_t rowIdx = 0; rowIdx < matrix->matrixNumRowTiles(); ++rowIdx) {
-            for(int64_t colIdx = 0; colIdx < matrix->matrixNumColTiles(); ++colIdx) {
-                if(auto tile = matrix->tile(rowIdx, colIdx)) {
-                    auto pData = (MatrixType *)tile->data();
-                    for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = MatrixType(getNodeId()*1000+rowIdx*100+colIdx*10);
-                }
-            }
-        }
-    };
+    matrixInit<MatrixType, IdA>(matrixA);
+    matrixInit<MatrixType, IdB>(matrixB);
+    matrixInit<MatrixType, IdC>(matrixC);
 
-    matrixInit(matrixA);
-    matrixInit(matrixB);
-    matrixInit(matrixC);
-
-    std::mutex mpiMutex;
     std::atomic_int32_t stop = 2;
 
     auto graph = hh::Graph<4, MatAMatC, MatBMatC, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB>();
-    auto taskA = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdA>>(&mpiMutex, &stop);
+    auto taskA = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdA>>(&stop);
     taskA->connectMemoryManager(std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(4, T, memoryType));
-    auto taskB = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdB>>(&mpiMutex, &stop);
+    auto taskB = std::make_shared<MatrixWarehousePrefetchTask<MatrixType, IdB>>(&stop);
     taskB->connectMemoryManager(std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(4, T, memoryType));
 
     graph.input<MatAMatC>(taskA);
@@ -222,14 +247,7 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
             [&countA](std::shared_ptr<MatrixTile<MatrixType, IdA>> &tile) {
                 if(isRootNodeId()) {
                     printf("[node %ld][count %2d] tileA(%ld, %ld)>>\n", getNodeId(), countA, tile->rowIdx(), tile->colIdx());
-                    auto pData = (MatrixType *) tile->data();
-                    for(uint32_t r = 0; r < tile->height(); ++r) {
-                        for(uint32_t c = 0; c < tile->width(); ++c) {
-                            printf("%f ", pData[c * tile->height() + r]);
-                        }
-                        printf("\n");
-                    }
-                    printf("\n");
+                    printTile(tile);
                     fflush(stdout);
                 }
                 countA++;
@@ -237,16 +255,9 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
                 if(tile->isMemoryManagerConnected()) tile->returnToMemoryManager();
             },
             [&countB](std::shared_ptr<MatrixTile<MatrixType, IdB>> &tile) {
-                if(isRootNodeId() and false) {
+                if(isRootNodeId()) {
                     printf("[node %ld][count %2d] tileB(%ld, %ld)>>\n", getNodeId(), countB, tile->rowIdx(), tile->colIdx());
-                    auto pData = (MatrixType *) tile->data();
-                    for(uint32_t r = 0; r < tile->height(); ++r) {
-                        for(uint32_t c = 0; c < tile->width(); ++c) {
-                            printf("%f ", pData[c * tile->height() + r]);
-                        }
-                        printf("\n");
-                    }
-                    printf("\n");
+                    printTile(tile);
                     fflush(stdout);
                 }
                 tile->ttl(0);
@@ -257,7 +268,9 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
         );
     }
 
-    printf("[Mode %ld][CountA = %d][CountB = %d]\n", getNodeId(), countA, countB);
+    fflush(stdout);
+    checkMpiErrors(MPI_Barrier(mpiComm));
+    printf("[Node %ld][CountA = %d][CountB = %d]\n", getNodeId(), countA, countB);
     fflush(stdout);
     graph.waitForTermination();
 
@@ -275,7 +288,7 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
 
 int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles, path, host, resultsFile] = parseArgs(argc, argv);
-    MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
+    MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q, MPI_THREAD_SERIALIZED);
 
     testMatrixWarehouseTask(p, q, M, K, N, T);
     testMatrixWarehousePrefetchTask(p, q, M, K, N, T);

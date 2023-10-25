@@ -367,7 +367,7 @@ private:
 
         explicit InterNodeRequest(const int64_t otherNode, const std::vector<std::tuple<int64_t, int64_t>> &&indices, bool quit = false):
             otherNode_(otherNode) {
-            assert(indices.size() != 0);
+            assert(!indices.empty());
             assert((indices.size()*STRIDE + BEGIN) < (sizeof(MetaDataBuffer)/sizeof(int64_t)));
 
             metaDataBuffer_[SIZE] = indices.size();
@@ -487,7 +487,7 @@ private:
             }
         }
         else {
-            // metadata is pretty small (32KB) therefore eager protocol will be used by MPI while sending this
+            // metadata is pretty small (16KB) therefore eager protocol will be used by MPI while sending this
             // buffer, hence a blocking send is good enough here.
             auto request   = InterNodeRequest(dbRequest->srcNode, std::move(dbRequest->indices), canTerminate);
             auto &mdBuffer = request.metaDataBuffer();

@@ -456,7 +456,6 @@ public:
         assert(matrix_ == nullptr);
 
         matrix_       = matrix;
-        liveNodeList_ = std::vector<bool>(matrix_->numNodes(), true);
         daemon_       = std::thread(&MatrixWarehouseTask::daemon, this);
         liveNodeCounter_.store(matrix_->numNodes());
 
@@ -469,10 +468,6 @@ public:
         if(matrix_ == nullptr) {
             dbRequests_.emplace_back(dbRequest);
             return;
-        }
-
-        if(!this->liveNodeList_[matrix_->nodeId()]) {
-            throw std::runtime_error("MatrixDbTask shouldn't receive db requests!");
         }
 
         handleDbRequest(dbRequest);
@@ -519,8 +514,7 @@ private:
                 checkMpiErrors(MPI_Isend(&mdBuffer[0], sizeof(mdBuffer), MPI_BYTE, request.otherNode(), Id, matrix_->mpiComm(), request.mpiRequestHandle()));
                 outgoingRequests_.emplace_back(std::move(request));
             }
-            liveNodeList_[matrix_->nodeId()] = false;
-            liveNodeCounter_.store(std::accumulate(liveNodeList_.begin(), liveNodeList_.end(), 0));
+            liveNodeCounter_.fetch_sub(1);
         }
         daemon_.join();
     }
@@ -581,8 +575,7 @@ private:
 
             auto sl = std::scoped_lock(mutex_, mpiMutex);
             if(request.quit()) {
-                liveNodeList_[mpiStatus.MPI_SOURCE] = false;
-                liveNodeCounter_.store(std::accumulate(liveNodeList_.begin(), liveNodeList_.end(), 0));
+                liveNodeCounter_.fetch_sub(1);
             }
             for(const auto [rowIdx, colIdx, tagId]: request) {
                 InterNodeResponse response = {};
@@ -634,7 +627,6 @@ private:
     std::list<std::shared_ptr<DB_Request>> dbRequests_         = {};
     std::list<InterNodeRequest>            outgoingRequests_   = {};
     std::list<InterNodeResponse>           outgoingResponses_  = {};
-    std::vector<bool>                      liveNodeList_       = {};
     std::atomic_int64_t                    liveNodeCounter_    = {};
     std::shared_ptr<uint8_t[]>             mpiBuffer_          = {};
 };

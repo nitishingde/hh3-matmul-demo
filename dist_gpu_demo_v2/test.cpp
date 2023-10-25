@@ -8,22 +8,51 @@ void matrixInit(std::shared_ptr<MatrixContainer<MatrixType, Id>> matrix) {
         for(int64_t colIdx = 0; colIdx < matrix->matrixNumColTiles(); ++colIdx) {
             if(auto tile = matrix->tile(rowIdx, colIdx)) {
                 auto pData = (MatrixType *)tile->data();
-                for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = MatrixType(getNodeId()*1000+rowIdx*100+colIdx*10);
+                for(int64_t i = 0; i < tile->width()*tile->height(); ++i) pData[i] = MatrixType(getNodeId()*10000 + rowIdx*1000 + colIdx*100 + i);
             }
         }
     }
 }
 
 template<typename MatrixType, char Id>
-void printTile(std::shared_ptr<MatrixTile<MatrixType, Id>> tile) {
+[[nodiscard]] std::string printTile(std::shared_ptr<MatrixTile<MatrixType, Id>> tile) {
+    std::stringstream ss;
     auto pData = (MatrixType *) tile->data();
     for(uint32_t r = 0; r < tile->height(); ++r) {
         for(uint32_t c = 0; c < tile->width(); ++c) {
-            printf("%f ", pData[c*tile->height() + r]);
+            ss << pData[c*tile->height() + r] << ' ';
         }
-        printf("\n");
+        ss << "\n";
     }
-    printf("\n");
+    ss << "\n";
+    return ss.str();
+}
+
+[[nodiscard]] std::string printExpectedTile(int64_t rowIdx, int64_t colIdx, int64_t height, int64_t width, int64_t srcNode) {
+    std::stringstream ss;
+    for(uint32_t r = 0; r < height; ++r) {
+        for(uint32_t c = 0; c < width; ++c) {
+            ss << double(srcNode*10000 + rowIdx*1000 + colIdx*100 + c*height+r) << ' ';
+        }
+        ss << "\n";
+    }
+    ss << "\n";
+
+    return ss.str();
+}
+
+template<typename MatrixType, char Id>
+bool verifyTile(std::shared_ptr<MatrixTile<MatrixType, Id>> tile, int64_t srcNode) {
+    auto pData = (MatrixType *)tile->data();
+    auto rowIdx = tile->rowIdx();
+    auto colIdx = tile->colIdx();
+    for(int64_t i = 0; i < tile->width()*tile->height(); ++i) {
+        if(0.1 < std::abs(pData[i] - MatrixType(srcNode*10000 + rowIdx*1000 + colIdx*100 + i))) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t N, int64_t T) {
@@ -105,22 +134,34 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
     int32_t countA = 0, countB = 0;
     for(auto result = graph.getBlockingResult(); result != nullptr; result = graph.getBlockingResult()) {
         std::visit(hh::ResultVisitor{
-            [&countA](std::shared_ptr<MatrixTile<MatrixType, IdA>> &tile) {
-                if(isRootNodeId()) {
-                    printf("[node %ld][count %2d] tileA(%ld, %ld)>>\n", getNodeId(), countA, tile->rowIdx(), tile->colIdx());
-                    printTile(tile);
-                    fflush(stdout);
+            [&countA, &matrixA](std::shared_ptr<MatrixTile<MatrixType, IdA>> &tile) {
+                auto rowIdx   = tile->rowIdx();
+                auto colIdx   = tile->colIdx();
+                auto verified = verifyTile(tile, matrixA->owner(rowIdx, colIdx));
+                std::string extraInfo = "";
+                if(!verified) {
+                    extraInfo = extraInfo + ANSI_COLOR_RED   + "Received >>\n" + printTile(tile) + "\n" + ANSI_COLOR_RESET;
+                    extraInfo = extraInfo + ANSI_COLOR_GREEN + "Expected >>\n" + printExpectedTile(rowIdx, colIdx, matrixA->tileHeight(rowIdx, colIdx), matrixA->tileWidth(rowIdx, colIdx), matrixA->owner(rowIdx, colIdx)) + "\n" + ANSI_COLOR_RESET;
                 }
+                printf("[node %ld][count %2d][ %s ] tileA(%ld, %ld)\n%s", getNodeId(), countA, verified? GREEN("verified!"): RED("error!"), rowIdx, colIdx, extraInfo.c_str());
+                fflush(stdout);
+                assert(verified);
                 countA++;
                 tile->ttl(0);
                 if(tile->isMemoryManagerConnected()) tile->returnToMemoryManager();
             },
-            [&countB](std::shared_ptr<MatrixTile<MatrixType, IdB>> &tile) {
-                if(isRootNodeId()) {
-                    printf("[node %ld][count %2d] tileB(%ld, %ld)>>\n", getNodeId(), countB, tile->rowIdx(), tile->colIdx());
-                    printTile(tile);
-                    fflush(stdout);
+            [&countB, &matrixB](std::shared_ptr<MatrixTile<MatrixType, IdB>> &tile) {
+                auto rowIdx   = tile->rowIdx();
+                auto colIdx   = tile->colIdx();
+                auto verified = verifyTile(tile, matrixB->owner(rowIdx, colIdx));
+                std::string extraInfo = "";
+                if(!verified) {
+                    extraInfo = extraInfo + ANSI_COLOR_RED   + "Received >>\n" + printTile(tile) + "\n" + ANSI_COLOR_RESET;
+                    extraInfo = extraInfo + ANSI_COLOR_GREEN + "Expected >>\n" + printExpectedTile(rowIdx, colIdx, matrixB->tileHeight(rowIdx, colIdx), matrixB->tileWidth(rowIdx, colIdx), matrixB->owner(rowIdx, colIdx)) + "\n" + ANSI_COLOR_RESET;
                 }
+                printf("[node %ld][count %2d][ %s ] tileB(%ld, %ld)\n%s", getNodeId(), countB, verified? GREEN("verified!"): RED("error!"), rowIdx, colIdx, extraInfo.c_str());
+                fflush(stdout);
+                assert(verified);
                 tile->ttl(0);
                 if(tile->isMemoryManagerConnected()) tile->returnToMemoryManager();
                 countB++;
@@ -161,7 +202,6 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
     using MatBMatC   = std::tuple<std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
     using TileA      = MatrixTile<MatrixType, IdA>;
     using TileB      = MatrixTile<MatrixType, IdB>;
-    using TileC      = MatrixTile<MatrixType, IdC>;
 
     auto matrixA = std::make_shared<TwoDBlockCyclicContiguousSubMatrix<MatrixType, IdA>>(memoryType, M, K, T, p, q, mpiComm);
     auto matrixB = std::make_shared<TwoDBlockCyclicContiguousSubMatrix<MatrixType, IdB>>(memoryType, K, N, T, p, q, mpiComm);
@@ -244,22 +284,34 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
     int32_t countA = 0, countB = 0;
     for(auto result = graph.getBlockingResult(); result != nullptr; result = graph.getBlockingResult()) {
         std::visit(hh::ResultVisitor {
-            [&countA](std::shared_ptr<MatrixTile<MatrixType, IdA>> &tile) {
-                if(isRootNodeId()) {
-                    printf("[node %ld][count %2d] tileA(%ld, %ld)>>\n", getNodeId(), countA, tile->rowIdx(), tile->colIdx());
-                    printTile(tile);
-                    fflush(stdout);
+            [&countA, &matrixA](std::shared_ptr<MatrixTile<MatrixType, IdA>> &tile) {
+                auto rowIdx   = tile->rowIdx();
+                auto colIdx   = tile->colIdx();
+                auto verified = verifyTile(tile, matrixA->owner(rowIdx, colIdx));
+                std::string extraInfo = "";
+                if(!verified) {
+                    extraInfo = extraInfo + ANSI_COLOR_RED   + "Received >>\n" + printTile(tile) + "\n" + ANSI_COLOR_RESET;
+                    extraInfo = extraInfo + ANSI_COLOR_GREEN + "Expected >>\n" + printExpectedTile(rowIdx, colIdx, matrixA->tileHeight(rowIdx, colIdx), matrixA->tileWidth(rowIdx, colIdx), matrixA->owner(rowIdx, colIdx)) + "\n" + ANSI_COLOR_RESET;
                 }
+                printf("[node %ld][count %2d][ %s ] tileA(%ld, %ld)\n%s", getNodeId(), countA, verified? GREEN("verified!"): RED("error!"), rowIdx, colIdx, extraInfo.c_str());
+                fflush(stdout);
+                assert(verified);
                 countA++;
                 tile->ttl(0);
                 if(tile->isMemoryManagerConnected()) tile->returnToMemoryManager();
             },
-            [&countB](std::shared_ptr<MatrixTile<MatrixType, IdB>> &tile) {
-                if(isRootNodeId()) {
-                    printf("[node %ld][count %2d] tileB(%ld, %ld)>>\n", getNodeId(), countB, tile->rowIdx(), tile->colIdx());
-                    printTile(tile);
-                    fflush(stdout);
+            [&countB, &matrixB](std::shared_ptr<MatrixTile<MatrixType, IdB>> &tile) {
+                auto rowIdx   = tile->rowIdx();
+                auto colIdx   = tile->colIdx();
+                auto verified = verifyTile(tile, matrixB->owner(rowIdx, colIdx));
+                std::string extraInfo = "";
+                if(!verified) {
+                    extraInfo = extraInfo + ANSI_COLOR_RED   + "Received >>\n" + printTile(tile) + "\n" + ANSI_COLOR_RESET;
+                    extraInfo = extraInfo + ANSI_COLOR_GREEN + "Expected >>\n" + printExpectedTile(rowIdx, colIdx, matrixB->tileHeight(rowIdx, colIdx), matrixB->tileWidth(rowIdx, colIdx), matrixB->owner(rowIdx, colIdx)) + "\n" + ANSI_COLOR_RESET;
                 }
+                printf("[node %ld][count %2d][ %s ] tileB(%ld, %ld)\n%s", getNodeId(), countB, verified? GREEN("verified!"): RED("error!"), rowIdx, colIdx, extraInfo.c_str());
+                fflush(stdout);
+                assert(verified);
                 tile->ttl(0);
                 if(tile->isMemoryManagerConnected()) tile->returnToMemoryManager();
                 countB++;
@@ -283,7 +335,6 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
         std::make_unique<hh::JetColor>(),
         false
     );
-
 }
 
 int main(int argc, char *argv[]) {
@@ -292,6 +343,8 @@ int main(int argc, char *argv[]) {
 
     testMatrixWarehouseTask(p, q, M, K, N, T);
     testMatrixWarehousePrefetchTask(p, q, M, K, N, T);
+
+    if(isRootNodeId()) printf(GREEN("\nUnit Tests completed!\n"));
 
     return 0;
 }

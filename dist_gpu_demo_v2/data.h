@@ -439,8 +439,11 @@ template<char Id>
 struct DbRequest {
     int64_t                                   srcNode = {};
     std::vector<std::tuple<int64_t, int64_t>> indices = {};
+    bool                                      quit    = false;
 
     explicit DbRequest(int64_t srcNode): srcNode(srcNode) {}
+
+    explicit DbRequest(bool quit): quit(quit) {}
 
     explicit DbRequest(int64_t rowIdx, int64_t colIdx) {
         indices.emplace_back(rowIdx, colIdx);

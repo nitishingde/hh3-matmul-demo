@@ -129,6 +129,8 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
             }
         }
     }
+    graph.pushData(std::make_shared<DbRequest<IdA>>(true));
+    graph.pushData(std::make_shared<DbRequest<IdB>>(true));
     graph.finishPushingData();
 
     int32_t countA = 0, countB = 0;

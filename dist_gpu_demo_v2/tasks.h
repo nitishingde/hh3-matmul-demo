@@ -111,6 +111,9 @@ public:
             this->addResult(reqB);
         }
 
+        this->addResult(std::make_shared<DbRequest<IdA>>(true));
+        this->addResult(std::make_shared<DbRequest<IdB>>(true));
+
         for(int64_t kt = 0; kt < KT; ++kt) {
             genJobsIfReady(kt);
         }
@@ -478,8 +481,6 @@ public:
 
 private:
     void handleDbRequest(std::shared_ptr<DB_Request> dbRequest) {
-        auto canTerminate = hh::AbstractTask<2, Matrix, DB_Request, Tile>::canTerminate();
-
         if(dbRequest->srcNode == matrix_->nodeId()) {
             for(auto [rowIdx, colIdx]: dbRequest->indices) {
                 this->addResult(matrix_->tile(rowIdx, colIdx));
@@ -488,7 +489,7 @@ private:
         else {
             // metadata is pretty small (16KB) therefore eager protocol will be used by MPI while sending this
             // buffer, hence a blocking send is good enough here.
-            auto request   = InterNodeRequest(dbRequest->srcNode, std::move(dbRequest->indices), canTerminate);
+            auto request   = InterNodeRequest(dbRequest->srcNode, std::move(dbRequest->indices), dbRequest->quit);
             auto &mdBuffer = request.metaDataBuffer();
 
             mpiMutex.lock();
@@ -500,7 +501,7 @@ private:
             mutex_.unlock();
         }
 
-        if(!canTerminate) return;
+        if(!dbRequest->quit) return;
 
         {
             auto sl = std::scoped_lock(mutex_, mpiMutex);

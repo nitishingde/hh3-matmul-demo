@@ -125,11 +125,30 @@ public:
         graph.pushData(std::make_shared<Triplet>(std::make_tuple(matrixA, matrixB, matrixC)));
         graph.finishPushingData();
 
+#ifndef NDEBUG
+        std::atomic_bool quit = false;
+        auto dotGraphDaemon = std::thread([&graph, &dotFile, &quit]() {
+            using namespace std::chrono_literals;
+            while(!quit.load()) {
+                graph.createDotFile(
+                    dotFile,
+                    hh::ColorScheme::EXECUTION,
+                    hh::StructureOptions::QUEUE,
+                    hh::InputOptions::GATHERED,
+                    hh::DebugOptions::ALL,
+                    std::make_unique<hh::JetColor>(),
+                    false
+                );
+                std::this_thread::sleep_for(4ms);
+            }
+        });
+#endif
         graph.waitForTermination();
+
 #if NDEBUG
         graph.createDotFile(
             dotFile,
-            hh::ColorScheme::WAIT,
+            hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
             hh::InputOptions::GATHERED,
             hh::DebugOptions::NONE,
@@ -137,9 +156,11 @@ public:
             false
         );
 #else
+        quit.store(true);
+        dotGraphDaemon.join();
         graph.createDotFile(
             dotFile,
-            hh::ColorScheme::WAIT,
+            hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
             hh::InputOptions::SEPARATED,
             hh::DebugOptions::NONE,
@@ -265,31 +286,30 @@ public:
         graph.pushData(std::make_shared<Triplet>(std::make_tuple(matrixA, matrixB, matrixC)));
         graph.finishPushingData();
 
-        std::atomic<bool> quit = false;
-        std::thread dots([&graph, &dotFile, &quit]() {
-            while(true) {
-                if(quit.load()) return;
-                using namespace std::chrono_literals;
-                std::this_thread::sleep_for(4s);
+#ifndef NDEBUG
+        std::atomic_bool quit = false;
+        auto dotGraphDaemon = std::thread([&graph, &dotFile, &quit]() {
+            using namespace std::chrono_literals;
+            while(!quit.load()) {
                 graph.createDotFile(
                     dotFile,
                     hh::ColorScheme::EXECUTION,
                     hh::StructureOptions::QUEUE,
                     hh::InputOptions::GATHERED,
-                    hh::DebugOptions::NONE,
+                    hh::DebugOptions::ALL,
                     std::make_unique<hh::JetColor>(),
                     false
                 );
+                std::this_thread::sleep_for(4ms);
             }
         });
-
+#endif
         graph.waitForTermination();
-        quit.store(true);
-        dots.join();
+
 #if NDEBUG
         graph.createDotFile(
             dotFile,
-            hh::ColorScheme::WAIT,
+            hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
             hh::InputOptions::GATHERED,
             hh::DebugOptions::NONE,
@@ -297,6 +317,8 @@ public:
             false
         );
 #else
+        quit.store(true);
+        dotGraphDaemon.join();
         graph.createDotFile(
             dotFile,
             hh::ColorScheme::EXECUTION,

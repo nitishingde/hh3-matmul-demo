@@ -99,7 +99,7 @@ public:
             this->addResult(reqA);
 
             // FIXME: works only for TwoDBlockCyclicMatrix and TwoDBlockCyclicContiguousSubMatrix
-            auto reqB = std::make_shared<DbRequest<IdB>>(matrixB->owner(*colIndices.begin(), kt));
+            auto reqB = std::make_shared<DbRequest<IdB>>(matrixB->owner(kt, *colIndices.begin()));
             for(auto colIdx: colIndices) {
                 if(auto tileB = matrixB->tile(kt, colIdx); tileB != nullptr) {
                     rowTilesFromB_[kt].emplace_back(tileB);
@@ -367,7 +367,6 @@ private:
 
         explicit InterNodeRequest(const int64_t otherNode, const std::vector<std::tuple<int64_t, int64_t>> &&indices, bool quit = false):
             otherNode_(otherNode) {
-            assert(!indices.empty());
             assert((indices.size()*STRIDE + BEGIN) < (sizeof(MetaDataBuffer)/sizeof(int64_t)));
 
             metaDataBuffer_[SIZE] = indices.size();

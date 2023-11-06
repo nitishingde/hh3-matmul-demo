@@ -62,6 +62,7 @@ if(CUDA_FOUND AND MPI_FOUND)
 	set(CUDA_NVCC_FLAGS_RELEASE -O3; -DNDEBUG)
 	add_subdirectory(dist_gpu_demo)
 	add_subdirectory(dist_gpu_demo_v2)
+	add_subdirectory(dist_gpu_demo_v3)
 endif(CUDA_FOUND AND MPI_FOUND)
 
 if(OpenBLAS_FOUND AND MPI_FOUND)

@@ -69,8 +69,7 @@ int main(int argc, char *argv[]) {
     constexpr MemoryType memoryType = MemoryType::HOST;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
-//    auto [wh, ww] = getWindowSize<MatrixType>(M, N, T, gp, gq, d);
-    int64_t wh = 2, ww = 2;
+    auto [wh, ww] = getWindowSize<MatrixType>(M, N, T, gp, gq, d);
     printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, wh, ww);
     fflush(stdout);
 

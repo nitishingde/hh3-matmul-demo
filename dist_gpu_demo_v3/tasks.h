@@ -863,7 +863,7 @@ public:
     }
 
     std::shared_ptr<hh::AbstractTask<1, Pair, Tile>>
-    copy() {
+    copy() override {
         return std::make_shared<BlockingDeviceToHostCopyTask>(this->numberThreads());
     }
 };

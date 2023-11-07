@@ -45,3 +45,9 @@ target_link_libraries(demo1_v3
     PUBLIC
         dist_matmul_v3
 )
+
+add_executable(benchmark1_v3 benchmark1_v3.cpp)
+target_link_libraries(benchmark1_v3
+    PUBLIC
+        dist_matmul_v3
+)

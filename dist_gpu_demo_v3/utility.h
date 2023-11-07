@@ -131,6 +131,12 @@ private:
 // Argument parser -------------------------------------------------------------------------------------------------- //
 
 auto parseArgs(int argc, char **argv) {
+    int64_t prodThreads = 4;
+#if HH_USE_CUDA
+    cudaDeviceProp cudaDeviceProp{};
+    cudaGetDeviceProperties(&cudaDeviceProp, 0);
+    prodThreads = cudaDeviceProp.asyncEngineCount;
+#endif
     try {
         TCLAP::CmdLine cmd("Command description message", ' ', "1.0");
 
@@ -156,6 +162,8 @@ auto parseArgs(int argc, char **argv) {
         cmd.add(argGq);
         TCLAP::ValueArg<int64_t> argD("d", "depth", "depth", false, 2, "non negative integer value");
         cmd.add(argD);
+        TCLAP::ValueArg<int64_t> argPt("t", "prod", "product threads", false, prodThreads, "non negative integer value");
+        cmd.add(argPt);
 
         TCLAP::ValueArg<std::string> argPath("P", "path", "scratch/tmp dir path", false, "./dots/", "dir path");
         cmd.add(argPath);
@@ -174,6 +182,7 @@ auto parseArgs(int argc, char **argv) {
             argGp.getValue(),
             argGq.getValue(),
             argD.getValue(),
+            argPt.getValue(),
             argPath.getValue(),
             results.getValue()
         );
@@ -191,6 +200,7 @@ auto parseArgs(int argc, char **argv) {
             int64_t(2),
             int64_t(2),
             int64_t(2),
+            int64_t(4),
             std::string("./"),
             std::string("./results.csv")
         );

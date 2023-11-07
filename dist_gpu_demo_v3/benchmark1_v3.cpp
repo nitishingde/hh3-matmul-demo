@@ -3,7 +3,7 @@
 #include <filesystem>
 
 int main(int argc, char *argv[]) {
-    auto [p, q, M, K, N, T, l, gp, gq, d, path, resultsFile] = parseArgs(argc, argv);
+    auto [p, q, M, K, N, T, l, gp, gq, d, productThreads, path, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
 
     using MatrixType = double;
@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     std::ofstream csvFile;
 
     auto [wh, ww] = getWindowSize<MatrixType>(M, N, T, gp, gq, d);
-    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, wh, ww);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][productThreads %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, productThreads, wh, ww);
     fflush(stdout);
 
     int32_t gpuCount = 0;
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     constexpr int32_t ITER = 10;
     double times[ITER];
     for(int32_t iter = 0; iter < ITER; ++iter) {
-        times[iter]  = strategy.builder(gp, gq, wh, ww, d).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot");
+        times[iter]  = strategy.builder(gp, gq, wh, ww, d, productThreads).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot");
         if(isRootNodeId()) {
             double gflops = (double(M) * double(K) * double(N) * double(2)) / (1.e9 * times[iter]);
             csvFile << iter+1 << ", " << gflops << ", " << times[iter] << std::endl;

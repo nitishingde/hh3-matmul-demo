@@ -40,12 +40,13 @@ private:
 public:
     explicit MMD_WindowStrategy() = default;
 
-    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t gp, const int64_t gq, const int64_t windowHeight, const int64_t windowWidth, const int64_t depth) {
-        gp_           = gp;
-        gq_           = gq;
-        windowHeight_ = windowHeight;
-        windowWidth_  = windowWidth;
-        depth_        = depth;
+    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t gp, const int64_t gq, const int64_t windowHeight, const int64_t windowWidth, const int64_t depth, const int64_t productThreads) {
+        gp_             = gp;
+        gq_             = gq;
+        windowHeight_   = windowHeight;
+        windowWidth_    = windowWidth;
+        depth_          = depth;
+        productThreads_ = productThreads;
 
         return *this;
     }
@@ -86,7 +87,7 @@ public:
         jobGenTask->connectMemoryManager(std::make_shared<GpuTokenMemoryManager>(deviceIds));
         auto tileSorterTask     = std::make_shared<TileSorterTask<MatrixType, IdA, IdB>>(gp_, gq_);
         auto execPipeline       = std::make_shared<OuterProductExecutionPipeline<MatrixType, IdA, IdB, IdC>>(
-            std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC>>(MT, KT, NT, T, windowHeight_, windowWidth_, depth_), deviceIds
+            std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC>>(MT, KT, NT, T, windowHeight_, windowWidth_, depth_, productThreads_), deviceIds
         );
         auto dwTaskA            = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
         dwTaskA->connectMemoryManager(
@@ -124,7 +125,7 @@ public:
                     dotFile,
                     hh::ColorScheme::EXECUTION,
                     hh::StructureOptions::QUEUE,
-                    hh::InputOptions::GATHERED,
+                    hh::InputOptions::SEPARATED,
                     hh::DebugOptions::ALL,
                     std::make_unique<hh::JetColor>(),
                     false
@@ -141,7 +142,7 @@ public:
             dotFile,
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
-            hh::InputOptions::SEPARATED,
+            hh::InputOptions::GATHERED,
             hh::DebugOptions::NONE,
             std::make_unique<hh::JetColor>(),
             false
@@ -153,7 +154,7 @@ public:
             dotFile,
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
-            hh::InputOptions::SEPARATED,
+            hh::InputOptions::GATHERED,
             hh::DebugOptions::NONE,
             std::make_unique<hh::JetColor>(),
             false
@@ -171,11 +172,12 @@ public:
     }
 
 private:
-    int64_t windowHeight_;
-    int64_t windowWidth_;
-    int64_t gp_;
-    int64_t gq_;
-    int64_t depth_;
+    int64_t windowHeight_   = 0;
+    int64_t windowWidth_    = 0;
+    int64_t gp_             = 0;
+    int64_t gq_             = 0;
+    int64_t depth_          = 0;
+    int64_t productThreads_ = 0;
 };
 
 #endif //HH3_MATMUL_MMD_H

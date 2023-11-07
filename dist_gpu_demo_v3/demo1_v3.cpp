@@ -58,7 +58,7 @@ void printMatrix(MatrixType *mat, int64_t height, int64_t width, const char *msg
 #endif
 
 int main(int argc, char *argv[]) {
-    auto [p, q, M, K, N, T, l, gp, gq, d, path, resultsFile] = parseArgs(argc, argv);
+    auto [p, q, M, K, N, T, l, gp, gq, d, productThreads, path, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
 
     using MatrixType = float;
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
     auto [wh, ww] = getWindowSize<MatrixType>(M, N, T, gp, gq, d);
-    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, wh, ww);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][productThreads %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, productThreads, wh, ww);
     fflush(stdout);
 
     int32_t gpuCount = 0;
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
-    auto time = strategy.builder(gp, gq, wh, ww, d).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
+    auto time = strategy.builder(gp, gq, wh, ww, d, productThreads).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
     if(isRootNodeId()) {
         printf("[ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
             (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time),

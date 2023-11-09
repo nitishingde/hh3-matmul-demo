@@ -167,7 +167,7 @@ public:
     [[nodiscard]] Major       major()            const { return major_;                                }
     [[nodiscard]] MemoryOwner memoryOwner()      const { return memoryOwner_;                          }
     [[nodiscard]] MemoryState memoryState()      const { return memoryState_;                          }
-    [[nodiscard]] int64_t     ttl()              const { return ttl_;                                  }
+    [[nodiscard]] int64_t     ttl()              const { return ttl_.load();                           }
 
     // Setters
     void init(const int64_t rowIdx, const int64_t colIdx, const int64_t height, const int64_t width) {

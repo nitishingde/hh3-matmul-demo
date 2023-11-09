@@ -51,6 +51,8 @@ template<typename MatrixType, char IdA, char IdB, char IdC>
 class GpuJobGeneratorTask: public hh::AbstractTask<
         1,
         std::tuple<std::shared_ptr<MatrixContainer<MatrixType, IdA>>, std::shared_ptr<MatrixContainer<MatrixType, IdB>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>,
+        MatrixTile<MatrixType, IdA>,
+        MatrixTile<MatrixType, IdB>,
         DbRequest<IdA>,
         DbRequest<IdB>,
         GpuJob<MatrixType, IdA, IdB, IdC>
@@ -66,7 +68,7 @@ private:
 
 public:
     explicit GpuJobGeneratorTask(const size_t gp, const size_t gq, const int64_t windowHeight, const int64_t windowWidth):
-        hh::AbstractTask<1, Triplet, DbRequest<IdA>, DbRequest<IdB>, Job>("GpuJobGeneratorTask", 1, false),
+        hh::AbstractTask<1, Triplet, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, Job>("GpuJobGeneratorTask", 1, false),
         deviceCount_(gp*gq), gp0_(gp), gq0_(gq), windowHeight_(windowHeight), windowWidth_(windowWidth) {}
 
     void execute(std::shared_ptr<Triplet> triplet) override {
@@ -87,7 +89,7 @@ public:
         }
         std::vector<int64_t> rowIndices(rowIndicesSet.begin(), rowIndicesSet.end());
         std::vector<int64_t> colIndices(colIndicesSet.begin(), colIndicesSet.end());
-        auto priorityQueue = getPrioritySequence(matrixA, matrixB, rowIndices, colIndices);
+//        auto priorityQueue = getPrioritySequence(matrixA, matrixB, rowIndices, colIndices);//FIXME: not been used
 
 #ifndef NDEBUG
         auto MT = matrixC->matrixNumRowTiles(), NT = matrixC->matrixNumColTiles();
@@ -156,24 +158,33 @@ public:
                 print();
 #endif
 
+//                for(int64_t kt = 0; kt < KT; ++kt) {
+//                    auto reqA = std::make_shared<DbRequest<IdA>>(matrixA->owner(*rowIndicesSet.begin(), kt));
+//                    for(auto rowIdx: rowIndicesSet) {
+//                        reqA->addIndex(rowIdx, kt);
+//                    }
+//                    this->addResult(reqA);
+//
+//                    auto reqB = std::make_shared<DbRequest<IdB>>(matrixB->owner(kt, *colIndicesSet.begin()));
+//                    for(auto colIdx: colIndicesSet) {
+//                        reqB->addIndex(kt, colIdx);
+//                    }
+//                    this->addResult(reqB);
+//                }
                 for(int64_t kt = 0; kt < KT; ++kt) {
-                    auto reqA = std::make_shared<DbRequest<IdA>>(matrixA->owner(*rowIndicesSet.begin(), kt));
                     for(auto rowIdx: rowIndicesSet) {
-                        reqA->addIndex(rowIdx, kt);
+                        this->addResult(matrixA->tile(rowIdx, kt));
                     }
-                    this->addResult(reqA);
 
-                    auto reqB = std::make_shared<DbRequest<IdB>>(matrixB->owner(kt, *colIndicesSet.begin()));
                     for(auto colIdx: colIndicesSet) {
-                        reqB->addIndex(kt, colIdx);
+                        this->addResult(matrixB->tile(kt, colIdx));
                     }
-                    this->addResult(reqB);
                 }
             }
         }
 
-        this->addResult(std::make_shared<DbRequest<IdA>>(true));
-        this->addResult(std::make_shared<DbRequest<IdB>>(true));
+//        this->addResult(std::make_shared<DbRequest<IdA>>(true));
+//        this->addResult(std::make_shared<DbRequest<IdB>>(true));
 
         this->taskBarrier();
         this->addResult(std::make_shared<Job>(true));

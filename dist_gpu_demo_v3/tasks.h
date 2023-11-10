@@ -69,7 +69,7 @@ private:
 public:
     explicit GpuJobGeneratorTask(const size_t gp, const size_t gq, const int64_t windowHeight, const int64_t windowWidth):
         hh::AbstractTask<1, Triplet, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, Job>("GpuJobGeneratorTask", 1, false),
-        deviceCount_(gp*gq), gp0_(gp), gq0_(gq), windowHeight_(windowHeight), windowWidth_(windowWidth) {}
+        gp0_(gp), gq0_(gq), windowHeight_(windowHeight), windowWidth_(windowWidth) {}
 
     void execute(std::shared_ptr<Triplet> triplet) override {
         auto matrixA = std::get<std::shared_ptr<MatrixA>>(*triplet);
@@ -244,7 +244,6 @@ private:
     }
 
 private:
-    size_t  deviceCount_  = 0;
     size_t  gp0_          = 0;
     size_t  gq0_          = 0;
     int64_t windowHeight_ = 0;

@@ -31,7 +31,7 @@ public:
         );
         auto h2dTaskC  = std::make_shared<BlockingHostToDeviceCopyTask<MatrixType, IdC>>(std::max(threadCount/2, 1));
         h2dTaskC->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(windowHeight*windowWidth, tileSize, MemoryType::CUDA)
+            std::make_shared<hh::StaticMemoryManager<TileC, int64_t, MemoryType>>(windowHeight*windowWidth, tileSize, MemoryType::CUDA)
         );
         auto schedTask = std::make_shared<GpuJobSchedulerTask<MatrixType, IdA, IdB, IdC>>(MT, KT, NT);
         auto prodTask  = std::make_shared<ProductTask<MatrixType, IdA, IdB, IdC>>(threadCount);

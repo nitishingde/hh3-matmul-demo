@@ -623,7 +623,9 @@ public:
 
         for(int32_t kt = 0; kt < KT_; ++kt) {
             gridCudaTileA_[kt].clear();
+            gridCudaTileA_[kt].reserve(MT_);
             gridCudaTileB_[kt].clear();
+            gridCudaTileB_[kt].reserve(NT_);
         }
 
         for(int64_t row = 0; row < MT_; ++row) {
@@ -790,7 +792,9 @@ private:
         if(ttlKt_[kt] != 0) return;
 
         gridCudaTileA_[kt].clear();
+        gridCudaTileA_[kt].reserve(MT_);
         gridCudaTileB_[kt].clear();
+        gridCudaTileB_[kt].reserve(NT_);
     }
 
 private:

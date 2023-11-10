@@ -21,15 +21,15 @@ public:
     explicit OuterProductGpuGraph(const int64_t MT, const int64_t KT, const int64_t NT, const int64_t tileSize, const int64_t windowHeight, const int64_t windowWidth, const int32_t d = 2, const int32_t threadCount = 4):
         hh::Graph<3, Job, TileA, TileB, TileC>() {
 
-        auto h2dTaskA  = std::make_shared<BlockingHostToDeviceCopyTask<MatrixType, IdA>>();
+        auto h2dTaskA  = std::make_shared<BlockingHostToDeviceCopyTask<MatrixType, IdA>>(std::max(threadCount/2, 1));
         h2dTaskA->connectMemoryManager(
             std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(windowHeight*d, tileSize, MemoryType::CUDA)
         );
-        auto h2dTaskB  = std::make_shared<BlockingHostToDeviceCopyTask<MatrixType, IdB>>();
+        auto h2dTaskB  = std::make_shared<BlockingHostToDeviceCopyTask<MatrixType, IdB>>(std::max(threadCount/2, 1));
         h2dTaskB->connectMemoryManager(
             std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(windowWidth*d, tileSize, MemoryType::CUDA)
         );
-        auto h2dTaskC  = std::make_shared<BlockingHostToDeviceCopyTask<MatrixType, IdC>>();
+        auto h2dTaskC  = std::make_shared<BlockingHostToDeviceCopyTask<MatrixType, IdC>>(std::max(threadCount/2, 1));
         h2dTaskC->connectMemoryManager(
             std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(windowHeight*windowWidth, tileSize, MemoryType::CUDA)
         );

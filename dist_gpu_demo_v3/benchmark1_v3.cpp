@@ -52,6 +52,13 @@ int main(int argc, char *argv[]) {
     }
 
     auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
+    //warmup
+    auto time = strategy.builder(gp, gq, wh, ww, d, productThreads).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + "_" + std::to_string(getNodeId()) + ".dot");
+    printf("[Warmup][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\r",
+        (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time),
+        time
+    );
+
 
     constexpr int32_t ITER = 10;
     double times[ITER];

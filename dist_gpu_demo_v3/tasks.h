@@ -25,23 +25,26 @@ public:
     }
 
     // Getters
-    [[nodiscard]] int32_t gpuId()            const { return gpuToken_->id; }
-    [[nodiscard]] bool    shouldQuit()       const { return quit_;         }
-    [[nodiscard]] auto&   tilesFromMatrixC()       { return tileCs_;       }
+    [[nodiscard]] int32_t gpuId()            const { return gpuToken_->id;      }
+    [[nodiscard]] bool    shouldQuit()       const { return quit_;              }
+    [[nodiscard]] auto&   tilesFromMatrixC()       { return tileCs_;            }
+    [[nodiscard]] bool    hasBeenProcessed()       { return isProcessed.load(); }
 
     // Setters
     void token(std::shared_ptr<GpuToken> token) { gpuToken_ = std::move(token); }
     void quit(const bool flag)                  { quit_ = flag;                 }
     void addTileC(std::shared_ptr<TileC> tileC) { tileCs_.emplace_back(tileC);  }
+    void processed()                            { isProcessed.store(true);      }
 
 public:
-    int32_t                             height   = 0;
-    int32_t                             width    = 0;
+    int32_t                             height      = 0;
+    int32_t                             width       = 0;
 
 private:
-    std::vector<std::shared_ptr<TileC>> tileCs_   = {};
-    std::shared_ptr<GpuToken>           gpuToken_ = nullptr;
-    bool                                quit_     = false;
+    std::vector<std::shared_ptr<TileC>> tileCs_     = {};
+    std::shared_ptr<GpuToken>           gpuToken_   = nullptr;
+    bool                                quit_       = false;
+    std::atomic_bool                    isProcessed = false;
 };
 
 template<typename MatrixType, char IdA, char IdB, char IdC>
@@ -118,6 +121,7 @@ public:
         print();
 #endif
 
+        std::vector<std::shared_ptr<Job>> jobs(gp0_*gq0_, nullptr);
         for(size_t i = 0; i < rowIndices.size(); i+= (gp0_*windowHeight_)) {
             for(size_t j = 0; j < colIndices.size(); j+= (gq0_*windowWidth_)) {
                 this->taskBarrier();
@@ -129,6 +133,7 @@ public:
                         auto token = std::static_pointer_cast<GpuToken>(this->getManagedMemory());
                         job->token(token);
                         token->id = gp*gp0_+gq;//FIXME
+                        jobs[token->id] = job;
                         for(size_t ii = i+gp; (job->height < windowHeight_) and (ii < rowIndices.size()); ii+=gp0_) {
                             job->height++;
                             job->width = 0;
@@ -151,6 +156,10 @@ public:
 #ifndef NDEBUG
                 print();
 #endif
+                // wait for all the gpu jobs to be processed before start sending tiles from matrices A and B
+                for(auto &job: jobs) {
+                    while(!job->hasBeenProcessed()) continue;
+                }
 
 //                for(int64_t kt = 0; kt < KT; ++kt) {
 //                    auto reqA = std::make_shared<DbRequest<IdA>>(matrixA->owner(*rowIndicesSet.begin(), kt));
@@ -596,6 +605,7 @@ public:
     }
 
     void execute(std::shared_ptr<Job> job) override {
+        job->processed();
         if(job->shouldQuit()) {
             isDone_ = true;
             return;

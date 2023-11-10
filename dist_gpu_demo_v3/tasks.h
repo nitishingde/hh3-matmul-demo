@@ -35,9 +35,6 @@ public:
     void addTileC(std::shared_ptr<TileC> tileC) { tileCs_.emplace_back(tileC);  }
 
 public:
-    int32_t                             MT       = 0;
-    int32_t                             KT       = 0;
-    int32_t                             NT       = 0;
     int32_t                             height   = 0;
     int32_t                             width    = 0;
 
@@ -131,9 +128,6 @@ public:
                         auto job   = std::make_shared<Job>();
                         auto token = std::static_pointer_cast<GpuToken>(this->getManagedMemory());
                         job->token(token);
-                        job->KT   = KT;
-                        job->MT   = matrixC->matrixNumRowTiles();
-                        job->NT   = matrixC->matrixNumColTiles();
                         token->id = gp*gp0_+gq;//FIXME
                         for(size_t ii = i+gp; (job->height < windowHeight_) and (ii < rowIndices.size()); ii+=gp0_) {
                             job->height++;

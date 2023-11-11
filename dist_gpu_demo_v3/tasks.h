@@ -132,7 +132,7 @@ public:
                         auto job   = std::make_shared<Job>();
                         auto token = std::static_pointer_cast<GpuToken>(this->getManagedMemory());
                         job->token(token);
-                        token->id = gp*gp0_+gq;//FIXME
+                        token->id = gq*gp0_+gp;//FIXME
                         jobs[token->id] = job;
                         for(size_t ii = i+gp; (job->height < windowHeight_) and (ii < rowIndices.size()); ii+=gp0_) {
                             job->height++;

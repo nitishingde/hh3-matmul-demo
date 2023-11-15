@@ -8,7 +8,7 @@ find_package(CUDA     REQUIRED)
 find_package(NVTX     REQUIRED)
 find_package(MPI      REQUIRED)
 
-add_library(dist_matmul_v3
+add_library(v3_lib
     STATIC
         data.h
         graphs.h
@@ -18,20 +18,20 @@ add_library(dist_matmul_v3
         matrix_utility.h
         mmd.h
 )
-set_target_properties(dist_matmul_v3 PROPERTIES LINKER_LANGUAGE CXX)
-target_compile_definitions(dist_matmul_v3
+set_target_properties(v3_lib PROPERTIES LINKER_LANGUAGE CXX)
+target_compile_definitions(v3_lib
     PUBLIC
         HH_USE_CUDA
         HH_ENABLE_CHECK_CUDA
         MMD_ENABLE_CHECK_MPI
 )
-target_include_directories(dist_matmul_v3
+target_include_directories(v3_lib
     PUBLIC
         ${Hedgehog_INCLUDE_DIRS}
         ${CUDA_INCLUDE_DIRS}
         ${TCLAP_SOURCE_DIR}/include/
 )
-target_link_libraries(dist_matmul_v3
+target_link_libraries(v3_lib
     PUBLIC
         ${CUDA_CUBLAS_LIBRARIES}
         ${CUDA_LIBRARIES}
@@ -40,14 +40,14 @@ target_link_libraries(dist_matmul_v3
         ${OpenBLAS_LIBRARIES}
 )
 
-add_executable(demo1_v3 demo1_v3.cpp)
-target_link_libraries(demo1_v3
+add_executable(v3_demo1 v3_demo1.cpp)
+target_link_libraries(v3_demo1
     PUBLIC
-        dist_matmul_v3
+        v3_lib
 )
 
-add_executable(benchmark1_v3 benchmark1_v3.cpp)
-target_link_libraries(benchmark1_v3
+add_executable(v3_benchmark1 v3_benchmark1.cpp)
+target_link_libraries(v3_benchmark1
     PUBLIC
-        dist_matmul_v3
+        v3_lib
 )

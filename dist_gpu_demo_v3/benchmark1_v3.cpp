@@ -4,7 +4,7 @@
 
 int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, l, gp, gq, d, productThreads, path, resultsFile] = parseArgs(argc, argv);
-    MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
+    MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q, MPI_THREAD_SERIALIZED);
 
     using MatrixType = float;
 

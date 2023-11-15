@@ -337,7 +337,6 @@ public:
             ).count())/1.e9;
         double maxTime = 0;
         checkMpiErrors(MPI_Reduce(&time, &maxTime, 1, MPI_DOUBLE, MPI_MAX, 0, mpiComm));
-        printf("[Node %ld][%s:%d][ThreadCount %d]\n", getNodeId(), __FILE__, __LINE__, getThreadCount());
         return maxTime;
     }
 

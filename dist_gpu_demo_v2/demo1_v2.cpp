@@ -21,7 +21,7 @@ MatrixType* getMatrixToRoot(std::shared_ptr<MatrixContainer<MatrixType, Id>> mat
 
     auto tempTile = new MatrixType[T*T];
     for(int64_t row = 0; row < matrix->matrixNumRowTiles(); ++row) {
-        for(int64_t col = 0; col < matrix->matrixNumRowTiles(); ++col) {
+        for(int64_t col = 0; col < matrix->matrixNumColTiles(); ++col) {
             auto tw = matrix->tileWidth(row, col), th = matrix->tileHeight(row, col);
             if(auto tile = matrix->tile(row, col); !isRootNodeId() and tile != nullptr) {
                 checkMpiErrors(MPI_Send(tile->data(), tile->byteSize(), MPI_CHAR, 0, row*100+col, MPI_COMM_WORLD));

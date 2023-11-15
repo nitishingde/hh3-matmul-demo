@@ -28,8 +28,10 @@
 
 #ifndef NDEBUG
 #define LOG() printf("[Node %ld][%s:%d]\n", getNodeId(), __FILE__, __LINE__); fflush(stdout)
+#define LOG_THREAD_COUNT() printf("[Node %ld][%s:%d][ThreadCount %d]\n", getNodeId(), __FILE__, __LINE__, getThreadCount())
 #else
 #define LOG()
+#define LOG_THREAD_COUNT()
 #endif
 
 // MPI Related ------------------------------------------------------------------------------------------------------ //

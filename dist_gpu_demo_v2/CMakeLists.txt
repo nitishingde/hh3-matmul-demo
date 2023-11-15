@@ -52,8 +52,8 @@ target_link_libraries(demo2_v2
         dist_matmul_v2
 )
 
-add_executable(demo_v2_tests test.cpp)
-target_link_libraries(demo_v2_tests
+add_executable(tests_v2 test.cpp)
+target_link_libraries(tests_v2
     PUBLIC
         dist_matmul_v2
 )

@@ -179,7 +179,7 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
     graph.waitForTermination();
 
     graph.createDotFile(
-        "./demo_v2_tests_" + std::to_string(getNodeId()) + ".dot",
+        "./v2_test1_" + std::to_string(getNodeId()) + ".dot",
         hh::ColorScheme::EXECUTION,
         hh::StructureOptions::QUEUE,
         hh::InputOptions::GATHERED,
@@ -329,7 +329,7 @@ void testMatrixWarehousePrefetchTask(int64_t p, int64_t q, int64_t M, int64_t K,
     graph.waitForTermination();
 
     graph.createDotFile(
-        "./demo_v2_tests_" + std::to_string(getNodeId()) + ".dot",
+        "./v2_test2_" + std::to_string(getNodeId()) + ".dot",
         hh::ColorScheme::EXECUTION,
         hh::StructureOptions::QUEUE,
         hh::InputOptions::GATHERED,

@@ -6,7 +6,7 @@ int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles, path, host, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q);
 
-    using MatrixType = double;
+    using MatrixType = float;
 
     constexpr char       IdA        = 'a';
     constexpr char       IdB        = 'b';

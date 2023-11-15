@@ -11,8 +11,6 @@ private:
     using TileA   = MatrixTile<MatrixType, IdA>;
     using TileB   = MatrixTile<MatrixType, IdB>;
     using TileC   = MatrixTile<MatrixType, IdC>;
-    using GcTileA = GcMatrixTile<MatrixType, IdA>;
-    using GcTileB = GcMatrixTile<MatrixType, IdB>;
     using Job     = GpuJob<MatrixType, IdA, IdB, IdC>;
     using Triplet = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>, std::shared_ptr<TileC>>;
     using Pair    = std::tuple<std::shared_ptr<TileC>, std::shared_ptr<TileC>>;

@@ -1,6 +1,7 @@
-#include "mmd.h"
-#include "matrix_utility.h"
 #include <filesystem>
+#include "common_matrix_utility.h"
+#include "mmd.h"
+#include "utility.h"
 
 int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, productThreads, accumulateThreads, windowSize, lookAhead, computeTiles, path, host, resultsFile] = parseArgs(argc, argv);

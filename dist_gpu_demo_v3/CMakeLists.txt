@@ -30,6 +30,7 @@ target_include_directories(v3_lib
         ${Hedgehog_INCLUDE_DIRS}
         ${CUDA_INCLUDE_DIRS}
         ${TCLAP_SOURCE_DIR}/include/
+        ../include/
 )
 target_link_libraries(v3_lib
     PUBLIC

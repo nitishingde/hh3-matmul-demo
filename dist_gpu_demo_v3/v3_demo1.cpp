@@ -1,5 +1,6 @@
+#include "common_matrix_utility.h"
 #include "mmd.h"
-#include "matrix_utility.h"
+#include "utility.h"
 
 #ifndef NDEBUG
 template<typename MatrixType, char Id>

@@ -1,7 +1,7 @@
-#ifndef HH3_MATMUL_MATRIX_UTILITY_H
-#define HH3_MATMUL_MATRIX_UTILITY_H
+#ifndef HH3_MATMUL_COMMON_MATRIX_UTILITY_H
+#define HH3_MATMUL_COMMON_MATRIX_UTILITY_H
 
-#include "data.h"
+#include "common_data.h"
 
 template<class MatrixType, char IdA, char IdB, char IdC,
     class MatrixA = MatrixContainer<MatrixType, IdA>,
@@ -55,4 +55,4 @@ void printDataDistribution(std::shared_ptr<Matrix> matrix) {
     fflush(stdout);
 }
 
-#endif //HH3_MATMUL_MATRIX_UTILITY_H
+#endif //HH3_MATMUL_COMMON_MATRIX_UTILITY_H

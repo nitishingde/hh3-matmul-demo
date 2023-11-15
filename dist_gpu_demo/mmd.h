@@ -355,6 +355,7 @@ private:
             dotFile + std::to_string(getNodeId()) + ".dot",
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
+            hh::InputOptions::GATHERED,
             hh::DebugOptions::NONE,
             std::make_unique<hh::JetColor>(),
             false
@@ -511,6 +512,7 @@ public:
             dotFile + std::to_string(getNodeId()) + ".dot",
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
+            hh::InputOptions::GATHERED,
             hh::DebugOptions::NONE,
             std::make_unique<hh::JetColor>(),
             false
@@ -667,6 +669,7 @@ public:
             dotFile + std::to_string(getNodeId()) + ".dot",
             hh::ColorScheme::EXECUTION,
             hh::StructureOptions::QUEUE,
+            hh::InputOptions::GATHERED,
             hh::DebugOptions::NONE,
             std::make_unique<hh::JetColor>(),
             false

@@ -60,7 +60,7 @@ public:
         std::string dotFile
     ) override {
         constexpr char       IdP        = 'p';
-        constexpr MemoryType memoryType = MemoryType::CUDA_UNIFIED_MEMORY;
+        constexpr MemoryType memoryType = MemoryType::HOST;
 
         using Triplet    = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
         using MatAMatC   = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixC>>;
@@ -219,7 +219,7 @@ public:
         std::string dotFile
     ) override {
         constexpr char       IdP        = 'p';
-        constexpr MemoryType memoryType = MemoryType::CUDA_UNIFIED_MEMORY;
+        constexpr MemoryType memoryType = MemoryType::HOST;
 
         using Triplet    = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
         using MatAMatC   = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixC>>;

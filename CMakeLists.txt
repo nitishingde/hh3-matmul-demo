@@ -22,7 +22,7 @@ if(NOT Hedgehog_INCLUDE_DIR)
 	endif(NOT hedgehog_POPULATED)
 
 	# Need to set variable Hedgehog_INCLUDE_DIR to the downloaded hedgehog src code
-	set(Hedgehog_INCLUDE_DIR ${hedgehog_SOURCE_DIR})
+	set(Hedgehog_INCLUDE_DIR "${hedgehog_SOURCE_DIR}" CACHE STRING "${hedgehog_SOURCE_DIR}" FORCE)
 endif(NOT Hedgehog_INCLUDE_DIR)
 
 # Test NewHedgehog library

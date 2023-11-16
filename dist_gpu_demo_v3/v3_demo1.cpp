@@ -59,7 +59,7 @@ void printMatrix(MatrixType *mat, int64_t height, int64_t width, const char *msg
 #endif
 
 int main(int argc, char *argv[]) {
-    auto [p, q, M, K, N, T, l, gp, gq, d, productThreads, path, resultsFile] = parseArgs(argc, argv);
+    auto [p, q, M, K, N, T, l, gp, gq, wh, ww, d, productThreads, path, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q, MPI_THREAD_SERIALIZED);
 
     using MatrixType = float;
@@ -70,7 +70,6 @@ int main(int argc, char *argv[]) {
     constexpr MemoryType memoryType = MemoryType::HOST;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
-    auto [wh, ww] = getWindowSize<MatrixType>(M, N, T, gp, gq, d);
     printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][productThreads %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, productThreads, wh, ww);
     fflush(stdout);
 

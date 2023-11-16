@@ -36,6 +36,10 @@ auto parseArgs(int argc, char **argv) {
         cmd.add(argGp);
         TCLAP::ValueArg<int64_t> argGq("", "gq", "width of grid of gpus", true, -1, "non negative integer value");
         cmd.add(argGq);
+        TCLAP::ValueArg<int64_t> argWh("", "wh", "height of grid of gpus", false, 2, "non negative integer value");
+        cmd.add(argWh);
+        TCLAP::ValueArg<int64_t> argWw("", "ww", "width of grid of gpus", false, 2, "non negative integer value");
+        cmd.add(argWw);
         TCLAP::ValueArg<int64_t> argD("d", "depth", "depth", false, 2, "non negative integer value");
         cmd.add(argD);
         TCLAP::ValueArg<int64_t> argPt("t", "prod", "product threads", false, prodThreads, "non negative integer value");
@@ -57,6 +61,8 @@ auto parseArgs(int argc, char **argv) {
             argL.getValue(),
             argGp.getValue(),
             argGq.getValue(),
+            argWh.getValue(),
+            argWw.getValue(),
             argD.getValue(),
             argPt.getValue(),
             argPath.getValue(),
@@ -72,6 +78,8 @@ auto parseArgs(int argc, char **argv) {
             int64_t(32768),
             int64_t(32768),
             int64_t(1024),
+            int64_t(2),
+            int64_t(2),
             int64_t(2),
             int64_t(2),
             int64_t(2),

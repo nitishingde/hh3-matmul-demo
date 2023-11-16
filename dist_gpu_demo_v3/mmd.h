@@ -75,6 +75,8 @@ public:
         auto [P, Q] = getGridDim();
         auto G      = deviceIds.size();
 
+        auto graphFilterState = std::make_shared<GraphFilterState>(deviceIds);
+
         // Generate graph
         auto graph = hh::Graph<1, Triplet, TileC>("MM");
 
@@ -83,11 +85,13 @@ public:
             "InputStateManager",
             false
         );
-        auto jobGenTask         = std::make_shared<GpuJobGeneratorTask<MatrixType, IdA, IdB, IdC>>(gp_, gq_, windowHeight_, windowWidth_);
+        auto jobGenTask         = std::make_shared<GpuJobGeneratorTask<MatrixType, IdA, IdB, IdC>>(gp_, gq_, windowHeight_, windowWidth_, graphFilterState);
         jobGenTask->connectMemoryManager(std::make_shared<GpuTokenMemoryManager>(deviceIds));
 //        auto tileSorterTask     = std::make_shared<TileSorterTask<MatrixType, IdA, IdB>>(gp_, gq_);
         auto execPipeline       = std::make_shared<OuterProductExecutionPipeline<MatrixType, IdA, IdB, IdC>>(
-            std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC>>(MT, KT, NT, T, windowHeight_, windowWidth_, depth_, productThreads_), deviceIds
+            std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC>>(MT, KT, NT, T, windowHeight_, windowWidth_, depth_, productThreads_),
+            deviceIds,
+            graphFilterState
         );
 //        auto dwTaskA            = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
 //        dwTaskA->connectMemoryManager(

@@ -47,4 +47,17 @@ private:
     std::atomic_bool                    isProcessed = false;
 };
 
+struct GraphFilterState {
+public:
+    explicit GraphFilterState(const std::vector<int32_t> &deviceIds) {
+        for(auto deviceId: deviceIds) {
+            rowIndices.insert({deviceId, std::set<int64_t>{}});
+            colIndices.insert({deviceId, std::set<int64_t>{}});
+        }
+    }
+
+    std::unordered_map<int32_t, std::set<int64_t>> rowIndices = {};
+    std::unordered_map<int32_t, std::set<int64_t>> colIndices = {};
+};
+
 #endif //HH3_MATMUL_DATA_H

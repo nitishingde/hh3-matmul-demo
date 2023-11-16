@@ -64,23 +64,25 @@ private:
     using Job   = GpuJob<MatrixType, IdA, IdB, IdC>;
 
 public:
-    explicit OuterProductExecutionPipeline(const std::shared_ptr<hh::Graph<3, Job, TileA, TileB, TileC>> &graph, const std::vector<int32_t> &deviceIds):
-        hh::AbstractExecutionPipeline<3, Job, TileA, TileB, TileC>(graph, deviceIds, "GPU Pipeline"), deviceIds_{deviceIds} {}
+    explicit OuterProductExecutionPipeline(const std::shared_ptr<hh::Graph<3, Job, TileA, TileB, TileC>> &graph, const std::vector<int32_t> &deviceIds, std::shared_ptr<GraphFilterState> graphFilterState):
+        hh::AbstractExecutionPipeline<3, Job, TileA, TileB, TileC>(graph, deviceIds, "GPU Pipeline"),
+        deviceIds_{deviceIds}, graphFilterState_(graphFilterState) {}
 
     bool sendToGraph(std::shared_ptr<Job> &job, size_t const &graphId) override {
         return job->shouldQuit() or job->gpuId() == deviceIds_[graphId];
     }
 
-    bool sendToGraph([[maybe_unused]] std::shared_ptr<TileA> &tileA, [[maybe_unused]] size_t const &graphId) override {
-        return true;
+    bool sendToGraph(std::shared_ptr<TileA> &tileA, size_t const &graphId) override {
+        return graphFilterState_->rowIndices[graphId].contains(tileA->rowIdx());
     }
 
-    bool sendToGraph([[maybe_unused]] std::shared_ptr<TileB> &tileB, [[maybe_unused]] size_t const &graphId) override {
-        return true;
+    bool sendToGraph(std::shared_ptr<TileB> &tileB, size_t const &graphId) override {
+        return graphFilterState_->colIndices[graphId].contains(tileB->colIdx());
     }
 
 private:
-    std::vector<int32_t> deviceIds_ = {};
+    std::shared_ptr<GraphFilterState> graphFilterState_ = nullptr;
+    std::vector<int32_t>              deviceIds_        = {};
 };
 
 #endif //HH3_MATMUL_GRAPHS_H

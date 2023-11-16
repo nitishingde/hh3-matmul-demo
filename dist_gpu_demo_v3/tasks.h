@@ -24,9 +24,9 @@ private:
     using Job     = GpuJob<MatrixType, IdA, IdB, IdC>;
 
 public:
-    explicit GpuJobGeneratorTask(const size_t gp, const size_t gq, const int64_t windowHeight, const int64_t windowWidth):
+    explicit GpuJobGeneratorTask(const size_t gp, const size_t gq, const int64_t windowHeight, const int64_t windowWidth, std::shared_ptr<GraphFilterState> graphFilterState):
         hh::AbstractTask<1, Triplet, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, Job>("GpuJobGeneratorTask", 1, false),
-        gp0_(gp), gq0_(gq), windowHeight_(windowHeight), windowWidth_(windowWidth) {}
+        gp0_(gp), gq0_(gq), windowHeight_(windowHeight), windowWidth_(windowWidth), graphFilterState_(graphFilterState) {}
 
     void execute(std::shared_ptr<Triplet> triplet) override {
         auto matrixA = std::get<std::shared_ptr<MatrixA>>(*triplet);
@@ -91,12 +91,16 @@ public:
                         job->token(token);
                         token->id = gq*gp0_+gp;//FIXME
                         jobs[token->id] = job;
+                        graphFilterState_->rowIndices[token->id].clear();
+                        graphFilterState_->colIndices[token->id].clear();
                         for(size_t ii = i+gp; (job->height < windowHeight_) and (ii < rowIndices.size()); ii+=gp0_) {
                             job->height++;
                             job->width = 0;
                             for(size_t jj = j+gq; (job->width < windowWidth_) and (jj < colIndices.size()); jj+=gq0_) {
                                 rowIndicesSet.insert(rowIndices[ii]);
                                 colIndicesSet.insert(colIndices[jj]);
+                                graphFilterState_->rowIndices[token->id].insert(rowIndices[ii]);
+                                graphFilterState_->colIndices[token->id].insert(colIndices[jj]);
 #ifndef NDEBUG
                                 debug[rowIndices[ii]][colIndices[jj]] = int32_t(token->id);
 #endif
@@ -201,10 +205,11 @@ private:
     }
 
 private:
-    size_t  gp0_          = 0;
-    size_t  gq0_          = 0;
-    int64_t windowHeight_ = 0;
-    int64_t windowWidth_  = 0;
+    size_t                            gp0_              = 0;
+    size_t                            gq0_              = 0;
+    int64_t                           windowHeight_     = 0;
+    int64_t                           windowWidth_      = 0;
+    std::shared_ptr<GraphFilterState> graphFilterState_ = nullptr;
 };
 
 template<typename MatrixType, char IdA, char IdB>
@@ -306,11 +311,7 @@ public:
             }
         }
 
-        rowIndices_.clear();
-        colIndices_.clear();
         for(auto &tileC: job->tilesFromMatrixC()) {
-            rowIndices_.insert(tileC->rowIdx());
-            colIndices_.insert(tileC->colIdx());
             tileC->ttl(KT_);
             this->addResult(tileC);
         }
@@ -325,8 +326,6 @@ public:
     }
 
     void execute(std::shared_ptr<TileA> tileA) override {
-        if(!rowIndices_.contains(tileA->rowIdx())) return;
-
         if(tileA->memoryType() == MemoryType::HOST) {
             this->addResult(tileA);
             return;
@@ -354,8 +353,6 @@ public:
     }
 
     void execute(std::shared_ptr<TileB> tileB) override {
-        if(!colIndices_.contains(tileB->colIdx())) return;
-
         if(tileB->memoryType() == MemoryType::HOST) {
             this->addResult(tileB);
             return;
@@ -483,8 +480,6 @@ private:
     Grid<std::shared_ptr<TileC>>                                  gridCudaTileC_      = {};
     std::deque<JobPair>                                           queue_              = {};
     std::shared_ptr<GpuJob<MatrixType, IdA, IdB, IdC>>            job_                = nullptr;
-    std::set<int64_t>                                             rowIndices_         = {};
-    std::set<int64_t>                                             colIndices_         = {};
     DotTimer                                                      dotTimer_             {};
 };
 

@@ -89,7 +89,7 @@ public:
                         auto job   = std::make_shared<Job>();
                         auto token = std::static_pointer_cast<GpuToken>(this->getManagedMemory());
                         job->token(token);
-                        token->id = gq*gp0_+gp;//FIXME
+                        token->id       = gp*gq0_ + gq;
                         jobs[token->id] = job;
                         graphFilterState_->rowIndices[token->id].clear();
                         graphFilterState_->colIndices[token->id].clear();

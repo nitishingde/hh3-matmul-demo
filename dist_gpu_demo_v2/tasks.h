@@ -437,7 +437,8 @@ public:
         auto min = std::to_string(dotTimer.min());
         auto avg = std::to_string(dotTimer.avg());
         auto max = std::to_string(dotTimer.max());
-        return "#Jobs received: " + std::to_string(dotTimer.count()) + "\\n"
+        return "GPU " + std::to_string(this->deviceId()) + "\\n"
+            "#Jobs received: " + std::to_string(dotTimer.count()) + "\\n"
             "Execution Time Per Job:\\n"
             "Min: " + min.substr(0, min.find('.', 0)+4) + suffix + "\\n"
             "Avg: " + avg.substr(0, avg.find('.', 0)+4) + suffix + "\\n"

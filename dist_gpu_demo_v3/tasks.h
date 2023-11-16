@@ -161,7 +161,7 @@ private:
             int64_t priority = 0;
 
             bool operator<(const JobK &other) {
-                return priority < other.priority;
+                return priority > other.priority;
             }
         };
         std::vector<JobK> priorityQueue;

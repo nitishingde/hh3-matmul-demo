@@ -606,7 +606,6 @@ public:
     }
 
     [[nodiscard]] std::string extraPrintingInformation() const override {
-        return "";
         DotTimer dotTimer;
         for(auto pNode: this->group()) {
             auto pTask = dynamic_cast<ProductTask const *>(pNode);

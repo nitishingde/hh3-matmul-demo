@@ -152,7 +152,7 @@ int main(int argc, char *argv[]) {
             }
         }
         if(count == 0) {
-            printf("Verified!\n");
+            printf(GREEN("Verified!\n"));
         }
     }
 #endif

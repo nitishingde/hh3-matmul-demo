@@ -75,7 +75,6 @@ public:
             printf("%s\n", buffer);
             fflush(stdout);
         };
-        print();
 #endif
 
         std::vector<std::shared_ptr<Job>> jobs(gp0_*gq0_, nullptr);

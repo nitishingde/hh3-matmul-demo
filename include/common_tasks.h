@@ -99,7 +99,7 @@ private:
             int64_t *pContainerData_ = nullptr;
         };
 
-        Iterator begin() { return Iterator(&metaDataBuffer_[BEGIN]);                     }
+        Iterator begin() { return Iterator(&metaDataBuffer_[BEGIN]);                            }
         Iterator end()   { return Iterator(&metaDataBuffer_[BEGIN + this->batchSize()*STRIDE]); }
 
     private:
@@ -126,8 +126,8 @@ public:
     void execute(std::shared_ptr<Matrix> matrix) override {
         assert(matrix_ == nullptr);
 
-        matrix_       = matrix;
-        daemon_       = std::thread(&MatrixWarehouseTask::daemon, this);
+        matrix_ = matrix;
+        daemon_ = std::thread(&MatrixWarehouseTask::daemon, this);
         liveNodeCounter_.store(matrix_->numNodes());
 
         for(; !dbRequests_.empty(); dbRequests_.pop_front()) {

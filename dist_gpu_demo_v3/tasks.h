@@ -52,9 +52,8 @@ public:
         auto MT = matrixC->matrixNumRowTiles(), NT = matrixC->matrixNumColTiles();
         auto debug = std::vector<std::vector<int32_t>>(MT, std::vector<int32_t>(NT, -1));
         auto print = [&debug, MT, NT]() {
-            char buffer[4096];
+            std::string buffer((MT*NT+8)*8, '\0');
             int32_t len = 0;
-            memset(buffer, 0, sizeof(buffer));
 
             // row header
             len += sprintf(&buffer[len], "     ");
@@ -72,7 +71,7 @@ public:
                 len -= 2;
                 len += sprintf(&buffer[len], "\n");
             }
-            printf("%s\n", buffer);
+            printf("%s\n", buffer.c_str());
             fflush(stdout);
         };
 #endif

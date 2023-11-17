@@ -36,13 +36,10 @@ public:
         auto d2hTaskC  = std::make_shared<BlockingDeviceToHostCopyTask<MatrixType, IdC>>(2);
 
         this->template input<Job>(schedTask);
-        this->template input<TileA>(schedTask);
-        this->template input<TileB>(schedTask);
+        this->template input<TileA>(h2dTaskA);
+        this->template input<TileB>(h2dTaskB);
 
-        this->template edge<TileA>(schedTask, h2dTaskA);
         this->template edge<TileA>(h2dTaskA, schedTask);
-
-        this->template edge<TileB>(schedTask, h2dTaskB);
         this->template edge<TileB>(h2dTaskB, schedTask);
 
         this->template edge<TileC>(schedTask, h2dTaskC);

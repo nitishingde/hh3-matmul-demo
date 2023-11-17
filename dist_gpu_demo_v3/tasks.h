@@ -249,10 +249,8 @@ class GpuJobSchedulerTask: public hh::AbstractTask<
         MatrixTile<MatrixType, IdA>,
         MatrixTile<MatrixType, IdB>,
         MatrixTile<MatrixType, IdC>,
-        MatrixTile<MatrixType, IdA>,
-        MatrixTile<MatrixType, IdB>,
-        MatrixTile<MatrixType, IdC>,
         std::tuple<std::shared_ptr<MatrixTile<MatrixType, IdA>>, std::shared_ptr<MatrixTile<MatrixType, IdB>>, std::shared_ptr<MatrixTile<MatrixType, IdC>>>,
+        MatrixTile<MatrixType, IdC>,
         std::tuple<std::shared_ptr<MatrixTile<MatrixType, IdC>>, std::shared_ptr<MatrixTile<MatrixType, IdC>>>
     > {
 private:
@@ -272,7 +270,7 @@ private:
 
 public:
     explicit GpuJobSchedulerTask(const int64_t MT, const int64_t KT, const int64_t NT):
-        hh::AbstractTask<4, Job, TileA, TileB, TileC, TileA, TileB, TileC, Triplet, Pair>("GpuJobSchedulerTask", 1, false),
+        hh::AbstractTask<4, Job, TileA, TileB, TileC, Triplet, TileC, Pair>("GpuJobSchedulerTask", 1, false),
         MT_(MT), KT_(KT), NT_(NT) {
         ttlKt_.resize(KT);
         gridCudaTileA_.resize(KT);
@@ -325,13 +323,7 @@ public:
 //        fflush(stdout);
     }
 
-    void execute(std::shared_ptr<TileA> tileA) override {
-        if(tileA->memoryType() == MemoryType::HOST) {
-            this->addResult(tileA);
-            return;
-        }
-
-        auto &cudaTileA = tileA;
+    void execute(std::shared_ptr<TileA> cudaTileA) override {
         cudaTileA->ttl(ttlA_);
         int64_t kt = cudaTileA->colIdx();
         for(auto cudaTileB: gridCudaTileB_[kt]) {
@@ -352,13 +344,7 @@ public:
         cleanUp(kt);
     }
 
-    void execute(std::shared_ptr<TileB> tileB) override {
-        if(tileB->memoryType() == MemoryType::HOST) {
-            this->addResult(tileB);
-            return;
-        }
-
-        auto &cudaTileB = tileB;
+    void execute(std::shared_ptr<TileB> cudaTileB) override {
         cudaTileB->ttl(ttlB_);
         int64_t kt = cudaTileB->rowIdx();
         for(auto cudaTileA: gridCudaTileA_[kt]) {
@@ -416,7 +402,7 @@ public:
         return isDone_ and job_ == nullptr;
     }
 
-    std::shared_ptr<hh::AbstractTask<4, Job, TileA, TileB, TileC, TileA, TileB, TileC, Triplet, Pair>>
+    std::shared_ptr<hh::AbstractTask<4, Job, TileA, TileB, TileC, Triplet, TileC, Pair>>
     copy() override {
         return std::make_shared<GpuJobSchedulerTask<MatrixType, IdA, IdB, IdC>>(this->MT_, this->KT_, this->NT_);
     }

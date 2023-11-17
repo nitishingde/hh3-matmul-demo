@@ -508,7 +508,7 @@ private:
     using Pair = std::tuple<std::shared_ptr<Tile>, std::shared_ptr<Tile>>;
 
 public:
-    explicit BlockingDeviceToHostCopyTask(int32_t threadCount = 2): hh::AbstractCUDATask<1, Pair, Tile>("D2H", threadCount, false, false) {}
+    explicit BlockingDeviceToHostCopyTask(int32_t threadCount = 1): hh::AbstractCUDATask<1, Pair, Tile>("D2H", threadCount, false, false) {}
 
     void execute(std::shared_ptr<Pair> pair) override {
         auto cudaTile = std::get<0>(*pair);

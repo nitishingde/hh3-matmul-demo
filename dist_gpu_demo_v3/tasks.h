@@ -46,7 +46,7 @@ public:
         }
         std::vector<int64_t> rowIndices(rowIndicesSet.begin(), rowIndicesSet.end());
         std::vector<int64_t> colIndices(colIndicesSet.begin(), colIndicesSet.end());
-//        auto priorityQueue = getPrioritySequence(matrixA, matrixB, rowIndices, colIndices);//FIXME: not been used
+        auto priorityQueue = getPrioritySequence(matrixA, matrixB, rowIndices, colIndices);
 
 #ifndef NDEBUG
         auto MT = matrixC->matrixNumRowTiles(), NT = matrixC->matrixNumColTiles();
@@ -122,33 +122,24 @@ public:
                     while(!job->hasBeenProcessed()) continue;
                 }
 
-//                for(int64_t kt = 0; kt < KT; ++kt) {
-//                    auto reqA = std::make_shared<DbRequest<IdA>>(matrixA->owner(*rowIndicesSet.begin(), kt));
-//                    for(auto rowIdx: rowIndicesSet) {
-//                        reqA->addIndex(rowIdx, kt);
-//                    }
-//                    this->addResult(reqA);
-//
-//                    auto reqB = std::make_shared<DbRequest<IdB>>(matrixB->owner(kt, *colIndicesSet.begin()));
-//                    for(auto colIdx: colIndicesSet) {
-//                        reqB->addIndex(kt, colIdx);
-//                    }
-//                    this->addResult(reqB);
-//                }
-                for(int64_t kt = 0; kt < KT; ++kt) {
+                for(auto kt: priorityQueue) {
+                    auto reqA = std::make_shared<DbRequest<IdA>>(matrixA->owner(*rowIndicesSet.begin(), kt));
                     for(auto rowIdx: rowIndicesSet) {
-                        this->addResult(matrixA->tile(rowIdx, kt));
+                        reqA->addIndex(rowIdx, kt);
                     }
+                    this->addResult(reqA);
 
+                    auto reqB = std::make_shared<DbRequest<IdB>>(matrixB->owner(kt, *colIndicesSet.begin()));
                     for(auto colIdx: colIndicesSet) {
-                        this->addResult(matrixB->tile(kt, colIdx));
+                        reqB->addIndex(kt, colIdx);
                     }
+                    this->addResult(reqB);
                 }
             }
         }
 
-//        this->addResult(std::make_shared<DbRequest<IdA>>(true));
-//        this->addResult(std::make_shared<DbRequest<IdB>>(true));
+        this->addResult(std::make_shared<DbRequest<IdA>>(true));
+        this->addResult(std::make_shared<DbRequest<IdB>>(true));
 
         this->taskBarrier();
         this->addResult(std::make_shared<Job>(true));

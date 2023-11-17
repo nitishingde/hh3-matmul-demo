@@ -87,34 +87,32 @@ public:
         );
         auto jobGenTask         = std::make_shared<GpuJobGeneratorTask<MatrixType, IdA, IdB, IdC>>(gp_, gq_, windowHeight_, windowWidth_, graphFilterState);
         jobGenTask->connectMemoryManager(std::make_shared<GpuTokenMemoryManager>(deviceIds));
-//        auto tileSorterTask     = std::make_shared<TileSorterTask<MatrixType, IdA, IdB>>(gp_, gq_);
+        auto tileSorterTask     = std::make_shared<TileSorterTask<MatrixType, IdA, IdB>>(gp_, gq_);
         auto execPipeline       = std::make_shared<OuterProductExecutionPipeline<MatrixType, IdA, IdB, IdC>>(
             std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC>>(MT, KT, NT, T, windowHeight_, windowWidth_, depth_, productThreads_),
             deviceIds,
             graphFilterState
         );
-//        auto dwTaskA            = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
-//        dwTaskA->connectMemoryManager(
-//            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(((MT+P-1)/P)*(G*4), T, memoryType)
-//        );
-//        auto dwTaskB            = std::make_shared<MatrixWarehouseTask<MatrixType, IdB>>();
-//        dwTaskB->connectMemoryManager(
-//            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(((NT+Q-1)/Q)*(G*4), T, memoryType)
-//        );
+        auto dwTaskA            = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
+        dwTaskA->connectMemoryManager(
+            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(((MT+P-1)/P)*(G*4), T, memoryType)
+        );
+        auto dwTaskB            = std::make_shared<MatrixWarehouseTask<MatrixType, IdB>>();
+        dwTaskB->connectMemoryManager(
+            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(((NT+Q-1)/Q)*(G*4), T, memoryType)
+        );
 
         graph.template input<Triplet>(inputStateManager);
-//        graph.template edge<MatrixA>(inputStateManager, dwTaskA);
-//        graph.template edge<MatrixB>(inputStateManager, dwTaskB);
+        graph.template edge<MatrixA>(inputStateManager, dwTaskA);
+        graph.template edge<MatrixB>(inputStateManager, dwTaskB);
         graph.template edge<Triplet>(inputStateManager, jobGenTask);
-//        graph.template edge<DbRequest<IdA>>(jobGenTask, dwTaskA);
-//        graph.template edge<DbRequest<IdB>>(jobGenTask, dwTaskB);
-//        graph.template edge<TileA>(dwTaskA, tileSorterTask);
-//        graph.template edge<TileB>(dwTaskB, tileSorterTask);
-//        graph.template edge<TileA>(tileSorterTask, execPipeline);
-//        graph.template edge<TileB>(tileSorterTask, execPipeline);
+        graph.template edge<DbRequest<IdA>>(jobGenTask, dwTaskA);
+        graph.template edge<DbRequest<IdB>>(jobGenTask, dwTaskB);
+        graph.template edge<TileA>(dwTaskA, tileSorterTask);
+        graph.template edge<TileB>(dwTaskB, tileSorterTask);
+        graph.template edge<TileA>(tileSorterTask, execPipeline);
+        graph.template edge<TileB>(tileSorterTask, execPipeline);
         graph.template edge<Job>(jobGenTask, execPipeline);
-        graph.template edge<TileA>(jobGenTask, execPipeline);
-        graph.template edge<TileB>(jobGenTask, execPipeline);
         graph.template output<TileC>(execPipeline);
         graph.executeGraph();
 

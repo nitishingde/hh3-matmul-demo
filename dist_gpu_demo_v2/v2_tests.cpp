@@ -1,6 +1,6 @@
 #include "tasks.h"
 #include "utility.h"
-#include "matrix_utility.h"
+#include "common_matrix_utility.h"
 
 template<typename MatrixType, char Id>
 void matrixInit(std::shared_ptr<MatrixContainer<MatrixType, Id>> matrix) {
@@ -85,9 +85,9 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
 
     auto graph = hh::Graph<4, MatrixA, MatrixB, DbRequest<IdA>, DbRequest<IdB>, TileA, TileB>();
     auto taskA = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
-    taskA->connectMemoryManager(std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(4, T, memoryType));
+    taskA->connectMemoryManager(std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(1, T, memoryType));
     auto taskB = std::make_shared<MatrixWarehouseTask<MatrixType, IdB>>();
-    taskB->connectMemoryManager(std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(4, T, memoryType));
+    taskB->connectMemoryManager(std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(1, T, memoryType));
 
     graph.input<DbRequest<IdA>>(taskA);
     graph.input<DbRequest<IdB>>(taskB);
@@ -137,6 +137,8 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
     for(auto result = graph.getBlockingResult(); result != nullptr; result = graph.getBlockingResult()) {
         std::visit(hh::ResultVisitor{
             [&countA, &matrixA](std::shared_ptr<MatrixTile<MatrixType, IdA>> &tile) {
+                using namespace std::chrono_literals;
+                std::this_thread::sleep_for(4ms);
                 auto rowIdx   = tile->rowIdx();
                 auto colIdx   = tile->colIdx();
                 auto verified = verifyTile(tile, matrixA->owner(rowIdx, colIdx));
@@ -153,6 +155,8 @@ void testMatrixWarehouseTask(int64_t p, int64_t q, int64_t M, int64_t K, int64_t
                 if(tile->isMemoryManagerConnected()) tile->returnToMemoryManager();
             },
             [&countB, &matrixB](std::shared_ptr<MatrixTile<MatrixType, IdB>> &tile) {
+                using namespace std::chrono_literals;
+                std::this_thread::sleep_for(4ms);
                 auto rowIdx   = tile->rowIdx();
                 auto colIdx   = tile->colIdx();
                 auto verified = verifyTile(tile, matrixB->owner(rowIdx, colIdx));

@@ -65,7 +65,6 @@ public:
         using TileA      = MatrixTile<MatrixType, IdA>;
         using TileB      = MatrixTile<MatrixType, IdB>;
         using TileC      = MatrixTile<MatrixType, IdC>;
-        using Pair       = std::tuple<std::shared_ptr<TileC>, std::shared_ptr<TileC>>;
         using Job        = GpuJob<MatrixType, IdA, IdB, IdC>;
 
         auto MT     = matrixC->matrixNumRowTiles();

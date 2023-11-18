@@ -25,7 +25,7 @@ private:
     using Job     = GpuJob<MatrixType, IdA, IdB, IdC>;
 
 public:
-    explicit GpuJobGeneratorTask(const size_t gp, const size_t gq, const int64_t windowHeight, const int64_t windowWidth, std::shared_ptr<GraphFilterState> graphFilterState):
+    explicit GpuJobGeneratorTask(const size_t gp, const size_t gq, const int64_t windowHeight, const int64_t windowWidth, std::shared_ptr<GraphFilterState> &graphFilterState):
         hh::AbstractTask<1, Triplet, TileA, TileB, DbRequest<IdA>, DbRequest<IdB>, Job>("GpuJobGeneratorTask", 1, false),
         gp0_(gp), gq0_(gq), windowHeight_(windowHeight), windowWidth_(windowWidth), graphFilterState_(graphFilterState) {}
 

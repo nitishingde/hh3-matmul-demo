@@ -58,7 +58,7 @@ public:
 
             // row header
             len += sprintf(&buffer[len], "[Node %ld] GPU workload distribution (the unit's place represents the GPU-Id, and the rest of the digits represents the Node-Id):\n", getNodeId());
-            len += sprintf(&buffer[len], "     ");
+            len += sprintf(&buffer[len], "      ");
             for(int j = 0; j < NT; ++j) len += sprintf(&buffer[len], "%3d, ", j);
             len -= 2;
             len += sprintf(&buffer[len], "\n    ");

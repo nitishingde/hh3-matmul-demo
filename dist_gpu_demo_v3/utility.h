@@ -13,7 +13,7 @@ static struct Args {
     int64_t K     = 32768;           // matrix dimension
     int64_t N     = 32768;           // matrix dimension
     int64_t T     = 8192;            // tile dimension
-    int64_t l     = 2;               // lookahead parameter
+    int64_t l     = 1;               // lookahead parameter
     int64_t gp    = 2;               // GPU grid dimension
     int64_t gq    = 2;               // GPU grid dimension
     int64_t wh    = 2;               // suggested window height

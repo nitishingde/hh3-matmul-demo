@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     auto strategy = MMD_WindowStrategy<MatrixType, IdA, IdB, IdC>();
-    auto time = strategy.builder(gp, gq, wh, ww, d, productThreads).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
+    auto time = strategy.builder(gp, gq, wh, ww, d, l, productThreads).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window_" + std::to_string(getNodeId()) + ".dot");
     if(isRootNodeId()) {
         printf("[ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
             (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time),

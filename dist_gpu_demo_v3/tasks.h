@@ -3,6 +3,7 @@
 
 #include "common_tasks.h"
 #include "data.h"
+#include "utility.h"
 
 template<typename MatrixType, char IdA, char IdB, char IdC>
 class GpuJobGeneratorTask: public hh::AbstractTask<
@@ -113,7 +114,7 @@ public:
                 }
 
 #ifndef NDEBUG
-                print();
+                if(1 <= args.v) print();
 #endif
                 // wait for all the gpu jobs to be processed before start sending tiles from matrices A and B
                 for(auto &job: jobs) {

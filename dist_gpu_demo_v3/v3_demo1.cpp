@@ -59,7 +59,7 @@ void printMatrix(MatrixType *mat, int64_t height, int64_t width, const char *msg
 #endif
 
 int main(int argc, char *argv[]) {
-    auto [p, q, M, K, N, T, l, gp, gq, wh, ww, d, productThreads, path, resultsFile] = parseArgs(argc, argv);
+    auto [p, q, M, K, N, T, l, gp, gq, wh, ww, d, productThreads, verbose, path, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q, MPI_THREAD_SERIALIZED);
 
     using MatrixType = float;
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
     constexpr MemoryType memoryType = MemoryType::HOST;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
-    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][productThreads %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, productThreads, wh, ww);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][productThreads %ld][verbosity level %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, productThreads, verbose, wh, ww);
     fflush(stdout);
 
     int32_t gpuCount = 0;
@@ -131,14 +131,14 @@ int main(int argc, char *argv[]) {
         checkCudaErrors(cudaMemPrefetchAsync(B, K*N*sizeof(MatrixType), 0));
         checkCudaErrors(cudaMemPrefetchAsync(C, M*N*sizeof(MatrixType), 0));
 
-        printMatrix(A, M, K, "MatrixA");
-        printMatrix(B, K, N, "MatrixB");
-        printMatrix(calc, M, N, "MatrixC using HH");
+        if(2 <= verbose) printMatrix(A, M, K, "MatrixA");
+        if(2 <= verbose) printMatrix(B, K, N, "MatrixB");
+        if(2 <= verbose) printMatrix(calc, M, N, "MatrixC using HH");
 
         checkCudaErrors(cudaDeviceSynchronize());
         checkCudaErrors(cublasSgemm_v2(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, K, &alpha, A, M, B, K, &beta, C, M));
         checkCudaErrors(cudaDeviceSynchronize());
-        printMatrix(C, M, N, "MatrixC using cublas");
+        if(2 <= verbose) printMatrix(C, M, N, "MatrixC using cublas");
 
         int64_t count = 0;
         for(int64_t col = 0; col < N; ++col) {

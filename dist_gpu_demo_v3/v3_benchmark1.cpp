@@ -4,7 +4,7 @@
 #include "utility.h"
 
 int main(int argc, char *argv[]) {
-    auto [p, q, M, K, N, T, l, gp, gq, _wh, _ww, d, productThreads, path, resultsFile] = parseArgs(argc, argv);
+    auto [p, q, M, K, N, T, l, gp, gq, _wh, _ww, d, productThreads, verbose, path, resultsFile] = parseArgs(argc, argv);
     MpiGlobalLockGuard mpiGlobalLockGuard(&argc, &argv, p, q, MPI_THREAD_SERIALIZED);
 
     using MatrixType = float;
@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     std::ofstream csvFile;
 
     auto [wh, ww] = getWindowSize<MatrixType>(M, N, T, gp, gq, d);
-    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][productThreads %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, productThreads, wh, ww);
+    printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][productThreads %ld][verbosity level %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, productThreads, verbose, wh, ww);
     fflush(stdout);
 
     int32_t gpuCount = 0;

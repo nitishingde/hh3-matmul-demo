@@ -15,7 +15,6 @@ add_library(v3_lib
         states.h
         tasks.h
         utility.h
-        matrix_utility.h
         mmd.h
 )
 set_target_properties(v3_lib PROPERTIES LINKER_LANGUAGE CXX)

@@ -57,17 +57,18 @@ public:
             int32_t len = 0;
 
             // row header
+            len += sprintf(&buffer[len], "[Node %ld] GPU workload distribution (the unit's place represents the GPU-Id, and the rest of the digits represents the Node-Id):\n", getNodeId());
             len += sprintf(&buffer[len], "     ");
-            for(int j = 0; j < NT; ++j) len += sprintf(&buffer[len], "%2d, ", j);
+            for(int j = 0; j < NT; ++j) len += sprintf(&buffer[len], "%3d, ", j);
             len -= 2;
             len += sprintf(&buffer[len], "\n    ");
             for(int j = 0; j < NT; ++j) len += sprintf(&buffer[len], "----");
             len += sprintf(&buffer[len], "\n");
 
             for(int i = 0; i < MT; ++i) {
-                len += sprintf(&buffer[len], "%2d | ", i);
+                len += sprintf(&buffer[len], "%3d | ", i);
                 for(int j = 0; j < NT; ++j) {
-                    len += sprintf(&buffer[len], "%2d, ", debug[i][j]);
+                    len += sprintf(&buffer[len], "%3d, ", debug[i][j]);
                 }
                 len -= 2;
                 len += sprintf(&buffer[len], "\n");
@@ -101,7 +102,7 @@ public:
                                 graphFilterState_->rowIndices[token->id].insert(rowIndices[ii]);
                                 graphFilterState_->colIndices[token->id].insert(colIndices[jj]);
 #ifndef NDEBUG
-                                debug[rowIndices[ii]][colIndices[jj]] = int32_t(token->id);
+                                debug[rowIndices[ii]][colIndices[jj]] = getNodeId()*10 + int32_t(token->id);
 #endif
                                 job->addTileC(matrixC->tile(rowIndices[ii], colIndices[jj]));
                                 job->width++;

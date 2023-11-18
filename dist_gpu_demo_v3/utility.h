@@ -86,7 +86,7 @@ auto parseArgs(int argc, char **argv) {
     args.d = argD.getValue();
     args.t = argPt.getValue();
     args.v = argV.getValue();
-    args.P = argP.getValue();
+    args.P = argPath.getValue();
     args.R = argR.getValue();
 
     return std::make_tuple(

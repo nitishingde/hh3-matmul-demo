@@ -40,6 +40,12 @@ target_link_libraries(v3_lib
         ${OpenBLAS_LIBRARIES}
 )
 
+add_executable(v3_tests v3_tests.cpp)
+target_link_libraries(v3_tests
+    PUBLIC
+        v3_lib
+)
+
 add_executable(v3_demo1 v3_demo1.cpp)
 target_link_libraries(v3_demo1
     PUBLIC

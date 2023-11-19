@@ -129,29 +129,46 @@ auto getWindowSize(const int64_t M, const int64_t N, const int64_t tileSize, con
 
     int64_t maxRowsPerDev  = (maxRowsPerNode+gp-1)/gp;
     int64_t maxColsPerDev  = (maxColsPerNode+gq-1)/gq;
-    printf("[Node %ld][GPU -> %ld x %ld][tilesPerDev %ld][maxRowsPerDev %ld][maxColsPerDev %ld]\n", getNodeId(), gp, gq, tilesPerDev, maxRowsPerDev, maxColsPerDev);
+    if(isRootNodeId()) printf("[Node %ld][GPU -> %ld x %ld][tilesPerDev %ld][maxRowsPerDev %ld][maxColsPerDev %ld]\n", getNodeId(), gp, gq, tilesPerDev, maxRowsPerDev, maxColsPerDev);
 
-    // FIXME: search isn't exhaustive
-    // for example
-    // fh = 1, fw = 1 Nope
-    // fh = 2, fh = 1 Nope
-    // fh = 2, fh = 2 Yes
-    // but i didn't look for fh = 1, fw = 2
-    for(int64_t windowHeight = maxRowsPerDev, windowWidth = maxColsPerDev, fh = 1, fw = 1;;) {
-        printf("[possible windowHeight %ld][possible windowWidth %ld][fh %ld][fw %ld][calc required tiles %ld/%ld]\n", windowHeight, windowWidth, fh, fw, windowHeight*windowWidth + depth*(windowHeight+windowWidth), tilesPerDev);
-        if(windowHeight*windowWidth + depth*(windowHeight+windowWidth) < tilesPerDev) {
-            return std::make_tuple(windowHeight, windowWidth);
-        }
+    struct WindowConfig {
+        int64_t totalTiles     = 0;
+        int64_t windowHeight   = 0;
+        int64_t windowWidth    = 0;
+        int64_t jobCountPerDev = INT64_MAX;
+    };
 
-        if(windowWidth < windowHeight or (windowWidth == windowHeight and fw < fh)) {
-            fh++;
-            windowHeight = (maxRowsPerDev+fh-1)/fh;
-        }
-        else {
-            fw++;
-            windowWidth = (maxColsPerDev+fw-1)/fw;
+    WindowConfig bestConfig;
+    for(int64_t fh = 1; fh <= maxRowsPerDev; ++fh) {
+        for(int64_t fw = 1; fw <= maxColsPerDev; ++fw) {
+            int64_t windowHeight = (maxRowsPerDev+fh-1)/fh, windowWidth = (maxColsPerDev+fw-1)/fw;
+            int64_t totalTiles   = windowHeight*windowWidth + depth*(windowHeight+windowWidth);
+            if(totalTiles <= tilesPerDev and bestConfig.totalTiles < totalTiles) {
+                bestConfig.totalTiles     = totalTiles;
+                bestConfig.windowHeight   = windowHeight;
+                bestConfig.windowWidth    = windowWidth;
+                bestConfig.jobCountPerDev = fh*fw;
+            }
+
+            // or other way of looking at it is to choose a config which requires minimum jobs per device
+//            if(totalTiles <= tilesPerDev and fh*fw < bestConfig.jobCountPerDev) {
+//                bestConfig.totalTiles     = totalTiles;
+//                bestConfig.windowHeight   = windowHeight;
+//                bestConfig.windowWidth    = windowWidth;
+//                bestConfig.jobCountPerDev = fh*fw;
+//            }
+
+            if(2 <= args.v and isRootNodeId() and totalTiles < tilesPerDev) {
+                printf("[windowHeight %ld][windowWidth %ld][fh %ld][fw %ld][calc required tiles %ld/%ld][GPU memory utilized %.2f%%][jobCountPerDev %ld]\n", windowHeight, windowWidth, fh, fw, totalTiles, tilesPerDev, 100.f*float(totalTiles)/float(tilesPerDev), fh*fw);
+            }
         }
     }
+
+    if(1 <= args.v and isRootNodeId()) {
+        printf("[windowHeight " GREEN("%ld") "][windowWidth " GREEN("%ld") "][calc required tiles " GREEN("%ld/%ld") "][GPU memory utilized " GREEN("%.2f%%") "][jobCountPerDev " GREEN("%ld") "]\n", bestConfig.windowHeight, bestConfig.windowWidth, bestConfig.totalTiles, tilesPerDev, 100.f*float(bestConfig.totalTiles)/float(tilesPerDev), bestConfig.jobCountPerDev);
+    }
+
+    return std::make_tuple(bestConfig.windowHeight, bestConfig.windowWidth);
 }
 
 #endif //HH3_MATMUL_UTILITY_H

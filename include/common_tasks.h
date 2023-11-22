@@ -1,6 +1,8 @@
 #ifndef HH3_MATMUL_COMMON_TASKS_H
 #define HH3_MATMUL_COMMON_TASKS_H
 
+#include <array>
+
 #include "common_data.h"
 
 template<typename MatrixType, char Id>

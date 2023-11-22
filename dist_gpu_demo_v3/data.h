@@ -1,6 +1,8 @@
 #ifndef HH3_MATMUL_DATA_H
 #define HH3_MATMUL_DATA_H
 
+#include <unordered_map>
+
 #include "common_data.h"
 
 template<typename MatrixType, char IdA, char IdB, char IdC>

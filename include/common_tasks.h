@@ -121,7 +121,10 @@ private:
     };
 
 public:
-    explicit MatrixWarehouseTask(): hh::AbstractTask<2, Matrix, DB_Request, Tile>("Matrix DB Task", 1, false) {}
+    explicit MatrixWarehouseTask(): hh::AbstractTask<2, Matrix, DB_Request, Tile>("Matrix DB Task", 1, false) {
+        liveNodeCounter_.store(-1);
+        canTerminate_.store(false);
+    }
 
     ~MatrixWarehouseTask() override = default;
 
@@ -131,6 +134,7 @@ public:
         matrix_ = matrix;
         daemon_ = std::thread(&MatrixWarehouseTask::daemon, this);
         liveNodeCounter_.store(matrix_->numNodes());
+        canTerminate_.store(false);
 
         for(; !dbRequests_.empty(); dbRequests_.pop_front()) {
             handleDbRequest(dbRequests_.front());
@@ -147,7 +151,7 @@ public:
     }
 
     [[nodiscard]] bool canTerminate() const override {
-        return hh::AbstractTask<2, Matrix, DB_Request, Tile>::canTerminate() and canTerminate_;
+        return hh::AbstractTask<2, Matrix, DB_Request, Tile>::canTerminate() and canTerminate_.load();
     }
 
 private:
@@ -301,11 +305,13 @@ private:
 
     void updateState() {
         auto lg = std::lock_guard(mutex_);
-        canTerminate_ = dbRequests_.empty()
-                and outgoingRequests_.empty()
-                and outgoingResponses_.empty()
-                and (liveNodeCounter_.load() == 0)
-                and (incomingResponse_.pInterNodeRequest == nullptr);
+        canTerminate_.store(true
+            and dbRequests_.empty()
+            and outgoingRequests_.empty()
+            and outgoingResponses_.empty()
+            and (liveNodeCounter_.load() == 0)
+            and (incomingResponse_.pInterNodeRequest == nullptr)
+        );
     }
 
     void daemon() {
@@ -321,7 +327,7 @@ private:
     }
 
 private:
-    bool                                   canTerminate_       = false;
+    std::atomic_bool                       canTerminate_       = false;
     std::shared_ptr<Matrix>                matrix_             = nullptr;
     std::thread                            daemon_             = {};
     std::mutex                             mutex_              = {};

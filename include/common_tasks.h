@@ -156,13 +156,14 @@ public:
 
 private:
     void handleDbRequest(std::shared_ptr<DB_Request> dbRequest) {
+        // scoped lock: mutex_, mpiMutex
         /** send meta data asynchronously and enqueue the future **/{
             auto request   = InterNodeRequest(dbRequest->srcNode, std::move(dbRequest->indices), dbRequest->quit);
             auto &mdBuffer = request.metaDataBuffer();
             if(dbRequest->srcNode != matrix_->nodeId()) {
                 // metadata is pretty small (16KB) therefore eager protocol will be used by MPI while sending this
                 // buffer, hence a blocking send is good enough here.
-                auto lg = std::lock_guard(mpiMutex);
+                auto mpiLg = std::lock_guard(mpiMutex);
                 checkMpiErrors(MPI_Isend(&mdBuffer[0], sizeof(mdBuffer), MPI_BYTE, request.otherNode(), Id, matrix_->mpiComm(), request.mpiRequestHandle()));
             }
             auto lg = std::lock_guard(mutex_);
@@ -172,7 +173,8 @@ private:
         if(!dbRequest->quit) return;
 
         /** send quit requests to the other nodes **/{
-            auto sl = std::scoped_lock(mutex_, mpiMutex);
+            auto lg    = std::lock_guard(mutex_);
+            auto mpiLg = std::lock_guard(mpiMutex);
             for(int64_t node = 0; node < matrix_->numNodes(); ++node) {
                 if(node == matrix_->nodeId() or node == dbRequest->srcNode) continue;
 
@@ -188,6 +190,7 @@ private:
     }
 
     void processOutgoingRequests() {
+        // scoped lock: mutex_, mpiMutex
         if(incomingResponse_.pInterNodeRequest != nullptr) return;
 
         auto lg = std::lock_guard(mutex_);
@@ -203,11 +206,10 @@ private:
                 return;
             }
 
-            int32_t done;
-            MPI_Status mpiStatus;
-            mpiMutex.lock();
+            int32_t    done      = false;
+            MPI_Status mpiStatus = {};
+            auto       mpiLg     = std::lock_guard(mpiMutex);
             checkMpiErrors(MPI_Test(request.mpiRequestHandle(), &done, &mpiStatus));
-            mpiMutex.unlock();
 
             if(done) {
                 incomingResponse_.pInterNodeRequest = &request;
@@ -217,17 +219,17 @@ private:
     }
 
     void processCurrentIncomingResponse() {
+        // no scoped locking
         if(incomingResponse_.pInterNodeRequest == nullptr or this->memoryManager()->currentSize() == 0) return;
 
-        MPI_Status mpiStatus = {};
-        auto       &request  = *incomingResponse_.pInterNodeRequest;
-        for(auto &index = incomingResponse_.currentIndex; this->memoryManager()->currentSize() != 0 and index < request.batchSize(); index++) {
-            auto tile = std::static_pointer_cast<Tile>(this->getManagedMemory());
-            auto [rowIdx, colIdx, tagId] = request[index];
+        auto& request = *incomingResponse_.pInterNodeRequest;
+        if(incomingResponse_.currentIndex < request.batchSize()) {
+            MPI_Status mpiStatus               = {};
+            auto       [rowIdx, colIdx, tagId] = request[incomingResponse_.currentIndex];
+            auto       tile                    = std::static_pointer_cast<Tile>(this->getManagedMemory());
             tile->init(rowIdx, colIdx, matrix_->tileHeight(rowIdx, colIdx), matrix_->tileWidth(rowIdx, colIdx));
             tile->memoryState(MemoryState::ON_HOLD);
-
-            std::lock_guard mpiLg(mpiMutex);
+            auto mpiLg = std::lock_guard(mpiMutex);
             checkMpiErrors(MPI_Recv(
                 tile->data(),
                 (int)tile->byteSize(),
@@ -239,6 +241,7 @@ private:
             ));
             tile->memoryState(MemoryState::SHARED);
             this->addResult(tile);
+            incomingResponse_.currentIndex++;
         }
 
         if(incomingResponse_.currentIndex == request.batchSize()) {
@@ -250,20 +253,16 @@ private:
     }
 
     void processIncomingRequests() {
+        // no scoped locking
         int32_t          flag           = false;
         InterNodeRequest request          {};
         auto&            metaDataBuffer = request.metaDataBuffer();
         MPI_Status       mpiStatus      = {};
 
-        mpiMutex.lock();
+        auto mpiLg = std::lock_guard(mpiMutex);
         checkMpiErrors(MPI_Iprobe(MPI_ANY_SOURCE, Id, matrix_->mpiComm(), &flag, &mpiStatus));
-        mpiMutex.unlock();
 
-        while(flag) {
-            // this can be a long loop, we shouldn't hog the mpi mutex
-            using namespace std::chrono_literals;
-            std::this_thread::sleep_for(4ms);
-            auto lg = std::lock_guard(mpiMutex);
+        if(flag) {
             MPI_Status mpiRecvStatus;
             checkMpiErrors(MPI_Recv(&metaDataBuffer[0], sizeof(metaDataBuffer), MPI_BYTE, mpiStatus.MPI_SOURCE, Id, matrix_->mpiComm(), &mpiRecvStatus));
 
@@ -284,12 +283,12 @@ private:
                 ));
                 outgoingResponses_.emplace_back(response);
             }
-            checkMpiErrors(MPI_Iprobe(MPI_ANY_SOURCE, Id, matrix_->mpiComm(), &flag, &mpiStatus));
         }
     }
 
     void processOutgoingResponses() {
-        auto lg = std::lock_guard(mpiMutex);
+        // no scoped locking
+        auto mpiLg = std::lock_guard(mpiMutex);
         for(auto it = outgoingResponses_.begin(); it != outgoingResponses_.end(); ) {
             auto& mpiRequest = it->mpiRequest;
             int32_t flag;
@@ -304,6 +303,7 @@ private:
     }
 
     void updateState() {
+        // no scoped locking
         auto lg = std::lock_guard(mutex_);
         canTerminate_.store(true
             and dbRequests_.empty()
@@ -331,8 +331,8 @@ private:
     std::shared_ptr<Matrix>                matrix_             = nullptr;
     std::thread                            daemon_             = {};
     std::mutex                             mutex_              = {};
-    std::list<std::shared_ptr<DB_Request>> dbRequests_         = {};// Need to use mutex_
-    std::list<InterNodeRequest>            outgoingRequests_   = {};// Need to use mutex_
+    std::list<std::shared_ptr<DB_Request>> dbRequests_         = {};// may need to use mutex_
+    std::list<InterNodeRequest>            outgoingRequests_   = {};// need to use mutex_
     std::list<InterNodeResponse>           outgoingResponses_  = {};
     std::atomic_int64_t                    liveNodeCounter_    = {};
     IncomingResponse                       incomingResponse_   = {};

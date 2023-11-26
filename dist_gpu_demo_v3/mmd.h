@@ -95,11 +95,11 @@ public:
         );
         auto dwTaskA            = std::make_shared<MatrixWarehouseTask<MatrixType, IdA>>();
         dwTaskA->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(windowHeight_*depth_*lookAhead_, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*windowHeight_*depth_*lookAhead_, T, memoryType)
         );
         auto dwTaskB            = std::make_shared<MatrixWarehouseTask<MatrixType, IdB>>();
         dwTaskB->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(windowWidth_*depth_*lookAhead_, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*windowWidth_*depth_*lookAhead_, T, memoryType)
         );
 
         graph.template input<Triplet>(inputStateManager);

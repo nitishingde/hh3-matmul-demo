@@ -81,7 +81,6 @@ public:
         std::vector<std::shared_ptr<Job>> jobs(gp0_*gq0_, nullptr);
         for(size_t i = 0; i < rowIndices.size(); i+= (gp0_*windowHeight_)) {
             for(size_t j = 0; j < colIndices.size(); j+= (gq0_*windowWidth_)) {
-                this->taskBarrier();
                 rowIndicesSet.clear();
                 colIndicesSet.clear();
                 for(size_t gp = 0; gp < gp0_; ++gp) {
@@ -134,6 +133,24 @@ public:
                         reqB->addIndex(kt, colIdx);
                     }
                     this->addResult(reqB);
+                }
+
+                if(2 <= args.v) fprintf(stderr, "[Host %s][Started!]\n", getHostName().c_str());
+                this->taskBarrier();
+                if(2 <= args.v) {
+                    fprintf(stderr, "[Host %s][Ended!]\n", getHostName().c_str());
+                    auto pCore = this->coreTask()->belongingGraph();
+                    hh::DotPrinter printer(
+                        std::filesystem::absolute(args.P+"/tmp_"+std::to_string(getNodeId())+".dot"),
+                        hh::ColorScheme::EXECUTION,
+                        hh::StructureOptions::QUEUE,
+                        hh::InputOptions::GATHERED,
+                        hh::DebugOptions::ALL,
+                        pCore,
+                        std::move(std::make_unique<hh::JetColor>()),
+                        false
+                    );
+                    pCore->visit(&printer);
                 }
             }
         }

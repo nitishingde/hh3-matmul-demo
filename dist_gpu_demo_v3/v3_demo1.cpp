@@ -70,6 +70,11 @@ int main(int argc, char *argv[]) {
     constexpr MemoryType memoryType = MemoryType::HOST;
     MPI_Comm             mpiComm    = MPI_COMM_WORLD;
 
+    MPI_Comm             mpiCommA   = MPI_COMM_WORLD;
+    MPI_Comm             mpiCommB   = MPI_COMM_WORLD;
+    MPI_Comm             mpiCommC   = MPI_COMM_WORLD;
+    checkMpiErrors(MPI_Comm_dup(mpiComm, &mpiCommB));
+
     printf("[Node %ld][p %ld][q %ld][M %ld][K %ld][N %ld][T %ld][l %ld][gp %ld][gq %ld][d %ld][productThreads %ld][verbosity level %ld][windowSize %ld, %ld]\n", getNodeId(), p, q, M, K, N, T, l, gp, gq, d, productThreads, verbose, wh, ww);
     fflush(stdout);
 
@@ -92,9 +97,9 @@ int main(int argc, char *argv[]) {
     }
     CublasGlobalLockGuard cublasGlobalLockGuard(deviceIds);
 
-    auto matrixA = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdA>>(memoryType, M, K, T, p, q, mpiComm);
-    auto matrixB = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdB>>(memoryType, K, N, T, p, q, mpiComm);
-    auto matrixC = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdC>>(memoryType, M, N, T, p, q, mpiComm);
+    auto matrixA = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdA>>(memoryType, M, K, T, p, q, mpiCommA);
+    auto matrixB = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdB>>(memoryType, K, N, T, p, q, mpiCommB);
+    auto matrixC = std::make_shared<TwoDBlockCyclicMatrix<MatrixType, IdC>>(memoryType, M, N, T, p, q, mpiCommC);
 
     if(isRootNodeId()) {
         printDataDistribution<MatrixType, IdA, IdB, IdC>(matrixA, matrixB, matrixC);

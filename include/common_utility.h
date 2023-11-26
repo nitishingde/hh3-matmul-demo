@@ -65,7 +65,7 @@ std::mutex         mpiMutex  = {};
 
 #ifndef checkMpiErrors
 void __checkMpiErrors(const int errorCode, const char *file, const int line) {
-    if(errorCode == MPI_SUCCESS) return;
+    if(errorCode == MPI_SUCCESS or (errorCode < 0 or MPI_ERR_LASTCODE <= errorCode)) return;
     char msg[MPI_MAX_ERROR_STRING];
     int length;
     MPI_Error_string(errorCode, msg, &length);

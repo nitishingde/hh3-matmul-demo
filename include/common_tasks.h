@@ -14,7 +14,7 @@ private:
 
     class InterNodeRequest {
     private:
-        using MetaDataBuffer = std::array<int64_t, 2048>;
+        using MetaDataBuffer = std::vector<int64_t>;
         enum {
             SIZE   = 0,
             QUIT   = 1,
@@ -23,14 +23,18 @@ private:
             ROW    = 0,
             COL    = 1,
             TAG    = 2,
+            BUFFER = 2048,
         };
 
     public:
-        explicit InterNodeRequest() = default;
+        explicit InterNodeRequest() {
+            metaDataBuffer_.resize(BUFFER, 0);
+        }
 
         explicit InterNodeRequest(const int64_t otherNode, const std::vector<std::tuple<int64_t, int64_t>> &&indices, bool quit = false):
             otherNode_(otherNode) {
-            assert((indices.size()*STRIDE + BEGIN) < (sizeof(MetaDataBuffer)/sizeof(int64_t)));
+            metaDataBuffer_.resize(BUFFER, 0);
+            assert((indices.size()*STRIDE + BEGIN) < metaDataBuffer_.size());
 
             metaDataBuffer_[SIZE] = indices.size();
             metaDataBuffer_[QUIT] = quit;
@@ -164,7 +168,7 @@ private:
                 // metadata is pretty small (16KB) therefore eager protocol will be used by MPI while sending this
                 // buffer, hence a blocking send is good enough here.
                 auto mpiLg = std::lock_guard(mpiMutex);
-                checkMpiErrors(MPI_Isend(&mdBuffer[0], sizeof(mdBuffer), MPI_BYTE, request.otherNode(), Id, matrix_->mpiComm(), request.mpiRequestHandle()));
+                checkMpiErrors(MPI_Isend(&mdBuffer[0], mdBuffer.size(), MPI_INT64_T, request.otherNode(), Id, matrix_->mpiComm(), request.mpiRequestHandle()));
             }
             auto lg = std::lock_guard(mutex_);
             outgoingRequests_.emplace_back(std::move(request));
@@ -181,7 +185,7 @@ private:
                 auto request   = InterNodeRequest();
                 auto &mdBuffer = request.metaDataBuffer();
                 request.quit(node);
-                checkMpiErrors(MPI_Isend(&mdBuffer[0], sizeof(mdBuffer), MPI_BYTE, request.otherNode(), Id, matrix_->mpiComm(), request.mpiRequestHandle()));
+                checkMpiErrors(MPI_Isend(&mdBuffer[0], mdBuffer.size(), MPI_INT64_T, request.otherNode(), Id, matrix_->mpiComm(), request.mpiRequestHandle()));
                 outgoingRequests_.emplace_back(std::move(request));
             }
             liveNodeCounter_.fetch_sub(1);
@@ -264,7 +268,8 @@ private:
 
         if(flag) {
             MPI_Status mpiRecvStatus;
-            checkMpiErrors(MPI_Recv(&metaDataBuffer[0], sizeof(metaDataBuffer), MPI_BYTE, mpiStatus.MPI_SOURCE, Id, matrix_->mpiComm(), &mpiRecvStatus));
+            checkMpiErrors(MPI_Recv(&metaDataBuffer[0], metaDataBuffer.size(), MPI_INT64_T, mpiStatus.MPI_SOURCE, Id, matrix_->mpiComm(), &mpiRecvStatus));
+            checkMpiErrors(mpiRecvStatus.MPI_ERROR);
 
             if(request.quit()) {
                 liveNodeCounter_.fetch_sub(1);

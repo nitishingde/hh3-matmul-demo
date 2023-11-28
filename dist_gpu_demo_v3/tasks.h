@@ -108,7 +108,11 @@ public:
                             }
                         }
 
-                        if(job->tilesFromMatrixC().empty()) continue;
+                        if(job->tilesFromMatrixC().empty()) {
+                            job->processed();
+                            job->finished();
+                            continue;
+                        };
                         this->addResult(job);
                     }
                 }
@@ -234,20 +238,19 @@ private:
 
 public:
     explicit TileSorterTask(size_t gp, size_t gq):
-        hh::AbstractTask<2, TileA, TileB, TileA, TileB>("TileSorter", 1, false), gp_(gp), gq_(gq) {}
+        hh::AbstractTask<2, TileA, TileB, TileA, TileB>("TileSorter", 1, false), jobPerBatch_(gp*gq) {}
 
     void execute(std::shared_ptr<TileA> tileA) override {
-        tileA->ttl(gq_);
+        tileA->ttl(jobPerBatch_);
         this->addResult(tileA);
     }
 
     void execute(std::shared_ptr<TileB> tileB) override {
-        tileB->ttl(gp_);
+        tileB->ttl(jobPerBatch_);
         this->addResult(tileB);
     }
 private:
-    size_t gp_ = 0;
-    size_t gq_ = 0;
+    int64_t jobPerBatch_ = 0;
 };
 
 template<typename MatrixType, char IdA, char IdB, char IdC>

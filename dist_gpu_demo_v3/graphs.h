@@ -70,11 +70,15 @@ public:
     }
 
     bool sendToGraph(std::shared_ptr<TileA> &tileA, size_t const &graphId) override {
-        return graphFilterState_->rowIndices[graphId].contains(tileA->rowIdx());
+        auto isNeeded = graphFilterState_->rowIndices[graphId].contains(tileA->rowIdx());
+        if(!isNeeded) tileA->used();
+        return isNeeded;
     }
 
     bool sendToGraph(std::shared_ptr<TileB> &tileB, size_t const &graphId) override {
-        return graphFilterState_->colIndices[graphId].contains(tileB->colIdx());
+        auto isNeeded =  graphFilterState_->colIndices[graphId].contains(tileB->colIdx());
+        if(!isNeeded) tileB->used();
+        return isNeeded;
     }
 
 private:

@@ -138,9 +138,9 @@ static unsigned int g_seed = 1;
     return (g_seed >> 16) & 0x7FFF;
 }
 
-static int32_t sTagCounter = 16384;
+static int32_t sTagCounter = 255;
 inline int32_t tagGenerator() {
-    sTagCounter = 16384 + (sTagCounter+1)%16384;
+    sTagCounter = std::max(256, (sTagCounter+1)%16384);
     return sTagCounter;
 }
 

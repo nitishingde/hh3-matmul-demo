@@ -293,9 +293,7 @@ public:
             }
         });
 #endif
-        LOG();
         graph.waitForTermination();
-        LOG();
 
 #if NDEBUG
         graph.createDotFile(
@@ -320,7 +318,6 @@ public:
             false
         );
 #endif
-        LOG();
         double time = double((
                 graph.core()->dequeueExecDuration() == std::chrono::nanoseconds::zero()?
                     std::chrono::system_clock::now() - graph.core()->startExecutionTimeStamp():

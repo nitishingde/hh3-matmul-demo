@@ -63,3 +63,9 @@ target_link_libraries(v3_benchmark1
     PUBLIC
         v3_lib
 )
+
+add_executable(v3_benchmark2 v3_benchmark2.cpp)
+target_link_libraries(v3_benchmark2
+    PUBLIC
+        v3_lib
+)

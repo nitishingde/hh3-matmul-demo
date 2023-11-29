@@ -473,60 +473,71 @@ public:
     }
 
     void execute(std::shared_ptr<DwRequest> dwBatchRequest) override {
+        using namespace std::chrono_literals;
         assert(currentRequest_ == nullptr);
-        std::set<int64_t>             otherNodes;
+        std::vector<bool>             metaDataReceiverMask(matrix_->numNodes(), 0);
         std::vector<InterNodeRequest> outgoingRequests(matrix_->numNodes());//FIXME: use hash map like std::unordered_map?
-
-        for(auto& req: outgoingRequests) req.init();
+        std::vector<int32_t>          priority;
 
         for(const auto [rowIdx, colIdx, tagId]: dwBatchRequest->data) {
             auto otherNode = matrix_->owner(rowIdx, colIdx);
+            if(otherNode == getNodeId()) continue;
             outgoingRequests[otherNode].addIndex(rowIdx, colIdx, tagId);
-            otherNodes.insert(otherNode);
+            if(!metaDataReceiverMask[otherNode]) priority.emplace_back(otherNode);
+            metaDataReceiverMask[otherNode] = true;
         }
 
         currentRequest_ = dwBatchRequest;
         canProcessResponses_.store(State::LOCAL);
 
-        // start sending meta data
-        std::vector<MPI_Request> mpiRequests(otherNodes.size(), MPI_REQUEST_NULL);
-        {
-            auto mpiLg = std::lock_guard(mpiMutex);
-            int32_t i = 0;
-            for(auto otherNode: otherNodes) {
-                if(otherNode == getNodeId()) continue;
+        std::vector<MPI_Request> mpiRequests = {};
+        std::vector<MPI_Status>  mpiStatuses = {};
 
-                auto &request = outgoingRequests[otherNode];
-                auto &buffer  = request.metaDataBuffer();
-                request.quit(dwBatchRequest->quit);
-                checkMpiErrors(MPI_Isend(
-                    buffer.data(),
-                    buffer.size(),
-                    request.getMpiDataType(),
-                    otherNode,
-                    Id,
-                    matrix_->mpiComm(),
-                    &mpiRequests[i]
-                ));
-                i++;
+        if(const auto receiverCount = priority.size(); 0 < receiverCount) {
+            mpiRequests.resize(receiverCount, MPI_REQUEST_NULL);
+            /** start sending meta data **/{
+                auto mpiLg = std::lock_guard(mpiMutex);
+                int32_t i = 0;
+                for(const auto otherNode: priority) {
+                    auto &request = outgoingRequests[otherNode];
+                    auto &buffer = request.metaDataBuffer();
+                    request.quit(dwBatchRequest->quit);
+                    checkMpiErrors(MPI_Isend(
+                        buffer.data(),
+                        buffer.size(),
+                        request.getMpiDataType(),
+                        otherNode,
+                        Id,
+                        matrix_->mpiComm(),
+                        &mpiRequests[i]
+                    ));
+                    i++;
+                }
+            }
+
+            // test the 1st (top priority) metadata send separately
+            for(int flag = 0; !flag;) {
+                std::this_thread::sleep_for(4ms);
+                MPI_Status mpiStatus;
+                auto mpiLg = std::lock_guard(mpiMutex);
+                checkMpiErrors(MPI_Test(&mpiRequests.front(), &flag, &mpiStatus));
+            }
+            canProcessResponses_.store(State::REMOTE);
+
+            mpiStatuses.resize(receiverCount);
+            for(int flag = 0; !flag;) {
+                std::this_thread::sleep_for(4ms);
+                auto mpiLg = std::lock_guard(mpiMutex);
+                checkMpiErrors(MPI_Testall(mpiRequests.size(), mpiRequests.data(), &flag, mpiStatuses.data()));
             }
         }
-
-        std::vector<MPI_Status> mpiStatuses(otherNodes.size());
-        using namespace std::chrono_literals;
-        for(int flag = 0; !flag;) {
-            std::this_thread::sleep_for(4ms);
-            auto mpiLg = std::lock_guard(mpiMutex);
-            checkMpiErrors(MPI_Testall(mpiRequests.size(), mpiRequests.data(), &flag, mpiStatuses.data()));
-        }
-        canProcessResponses_.store(State::REMOTE);
 
         if(dwBatchRequest->quit) {
             {
                 mpiRequests.resize(0);
                 auto mpiLg = std::lock_guard(mpiMutex);
                 for(int64_t otherNode = 0; otherNode < getNumNodes(); ++otherNode) {
-                    if(otherNodes.contains(otherNode) or otherNode == getNodeId()) continue;
+                    if(metaDataReceiverMask[otherNode] or otherNode == getNodeId()) continue;
 
                     auto &request = outgoingRequests[otherNode];
                     auto &buffer  = request.metaDataBuffer();

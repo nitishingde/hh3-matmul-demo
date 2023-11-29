@@ -1,20 +1,10 @@
 cmake_minimum_required(VERSION 3.12)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts -Wno-error=sign-compare")
 
 find_package(MPI REQUIRED)
 find_package(OpenBLAS QUIET)#FIXME
-
-include(FetchContent)
-
-# TCLAP - Templatized Command Line Argument Parser
-FetchContent_Declare(
-        TCLAP
-        GIT_REPOSITORY https://github.com/mirror/tclap.git
-        GIT_TAG		   master
-)
-FetchContent_MakeAvailable(TCLAP)
 
 add_library(dist_matmul
     matrix_utility.h
@@ -65,7 +55,7 @@ target_link_libraries(dist_matmul
         ${CUDA_CUBLAS_LIBRARIES}
         ${CUDA_LIBRARIES}
         ${Hedgehog_LIBRARIES}
-        MPI::MPI_C
+        MPI::MPI_CXX
         ${OpenBLAS_LIBRARIES}
 )
 

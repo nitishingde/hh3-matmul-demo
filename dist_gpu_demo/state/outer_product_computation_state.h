@@ -29,7 +29,7 @@ template<class MatrixType, char InpIdC, char ProdId, char NetId, Order Ord,
     class MatrixTileN = MatrixTile<MatrixType, NetId, Ord>
 >
 class OuterProductComputationState:
-    public hh::State<3,
+    public hh::AbstractState<3,
         MatrixTileC,                                                           //inp1
         MatrixTileP,                                                           //inp2
         MatrixTileN,                                                           //inp3

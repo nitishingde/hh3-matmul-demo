@@ -78,7 +78,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         auto end = std::chrono::high_resolution_clock::now();
         time[iter] = double(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()) / 1.e9;
         if(isRootNodeId()) {
-            printf("\r[Iterations: %d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]",
+            printf("[Iterations: %d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
                 iter+1, ITER,
                 (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time[iter]),
                 time[iter]
@@ -94,7 +94,7 @@ int main([[maybe_unused]]int32_t argc, [[maybe_unused]]char **argv) {
         double avgTime = std::accumulate(time, time+ITER, 0.0)/double(ITER);
         double maxTime = *std::max_element(time, time+ITER);
         printf(
-            "\r[ Iterations " YELLOW("%d") " ][ " MAGENTA("Hedgehog+MPI") " ][ M, N, K, T = (" MAGENTA("%lu, %lu, %lu, %lu") ") ][ Max " GREEN("%9.3f") " gflops ][ Avg " CYAN("%9.3f") " gflops ][ Min " RED("%9.3f") " gflops ][ Min " GREEN("%8.3f") " secs ][ Avg " CYAN("%8.3f") " secs ][ Max " RED("%8.3f") " secs ]\n",
+            "[ Iterations " YELLOW("%d") " ][ " MAGENTA("Hedgehog+MPI") " ][ M, N, K, T = (" MAGENTA("%lu, %lu, %lu, %lu") ") ][ Max " GREEN("%9.3f") " gflops ][ Avg " CYAN("%9.3f") " gflops ][ Min " RED("%9.3f") " gflops ][ Min " GREEN("%8.3f") " secs ][ Avg " CYAN("%8.3f") " secs ][ Max " RED("%8.3f") " secs ]\n",
             ITER,
             M, N, K, tileSize,
             gflop/minTime,

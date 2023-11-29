@@ -143,7 +143,7 @@ auto getWindowSize(const int64_t M, const int64_t N, const int64_t tileSize, con
         for(int64_t fw = 1; fw <= maxColsPerDev; ++fw) {
             int64_t windowHeight = (maxRowsPerDev+fh-1)/fh, windowWidth = (maxColsPerDev+fw-1)/fw;
             int64_t totalTiles   = windowHeight*windowWidth + depth*(windowHeight+windowWidth);
-            if(totalTiles <= tilesPerDev and bestConfig.totalTiles < totalTiles) {
+            if(totalTiles <= tilesPerDev-2 and bestConfig.totalTiles < totalTiles) {
                 bestConfig.totalTiles     = totalTiles;
                 bestConfig.windowHeight   = windowHeight;
                 bestConfig.windowWidth    = windowWidth;

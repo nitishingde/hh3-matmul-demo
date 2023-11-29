@@ -224,6 +224,210 @@ private:
     std::shared_ptr<GraphFilterState> graphFilterState_ = nullptr;
 };
 
+template<typename MatrixType, char IdA, char IdB, char IdC>
+class GpuJobGeneratorTask2: public hh::AbstractTask<
+        1,
+        std::tuple<std::shared_ptr<MatrixContainer<MatrixType, IdA>>, std::shared_ptr<MatrixContainer<MatrixType, IdB>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>,
+        MatrixTile<MatrixType, IdA>,
+        MatrixTile<MatrixType, IdB>,
+        DwBatchRequest<IdA>,
+        DwBatchRequest<IdB>,
+        GpuJob<MatrixType, IdA, IdB, IdC>
+    > {
+private:
+    using MatrixA = MatrixContainer<MatrixType, IdA>;
+    using MatrixB = MatrixContainer<MatrixType, IdB>;
+    using MatrixC = MatrixContainer<MatrixType, IdC>;
+    using Triplet = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
+    using TileA   = MatrixTile<MatrixType, IdA>;
+    using TileB   = MatrixTile<MatrixType, IdB>;
+    using Job     = GpuJob<MatrixType, IdA, IdB, IdC>;
+
+public:
+    explicit GpuJobGeneratorTask2(const size_t gp, const size_t gq, const int64_t windowHeight, const int64_t windowWidth, std::shared_ptr<GraphFilterState> &graphFilterState):
+        hh::AbstractTask<1, Triplet, TileA, TileB, DwBatchRequest<IdA>, DwBatchRequest<IdB>, Job>("GpuJobGeneratorTask", 1, false),
+        gp0_(gp), gq0_(gq), windowHeight_(windowHeight), windowWidth_(windowWidth), graphFilterState_(graphFilterState) {}
+
+    void execute(std::shared_ptr<Triplet> triplet) override {
+        auto matrixA = std::get<std::shared_ptr<MatrixA>>(*triplet);
+        auto matrixB = std::get<std::shared_ptr<MatrixB>>(*triplet);
+        auto matrixC = std::get<std::shared_ptr<MatrixC>>(*triplet);
+        auto KT = matrixA->matrixNumColTiles();
+
+        std::set<int64_t> rowIndicesSet = {};
+        std::set<int64_t> colIndicesSet = {};
+        for(int64_t rowIdx = 0; rowIdx < matrixC->matrixNumRowTiles(); ++rowIdx) {
+            for(int64_t colIdx = 0; colIdx < matrixC->matrixNumColTiles(); ++colIdx) {
+                if(matrixC->tile(rowIdx, colIdx)) {
+                    rowIndicesSet.emplace(rowIdx);
+                    colIndicesSet.emplace(colIdx);
+                }
+            }
+        }
+        std::vector<int64_t> rowIndices(rowIndicesSet.begin(), rowIndicesSet.end());
+        std::vector<int64_t> colIndices(colIndicesSet.begin(), colIndicesSet.end());
+        auto priorityQueue = getPrioritySequence(matrixA, matrixB, rowIndices, colIndices);
+
+#ifndef NDEBUG
+        auto MT = matrixC->matrixNumRowTiles(), NT = matrixC->matrixNumColTiles();
+        auto debug = std::vector<std::vector<int32_t>>(MT, std::vector<int32_t>(NT, -1));
+        auto print = [&debug, MT, NT]() {
+            std::string buffer((MT*NT+8)*8, '\0');
+            int32_t len = 0;
+
+            // row header
+            len += sprintf(&buffer[len], "[Node %ld] GPU workload distribution (the unit's place represents the GPU-Id, and the rest of the digits represents the Node-Id):\n", getNodeId());
+            len += sprintf(&buffer[len], "      ");
+            for(int j = 0; j < NT; ++j) len += sprintf(&buffer[len], "%3d, ", j);
+            len -= 2;
+            len += sprintf(&buffer[len], "\n    ");
+            for(int j = 0; j < NT; ++j) len += sprintf(&buffer[len], "----");
+            len += sprintf(&buffer[len], "\n");
+
+            for(int i = 0; i < MT; ++i) {
+                len += sprintf(&buffer[len], "%3d | ", i);
+                for(int j = 0; j < NT; ++j) {
+                    len += sprintf(&buffer[len], "%3d, ", debug[i][j]);
+                }
+                len -= 2;
+                len += sprintf(&buffer[len], "\n");
+            }
+            printf("%s\n", buffer.c_str());
+            fflush(stdout);
+        };
+#endif
+        int32_t batchJobCount = ((rowIndices.size()+gp0_*windowHeight_-1)/(gp0_*windowHeight_))*((colIndices.size()+gq0_*windowWidth_-1)/(gq0_*windowWidth_));
+        if(1 <= args.v) printf("[Node %ld][START][%zu x %zu][batchJobCount %d]\n", getNodeId(), rowIndices.size(), colIndices.size(), batchJobCount);
+        std::vector<std::shared_ptr<Job>> jobs(gp0_*gq0_, nullptr);
+        for(size_t i = 0; i < rowIndices.size(); i+= (gp0_*windowHeight_)) {
+            for(size_t j = 0; j < colIndices.size(); j+= (gq0_*windowWidth_)) {
+                rowIndicesSet.clear();
+                colIndicesSet.clear();
+                for(size_t gp = 0; gp < gp0_; ++gp) {
+                    for(size_t gq = 0; gq < gq0_; ++gq) {
+                        auto job   = std::make_shared<Job>();
+                        auto token = std::static_pointer_cast<GpuToken>(this->getManagedMemory());
+                        job->token(token);
+                        token->id       = gp*gq0_ + gq;
+                        jobs[token->id] = job;
+                        graphFilterState_->rowIndices[token->id].clear();
+                        graphFilterState_->colIndices[token->id].clear();
+                        for(size_t ii = i+gp; (job->height < windowHeight_) and (ii < rowIndices.size()); ii+=gp0_) {
+                            job->height++;
+                            job->width = 0;
+                            for(size_t jj = j+gq; (job->width < windowWidth_) and (jj < colIndices.size()); jj+=gq0_) {
+                                rowIndicesSet.insert(rowIndices[ii]);
+                                colIndicesSet.insert(colIndices[jj]);
+                                graphFilterState_->rowIndices[token->id].insert(rowIndices[ii]);
+                                graphFilterState_->colIndices[token->id].insert(colIndices[jj]);
+#ifndef NDEBUG
+                                debug[rowIndices[ii]][colIndices[jj]] = getNodeId()*10 + int32_t(token->id);
+#endif
+                                job->addTileC(matrixC->tile(rowIndices[ii], colIndices[jj]));
+                                job->width++;
+                            }
+                        }
+
+                        if(job->tilesFromMatrixC().empty()) {
+                            job->processed();
+                            job->finished();
+                            continue;
+                        };
+                        this->addResult(job);
+                    }
+                }
+
+#ifndef NDEBUG
+                if(1 <= args.v) print();
+#endif
+                // wait for all the gpu jobs to be processed before start sending tiles from matrices A and B
+                for(auto &job: jobs) {
+                    while(!job->hasBeenProcessed()) continue;
+                }
+                batchJobCount--;
+
+                auto reqA = std::make_shared<DwBatchRequest<IdA>>(batchJobCount == 0);
+                auto reqB = std::make_shared<DwBatchRequest<IdB>>(batchJobCount == 0);
+                for(auto kt: priorityQueue) {
+                    for(auto rowIdx: rowIndicesSet) {
+                        reqA->addIndex(rowIdx, kt);
+                    }
+
+                    for(auto colIdx: colIndicesSet) {
+                        reqB->addIndex(kt, colIdx);
+                    }
+                }
+                this->addResult(reqA);
+                this->addResult(reqB);
+
+                this->taskBarrier();
+            }
+        }
+
+        if(1 <= args.v) printf("[Node %ld][START][%zu x %zu][batchJobCount %d]\n", getNodeId(), rowIndices.size(), colIndices.size(), batchJobCount);
+
+        this->taskBarrier();
+        this->addResult(std::make_shared<Job>(true));
+    }
+
+private:
+    std::vector<int64_t> getPrioritySequence(std::shared_ptr<MatrixA> &matrixA, std::shared_ptr<MatrixB> &matrixB, const std::vector<int64_t> &rowIndices, const std::vector<int64_t> &colIndices) {
+        struct JobK {
+            int64_t index    = 0;
+            int64_t priority = 0;
+
+            bool operator<(const JobK &other) {
+                return priority > other.priority;
+            }
+        };
+        std::vector<JobK> priorityQueue;
+        auto KT = matrixA->matrixNumColTiles();
+
+        // prioritize jobs on the basis of locality of data
+        for(int64_t k = 0; k < KT; ++k) {
+            auto jobK = JobK{
+                .index    = k,
+                .priority = 0,
+            };
+
+            // evaluate priority
+            for(auto rowIdx: rowIndices) {
+                if(matrixA->tile(rowIdx, k) != nullptr) {
+                    jobK.priority++;
+                }
+            }
+            for(auto colIdx: colIndices) {
+                if(matrixB->tile(k, colIdx) != nullptr) {
+                    jobK.priority++;
+                }
+            }
+
+            priorityQueue.emplace_back(jobK);
+        }
+        std::sort(priorityQueue.begin(), priorityQueue.end());
+
+        std::vector<int64_t> priority;
+        priority.reserve(priorityQueue.size());
+        for(const auto &jobK: priorityQueue) priority.emplace_back(jobK.index);//FIXME: higher valued priority should be first
+
+        return priority;
+    }
+
+    void taskBarrier() {
+        using namespace std::chrono_literals;
+        while(this->memoryManager()->currentSize() != this->memoryManager()->capacity()) {
+            std::this_thread::sleep_for(4ms);
+        }
+    }
+
+private:
+    size_t                            gp0_              = 0;
+    size_t                            gq0_              = 0;
+    int64_t                           windowHeight_     = 0;
+    int64_t                           windowWidth_      = 0;
+    std::shared_ptr<GraphFilterState> graphFilterState_ = nullptr;
+};
+
 template<typename MatrixType, char IdA, char IdB>
 class TileSorterTask: public hh::AbstractTask<
         2,

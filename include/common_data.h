@@ -454,6 +454,22 @@ struct DbRequest {
     }
 };
 
+template<char Id>
+struct DwBatchRequest {
+    bool                                               quit = false;
+    std::vector<std::tuple<int32_t, int32_t, int32_t>> data = {};
+
+    explicit DwBatchRequest() = default;
+
+    explicit DwBatchRequest(bool shouldQuit) {
+        quit = shouldQuit;
+    }
+
+    void addIndex(int32_t rowIdx, int32_t colIdx) {
+        data.emplace_back(rowIdx, colIdx, tagGenerator());
+    }
+};
+
 struct GpuToken: public hh::ManagedMemory {
     int32_t id = -1;
 

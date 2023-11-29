@@ -343,5 +343,361 @@ private:
     IncomingResponse                       incomingResponse_   = {};
 };
 
+template<typename MatrixType, char Id>
+class MatrixWarehouseBatchedTask: public hh::AbstractTask<2, MatrixContainer<MatrixType, Id>, DwBatchRequest<Id>, MatrixTile<MatrixType, Id>> {
+private:
+    using Matrix    = MatrixContainer<MatrixType, Id>;
+    using DwRequest = DwBatchRequest<Id>;
+    using Tile      = MatrixTile<MatrixType, Id>;
+
+    enum State {
+        STALL  = 0,
+        FREE   = 0,
+        LOCAL  = 1,
+        REMOTE = 2,
+    };
+
+    class InterNodeRequest {
+    private:
+        using MetaDataBuffer = std::vector<int32_t>;
+        enum {
+            SIZE   = 0,
+            QUIT   = 1,
+            BEGIN  = 2,
+            STRIDE = 3,
+            ROW    = 0,
+            COL    = 1,
+            TAG    = 2,
+        };
+
+    public:
+        explicit InterNodeRequest() {
+            init();
+        }
+
+        // Getters
+        [[nodiscard]] bool                       quit()             const { return metaDataBuffer_[QUIT]; }
+        [[nodiscard]] int64_t                    batchSize()        const { return metaDataBuffer_[SIZE]; }
+        [[nodiscard]] auto&                      metaDataBuffer()         { return metaDataBuffer_;       }
+        [[nodiscard]] int64_t                    otherNode()        const { return otherNode_;            }
+        [[nodiscard]] MPI_Request*               mpiRequestHandle()       { return &mpiRequest_;          }
+
+        //Setters
+        void init() {
+            metaDataBuffer_.resize(16*1024, 0);
+            otherNode_ = -1;
+        }
+
+        void otherNode(int64_t val) { otherNode_ = val; }
+
+        void addIndex(int32_t rowIdx, int32_t colIdx, int32_t tagId) {
+            auto *pData = &metaDataBuffer_[BEGIN+batchSize()*STRIDE];
+            pData[ROW] = rowIdx;
+            pData[COL] = colIdx;
+            pData[TAG] = tagId;
+            metaDataBuffer_[SIZE] += 1;
+        }
+
+        void quit(bool val) {
+            metaDataBuffer_[QUIT] = val;
+        }
+
+        std::tuple<int64_t, int64_t, int64_t> operator[](int64_t idx) {
+            assert(idx < this->batchSize());
+            auto ptr = &metaDataBuffer_[BEGIN + idx*STRIDE];
+            return std::make_tuple(ptr[ROW], ptr[COL], ptr[TAG]);
+        }
+
+        //Getters
+        MPI_Datatype getMpiDataType() { return MPI_INT32_T; }
+
+        class Iterator {
+        public:
+            using iterator_category = std::random_access_iterator_tag;
+            using value_type        = std::tuple<int32_t, int32_t, int32_t>;
+            using difference_type   = std::ptrdiff_t;
+            using pointer           = std::tuple<int32_t, int32_t, int32_t>*;
+            using reference         = std::tuple<int32_t, int32_t, int32_t>&;
+
+            explicit Iterator(int32_t *pContainerData): pContainerData_(pContainerData) {}
+
+            // pre-increment
+            Iterator& operator++() {
+                pContainerData_ += STRIDE;
+                return *this;
+            }
+
+            // post-increment
+            Iterator& operator++(int) {
+                Iterator ret = *this;
+                pContainerData_ += STRIDE;
+                return ret;
+            }
+
+            bool operator==(const Iterator &other) const {
+                return pContainerData_ == other.pContainerData_;
+            }
+            bool operator!=(const Iterator &other) const {
+                return pContainerData_ != other.pContainerData_;
+            }
+
+            value_type operator*() const {
+                return std::make_tuple(pContainerData_[ROW], pContainerData_[COL], pContainerData_[TAG]);
+            }
+
+        private:
+            int32_t *pContainerData_ = nullptr;
+        };
+
+        Iterator begin() { return Iterator(&metaDataBuffer_[BEGIN]);                            }
+        Iterator end()   { return Iterator(&metaDataBuffer_[BEGIN + this->batchSize()*STRIDE]); }
+
+    private:
+        MetaDataBuffer        metaDataBuffer_ = {};
+        int64_t               otherNode_      = -1;
+        MPI_Request           mpiRequest_     = {};
+    };
+
+public:
+    explicit MatrixWarehouseBatchedTask(): hh::AbstractTask<2, Matrix, DwRequest, Tile>("Matrix Warehouse", 1, false) {
+        canTerminate_.store(State::STALL);
+        liveNodeCounter_.store(getNumNodes());
+    }
+
+    void execute(std::shared_ptr<Matrix> matrix) override {
+        matrix_         = matrix;
+        daemon_         = std::thread(&MatrixWarehouseBatchedTask::daemon, this);
+        receiverDaemon_ = std::thread(&MatrixWarehouseBatchedTask::receiverDaemon, this);
+        canTerminate_.store(State::STALL);
+        liveNodeCounter_.store(matrix->numNodes());
+    }
+
+    void execute(std::shared_ptr<DwRequest> dwBatchRequest) override {
+        assert(currentRequest_ == nullptr);
+        std::set<int64_t>             otherNodes;
+        std::vector<InterNodeRequest> outgoingRequests(matrix_->numNodes());//FIXME: use hash map like std::unordered_map?
+
+        for(auto& req: outgoingRequests) req.init();
+
+        for(const auto [rowIdx, colIdx, tagId]: dwBatchRequest->data) {
+            auto otherNode = matrix_->owner(rowIdx, colIdx);
+            outgoingRequests[otherNode].addIndex(rowIdx, colIdx, tagId);
+            otherNodes.insert(otherNode);
+        }
+
+        currentRequest_ = dwBatchRequest;
+        canProcessResponses_.store(State::LOCAL);
+
+        // start sending meta data
+        std::vector<MPI_Request> mpiRequests(otherNodes.size(), MPI_REQUEST_NULL);
+        {
+            auto mpiLg = std::lock_guard(mpiMutex);
+            int32_t i = 0;
+            for(auto otherNode: otherNodes) {
+                if(otherNode == getNodeId()) continue;
+
+                auto &request = outgoingRequests[otherNode];
+                auto &buffer  = request.metaDataBuffer();
+                request.quit(dwBatchRequest->quit);
+                checkMpiErrors(MPI_Isend(
+                    buffer.data(),
+                    buffer.size(),
+                    request.getMpiDataType(),
+                    otherNode,
+                    Id,
+                    matrix_->mpiComm(),
+                    &mpiRequests[i]
+                ));
+                i++;
+            }
+        }
+
+        std::vector<MPI_Status> mpiStatuses(otherNodes.size());
+        using namespace std::chrono_literals;
+        for(int flag = 0; !flag;) {
+            std::this_thread::sleep_for(4ms);
+            auto mpiLg = std::lock_guard(mpiMutex);
+            checkMpiErrors(MPI_Testall(mpiRequests.size(), mpiRequests.data(), &flag, mpiStatuses.data()));
+        }
+        canProcessResponses_.store(State::REMOTE);
+
+        if(dwBatchRequest->quit) {
+            {
+                mpiRequests.resize(0);
+                auto mpiLg = std::lock_guard(mpiMutex);
+                for(int64_t otherNode = 0; otherNode < getNumNodes(); ++otherNode) {
+                    if(otherNodes.contains(otherNode) or otherNode == getNodeId()) continue;
+
+                    auto &request = outgoingRequests[otherNode];
+                    auto &buffer  = request.metaDataBuffer();
+                    request.quit(true);
+                    mpiRequests.emplace_back(MPI_Request{});
+                    checkMpiErrors(MPI_Isend(
+                        buffer.data(),
+                        buffer.size(),
+                        request.getMpiDataType(),
+                        otherNode,
+                        Id,
+                        matrix_->mpiComm(),
+                        &mpiRequests.back()
+                    ));
+                }
+            }
+            liveNodeCounter_.fetch_sub(1);
+            mpiStatuses.resize(mpiRequests.size());
+            for(int flag = 0; !flag;) {
+                std::this_thread::sleep_for(4ms);
+                auto mpiLg = std::lock_guard(mpiMutex);
+                checkMpiErrors(MPI_Testall(mpiRequests.size(), mpiRequests.data(), &flag, mpiStatuses.data()));
+            }
+            receiverDaemon_.join();
+            daemon_.join();
+        }
+    }
+
+    [[nodiscard]] bool canTerminate() const override {
+        return canTerminate_.load() and hh::AbstractTask<2, Matrix, DwRequest, Tile>::canTerminate();
+    }
+
+    [[nodiscard]] std::string extraPrintingInformation() const override {
+        auto dotTimer = this->dotTimer_;
+        auto suffix = "MB/s";
+
+        double size = (matrix_->tileDim()*matrix_->tileDim()*sizeof(MatrixType))/(1024.*1024.);
+        auto min = std::to_string(size/dotTimer.max());
+        auto avg = std::to_string(size/dotTimer.avg());
+        auto max = std::to_string(size/dotTimer.min());
+        return "#Tiles received: " + std::to_string(dotTimer.count()) + "\\n"
+            "BW:\\n"
+            "Min: " + min.substr(0, min.find('.', 0)+4) + suffix + "\\n"
+            "Avg: " + avg.substr(0, avg.find('.', 0)+4) + suffix + "\\n"
+            "Max: " + max.substr(0, max.find('.', 0)+4) + suffix + "\\n"
+            "Total time spent: " + std::to_string(dotTimer.totalTime()) + "s"
+            ;
+    }
+
+private:
+    void updateState() {
+        canTerminate_.store(true
+            and (canProcessResponses_.load() == State::FREE)
+            and (liveNodeCounter_.load() == 0)
+            and outgoingResponses_.empty()
+        );
+    }
+
+    void processIncomingRequests() {
+        int        found     = 0;
+        MPI_Status mpiStatus = {};
+        auto       mpiLg     = std::lock_guard(mpiMutex);
+        checkMpiErrors(MPI_Iprobe(MPI_ANY_SOURCE, Id, matrix_->mpiComm(), &found, &mpiStatus));
+        if(!found) return;
+
+        InterNodeRequest interNodeRequest   {};
+        MPI_Status       mpiReceiveStatus = {};
+        auto             &buffer          = interNodeRequest.metaDataBuffer();
+        checkMpiErrors(MPI_Recv(buffer.data(), buffer.size(), MPI_INT64_T, mpiStatus.MPI_SOURCE, Id, matrix_->mpiComm(), &mpiReceiveStatus));
+        for(const auto [rowIdx, colIdx, tagId]: interNodeRequest) {
+            auto tile = matrix_->tile(rowIdx, colIdx);
+            outgoingResponses_.emplace_back(MPI_Request{});
+            checkMpiErrors(MPI_Issend(
+                tile->data(),
+                tile->byteSize(),
+                MPI_BYTE,
+                mpiStatus.MPI_SOURCE,
+                tagId,
+                matrix_->mpiComm(),
+                &outgoingResponses_.back()
+            ));
+        }
+        if(interNodeRequest.quit()) liveNodeCounter_.fetch_sub(1);
+    }
+
+    void processOutgoingResponses() {
+//        int32_t flag  = 0;
+//        auto    mpiLg = std::lock_guard(mpiMutex);
+//        checkMpiErrors(MPI_Testall(outgoingResponses_.size(), outgoingResponses_.data(), &flag, MPI_STATUS_IGNORE));
+//        if(flag) outgoingResponses_.clear();
+
+        auto mpiLg = std::lock_guard(mpiMutex);
+        for(auto it = outgoingResponses_.begin(); it != outgoingResponses_.end(); ) {
+            MPI_Request& mpiRequest = *it;
+            int32_t flag;
+            MPI_Status mpiStatus;
+            if(checkMpiErrors(MPI_Test(&mpiRequest, &flag, &mpiStatus)); flag) {
+                it = outgoingResponses_.erase(it);
+            }
+            else {
+                it++;
+            }
+        }
+    }
+
+    void receiverDaemon() {
+        using namespace std::chrono_literals;
+        while(true) {
+            while(canProcessResponses_.load() == State::STALL) {
+                std::this_thread::sleep_for(4ms);
+            }
+
+            for(const auto [rowIdx, colIdx, tagId]: currentRequest_->data) {
+                if(auto tile = matrix_->tile(rowIdx, colIdx); tile != nullptr) {
+                    this->addResult(tile);
+                    continue;
+                }
+
+                MPI_Status mpiStatus = {};
+                auto       tile      = std::static_pointer_cast<Tile>(this->getManagedMemory());
+                tile->init(rowIdx, colIdx, matrix_->tileHeight(rowIdx, colIdx), matrix_->tileWidth(rowIdx, colIdx));
+                tile->memoryState(MemoryState::SHARED);
+
+                do {
+                    std::this_thread::sleep_for(4ms);
+                } while(canProcessResponses_.load() != State::REMOTE);
+
+                auto mpiLg = std::lock_guard(mpiMutex);
+                dotTimer_.start();
+                checkMpiErrors(MPI_Recv(
+                    tile->data(),
+                    (int)tile->byteSize(),
+                    MPI_BYTE,
+                    matrix_->owner(rowIdx, colIdx),
+                    tagId,
+                    matrix_->mpiComm(),
+                    &mpiStatus
+                ));
+                dotTimer_.stop();
+                this->addResult(tile);
+            }
+
+            canProcessResponses_.store(State::FREE);
+            if(currentRequest_->quit) {
+                currentRequest_ = nullptr;
+                return;
+            }
+            currentRequest_ = nullptr;
+        }
+    }
+
+    void daemon() {
+        using namespace std::chrono_literals;
+        while(!canTerminate()) {
+            processIncomingRequests();
+            processOutgoingResponses();
+            updateState();
+            std::this_thread::sleep_for(4ms);
+        }
+    }
+
+private:
+    std::atomic_bool           canTerminate_        = false;
+    std::atomic_int64_t        liveNodeCounter_     = {};
+    std::shared_ptr<Matrix>    matrix_              = nullptr;
+    std::thread                daemon_              = {};
+    std::thread                receiverDaemon_      = {};
+    std::list<MPI_Request>     outgoingResponses_   = {};
+    std::atomic_int32_t        canProcessResponses_ = false;
+    std::shared_ptr<DwRequest> currentRequest_      = nullptr;
+    DotTimer                   dotTimer_              {};
+};
 
 #endif //HH3_MATMUL_COMMON_TASKS_H

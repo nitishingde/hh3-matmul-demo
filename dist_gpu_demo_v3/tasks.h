@@ -333,8 +333,8 @@ public:
                     while(!job->hasBeenProcessed()) continue;
                 }
 
-                auto reqA = std::make_shared<DwBatchRequest<IdA>>(batchJobCount == 0);
-                auto reqB = std::make_shared<DwBatchRequest<IdB>>(batchJobCount == 0);
+                auto reqA = std::make_shared<DwBatchRequest<IdA>>(batchJobCount == 1);// is it last job?
+                auto reqB = std::make_shared<DwBatchRequest<IdB>>(batchJobCount == 1);// is it last job?
                 for(auto kt: priorityQueue) {
                     for(auto rowIdx: rowIndicesSet) {
                         reqA->addIndex(rowIdx, kt);

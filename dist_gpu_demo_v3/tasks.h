@@ -77,7 +77,8 @@ public:
             fflush(stdout);
         };
 #endif
-
+        int32_t batchJobCount = ((rowIndices.size()+gp0_*windowHeight_-1)/(gp0_*windowHeight_))*((colIndices.size()+gq0_*windowWidth_-1)/(gq0_*windowWidth_));
+        if(1 <= args.v) printf("[Node %ld][START][%zu x %zu][batchJobCount %d]\n", getNodeId(), rowIndices.size(), colIndices.size(), batchJobCount);
         std::vector<std::shared_ptr<Job>> jobs(gp0_*gq0_, nullptr);
         for(size_t i = 0; i < rowIndices.size(); i+= (gp0_*windowHeight_)) {
             for(size_t j = 0; j < colIndices.size(); j+= (gq0_*windowWidth_)) {
@@ -118,7 +119,7 @@ public:
                 }
 
 #ifndef NDEBUG
-                if(1 <= args.v) print();
+                if(2 <= args.v) print();
 #endif
                 // wait for all the gpu jobs to be processed before start sending tiles from matrices A and B
                 for(auto &job: jobs) {
@@ -139,23 +140,9 @@ public:
                     this->addResult(reqB);
                 }
 
-                if(2 <= args.v) fprintf(stderr, "[Host %s][Started!]\n", getHostName().c_str());
                 this->taskBarrier();
-                if(2 <= args.v) {
-                    fprintf(stderr, "[Host %s][Ended!]\n", getHostName().c_str());
-                    auto pCore = this->coreTask()->belongingGraph();
-                    hh::DotPrinter printer(
-                        std::filesystem::absolute(args.P+"/tmp_"+std::to_string(getNodeId())+".dot"),
-                        hh::ColorScheme::EXECUTION,
-                        hh::StructureOptions::QUEUE,
-                        hh::InputOptions::GATHERED,
-                        hh::DebugOptions::ALL,
-                        pCore,
-                        std::move(std::make_unique<hh::JetColor>()),
-                        false
-                    );
-                    pCore->visit(&printer);
-                }
+                batchJobCount--;
+                if(1 <= args.v) printf("[Node %ld][MID][%zu x %zu][batchJobCount %d]\n", getNodeId(), rowIndices.size(), colIndices.size(), batchJobCount);
             }
         }
 
@@ -164,6 +151,7 @@ public:
 
         this->taskBarrier();
         this->addResult(std::make_shared<Job>(true));
+        if(1 <= args.v) printf("[Node %ld][END][%zu x %zu][batchJobCount %d]\n", getNodeId(), rowIndices.size(), colIndices.size(), batchJobCount);
     }
 
 private:
@@ -338,13 +326,12 @@ public:
                 }
 
 #ifndef NDEBUG
-                if(1 <= args.v) print();
+                if(2 <= args.v) print();
 #endif
                 // wait for all the gpu jobs to be processed before start sending tiles from matrices A and B
                 for(auto &job: jobs) {
                     while(!job->hasBeenProcessed()) continue;
                 }
-                batchJobCount--;
 
                 auto reqA = std::make_shared<DwBatchRequest<IdA>>(batchJobCount == 0);
                 auto reqB = std::make_shared<DwBatchRequest<IdB>>(batchJobCount == 0);
@@ -361,10 +348,12 @@ public:
                 this->addResult(reqB);
 
                 this->taskBarrier();
+                batchJobCount--;
+                if(1 <= args.v) printf("[Node %ld][MID][%zu x %zu][batchJobCount %d]\n", getNodeId(), rowIndices.size(), colIndices.size(), batchJobCount);
             }
         }
 
-        if(1 <= args.v) printf("[Node %ld][START][%zu x %zu][batchJobCount %d]\n", getNodeId(), rowIndices.size(), colIndices.size(), batchJobCount);
+        if(1 <= args.v) printf("[Node %ld][END][%zu x %zu][batchJobCount %d]\n", getNodeId(), rowIndices.size(), colIndices.size(), batchJobCount);
 
         this->taskBarrier();
         this->addResult(std::make_shared<Job>(true));

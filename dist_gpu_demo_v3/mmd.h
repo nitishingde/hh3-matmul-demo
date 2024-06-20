@@ -248,11 +248,11 @@ public:
             deviceIds,
             graphFilterState
         );
-        auto dwTaskA            = std::make_shared<MatrixWarehouseBatchedTask<MatrixType, IdA>>();
+        auto dwTaskA            = std::make_shared<MatrixWarehouseBatchedTask<MatrixType, IdA>>(gp_*windowHeight_);
         dwTaskA->connectMemoryManager(
             std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*windowHeight_*depth_*lookAhead_, T, memoryType)
         );
-        auto dwTaskB            = std::make_shared<MatrixWarehouseBatchedTask<MatrixType, IdB>>();
+        auto dwTaskB            = std::make_shared<MatrixWarehouseBatchedTask<MatrixType, IdB>>(gq_*windowWidth_);
         dwTaskB->connectMemoryManager(
             std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*windowWidth_*depth_*lookAhead_, T, memoryType)
         );

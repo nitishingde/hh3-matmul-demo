@@ -377,9 +377,10 @@ private:
 
         // Getters
         [[nodiscard]] bool                       quit()             const { return metaDataBuffer_[QUIT]; }
-        [[nodiscard]] int64_t                    batchSize()        const { return metaDataBuffer_[SIZE]; }
+        [[nodiscard]] int32_t                    batchSize()        const { return metaDataBuffer_[SIZE]; }
+        [[nodiscard]] int32_t                    queueSize()        const { return batchSize()-topIndex_; }
         [[nodiscard]] auto&                      metaDataBuffer()         { return metaDataBuffer_;       }
-        [[nodiscard]] int64_t                    otherNode()        const { return otherNode_;            }
+        [[nodiscard]] int32_t                    otherNode()        const { return otherNode_;            }
         [[nodiscard]] MPI_Request*               mpiRequestHandle()       { return &mpiRequest_;          }
 
         //Setters
@@ -402,66 +403,32 @@ private:
             metaDataBuffer_[QUIT] = val;
         }
 
-        std::tuple<int64_t, int64_t, int64_t> operator[](int64_t idx) {
-            assert(idx < this->batchSize());
-            auto ptr = &metaDataBuffer_[BEGIN + idx*STRIDE];
+        [[nodiscard]] std::tuple<int64_t, int64_t, int64_t> popFront() {
+            assert(topIndex_ < this->batchSize());
+            auto ptr = &metaDataBuffer_[BEGIN + topIndex_*STRIDE];
+            topIndex_++;
             return std::make_tuple(ptr[ROW], ptr[COL], ptr[TAG]);
+        }
+
+        [[nodiscard]] bool empty() {
+            return topIndex_ == this->batchSize();
         }
 
         //Getters
         MPI_Datatype getMpiDataType() { return MPI_INT32_T; }
 
-        class Iterator {
-        public:
-            using iterator_category = std::random_access_iterator_tag;
-            using value_type        = std::tuple<int32_t, int32_t, int32_t>;
-            using difference_type   = std::ptrdiff_t;
-            using pointer           = std::tuple<int32_t, int32_t, int32_t>*;
-            using reference         = std::tuple<int32_t, int32_t, int32_t>&;
-
-            explicit Iterator(int32_t *pContainerData): pContainerData_(pContainerData) {}
-
-            // pre-increment
-            Iterator& operator++() {
-                pContainerData_ += STRIDE;
-                return *this;
-            }
-
-            // post-increment
-            Iterator& operator++(int) {
-                Iterator ret = *this;
-                pContainerData_ += STRIDE;
-                return ret;
-            }
-
-            bool operator==(const Iterator &other) const {
-                return pContainerData_ == other.pContainerData_;
-            }
-            bool operator!=(const Iterator &other) const {
-                return pContainerData_ != other.pContainerData_;
-            }
-
-            value_type operator*() const {
-                return std::make_tuple(pContainerData_[ROW], pContainerData_[COL], pContainerData_[TAG]);
-            }
-
-        private:
-            int32_t *pContainerData_ = nullptr;
-        };
-
-        Iterator begin() { return Iterator(&metaDataBuffer_[BEGIN]);                            }
-        Iterator end()   { return Iterator(&metaDataBuffer_[BEGIN + this->batchSize()*STRIDE]); }
-
     private:
         MetaDataBuffer        metaDataBuffer_ = {};
-        int64_t               otherNode_      = -1;
+        int32_t               otherNode_      = -1;
         MPI_Request           mpiRequest_     = {};
+        int32_t               topIndex_       = 0;
     };
 
 public:
-    explicit MatrixWarehouseBatchedTask(): hh::AbstractTask<2, Matrix, DwRequest, Tile>("Matrix Warehouse", 1, false) {
+    explicit MatrixWarehouseBatchedTask(int32_t mpiAsyncCallTokensPerNode): hh::AbstractTask<2, Matrix, DwRequest, Tile>("Matrix Warehouse", 1, false) {
         canTerminate_.store(State::STALL);
         liveNodeCounter_.store(getNumNodes());
+        mpiAsyncCallTokens_.resize(getNumNodes(), mpiAsyncCallTokensPerNode);
     }
 
     void execute(std::shared_ptr<Matrix> matrix) override {
@@ -603,13 +570,17 @@ private:
         checkMpiErrors(MPI_Iprobe(MPI_ANY_SOURCE, Id, matrix_->mpiComm(), &found, &mpiStatus));
         if(!found) return;
 
-        InterNodeRequest interNodeRequest   {};
+        auto pInterNodeRequest = std::make_unique<InterNodeRequest>();
         MPI_Status       mpiReceiveStatus = {};
-        auto             &buffer          = interNodeRequest.metaDataBuffer();
-        checkMpiErrors(MPI_Recv(buffer.data(), buffer.size(), MPI_INT64_T, mpiStatus.MPI_SOURCE, Id, matrix_->mpiComm(), &mpiReceiveStatus));
-        for(const auto [rowIdx, colIdx, tagId]: interNodeRequest) {
+        auto             &buffer          = pInterNodeRequest->metaDataBuffer();
+        checkMpiErrors(MPI_Recv(buffer.data(), buffer.size(), pInterNodeRequest->getMpiDataType(), mpiStatus.MPI_SOURCE, Id, matrix_->mpiComm(), &mpiReceiveStatus));
+        pInterNodeRequest->otherNode(mpiStatus.MPI_SOURCE);
+        if(pInterNodeRequest->quit()) liveNodeCounter_.fetch_sub(1);
+
+        for(auto &tokens = mpiAsyncCallTokens_[mpiStatus.MPI_SOURCE]; 0 < tokens and !pInterNodeRequest->empty(); --tokens) {
+            auto [rowIdx, colIdx, tagId] = pInterNodeRequest->popFront();
             auto tile = matrix_->tile(rowIdx, colIdx);
-            outgoingResponses_.emplace_back(MPI_Request{});
+            auto &[mpiRequest, dest] = outgoingResponses_.emplace_back(std::make_tuple(MPI_Request{}, mpiStatus.MPI_SOURCE));
             checkMpiErrors(MPI_Issend(
                 tile->data(),
                 tile->byteSize(),
@@ -617,29 +588,48 @@ private:
                 mpiStatus.MPI_SOURCE,
                 tagId,
                 matrix_->mpiComm(),
-                &outgoingResponses_.back()
+                &mpiRequest
             ));
         }
-        if(interNodeRequest.quit()) liveNodeCounter_.fetch_sub(1);
+        interNodeRequests_.emplace_back(std::move(pInterNodeRequest));
     }
 
     void processOutgoingResponses() {
-//        int32_t flag  = 0;
-//        auto    mpiLg = std::lock_guard(mpiMutex);
-//        checkMpiErrors(MPI_Testall(outgoingResponses_.size(), outgoingResponses_.data(), &flag, MPI_STATUS_IGNORE));
-//        if(flag) outgoingResponses_.clear();
-
         auto mpiLg = std::lock_guard(mpiMutex);
         for(auto it = outgoingResponses_.begin(); it != outgoingResponses_.end(); ) {
-            MPI_Request& mpiRequest = *it;
+            auto &[mpiRequest, destNode] = *it;
             int32_t flag;
             MPI_Status mpiStatus;
             if(checkMpiErrors(MPI_Test(&mpiRequest, &flag, &mpiStatus)); flag) {
+                mpiAsyncCallTokens_[destNode]++;
                 it = outgoingResponses_.erase(it);
             }
             else {
                 it++;
             }
+        }
+
+        for(auto it = interNodeRequests_.begin(); it != interNodeRequests_.end();) {
+            std::unique_ptr<InterNodeRequest> &pInterNodeRequest = *it;
+            //auto &interNodeRequest = *it;
+            for(auto otherNode = pInterNodeRequest->otherNode(); !pInterNodeRequest->empty() and 0 < mpiAsyncCallTokens_[otherNode];) {
+                auto [rowIdx, colIdx, tagId] = pInterNodeRequest->popFront();
+                auto tile = matrix_->tile(rowIdx, colIdx);
+                auto &[mpiRequest, dest] = outgoingResponses_.emplace_back(std::make_tuple(MPI_Request{}, otherNode));
+                checkMpiErrors(MPI_Issend(
+                    tile->data(),
+                    tile->byteSize(),
+                    MPI_BYTE,
+                    otherNode,
+                    tagId,
+                    matrix_->mpiComm(),
+                    &mpiRequest
+                ));
+                mpiAsyncCallTokens_[otherNode]--;
+            }
+
+            if(pInterNodeRequest->empty()) it = interNodeRequests_.erase(it);
+            else it++;
         }
     }
 
@@ -700,15 +690,17 @@ private:
     }
 
 private:
-    std::atomic_bool           canTerminate_        = false;
-    std::atomic_int64_t        liveNodeCounter_     = {};
-    std::shared_ptr<Matrix>    matrix_              = nullptr;
-    std::thread                daemon_              = {};
-    std::thread                receiverDaemon_      = {};
-    std::list<MPI_Request>     outgoingResponses_   = {};
-    std::atomic_int32_t        canProcessResponses_ = false;
-    std::shared_ptr<DwRequest> currentRequest_      = nullptr;
-    DotTimer                   dotTimer_              {};
+    std::atomic_bool                               canTerminate_        = false;
+    std::atomic_int64_t                            liveNodeCounter_     = {};
+    std::shared_ptr<Matrix>                        matrix_              = nullptr;
+    std::thread                                    daemon_              = {};
+    std::thread                                    receiverDaemon_      = {};
+    std::vector<std::unique_ptr<InterNodeRequest>> interNodeRequests_   = {};
+    std::vector<int32_t>                           mpiAsyncCallTokens_  = {};
+    std::vector<std::tuple<MPI_Request, int32_t>>  outgoingResponses_   = {};
+    std::atomic_int32_t                            canProcessResponses_ = false;
+    std::shared_ptr<DwRequest>                     currentRequest_      = nullptr;
+    DotTimer                                       dotTimer_              {};
 };
 
 #endif //HH3_MATMUL_COMMON_TASKS_H

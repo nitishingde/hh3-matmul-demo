@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 
     auto strategy = MMD_WindowStrategy2<MatrixType, IdA, IdB, IdC>();
     //warmup
-    auto time = strategy.builder(gp, gq, wh, ww, d, l, productThreads).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + "_" + std::to_string(getNodeId()) + ".dot");
+    auto time = strategy.builder(gp, gq, wh, ww, d, l, productThreads, T).executeImpl(matrixA, matrixB, matrixC, deviceIds, mpiComm, path + "window" + "_" + std::to_string(getNodeId()) + ".dot");
     if(isRootNodeId()) {
         printf("[Warmup][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
             (double(M) * double(K) * double(N) * double(2)) / (1.e9 * time),

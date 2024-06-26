@@ -195,7 +195,7 @@ private:
 public:
     explicit MMD_WindowStrategy2() = default;
 
-    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t gp, const int64_t gq, const int64_t windowHeight, const int64_t windowWidth, const int64_t depth, const int64_t lookAhead, const int64_t productThreads) {
+    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t gp, const int64_t gq, const int64_t windowHeight, const int64_t windowWidth, const int64_t depth, const int64_t lookAhead, const int64_t productThreads, const int64_t tileSize = 8192) {
         gp_             = gp;
         gq_             = gq;
         windowHeight_   = windowHeight;
@@ -203,6 +203,13 @@ public:
         depth_          = depth;
         lookAhead_      = lookAhead;
         productThreads_ = productThreads;
+        tileSize_       = tileSize;
+
+        constexpr MemoryType memoryType = MemoryType::HOST;
+        using TileA = MatrixTile<MatrixType, IdA>;
+        using TileB = MatrixTile<MatrixType, IdB>;
+        mmA_ = std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*windowHeight_*depth_*lookAhead_, tileSize_, memoryType);
+        mmB_ = std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*windowWidth_*depth_*lookAhead_, tileSize_, memoryType);
 
         return *this;
     }
@@ -248,14 +255,18 @@ public:
             deviceIds,
             graphFilterState
         );
+
+        if(tileSize_ != T) {
+            mmA_.reset();
+            mmB_.reset();
+            tileSize_ = T;
+            mmA_ = std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*windowHeight_*depth_*lookAhead_, tileSize_, memoryType);
+            mmB_ = std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*windowWidth_*depth_*lookAhead_, tileSize_, memoryType);
+        }
         auto dwTaskA            = std::make_shared<MatrixWarehouseBatchedTask<MatrixType, IdA>>(gp_*windowHeight_);
-        dwTaskA->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*windowHeight_*depth_*lookAhead_, T, memoryType)
-        );
+        dwTaskA->connectMemoryManager(mmA_);
         auto dwTaskB            = std::make_shared<MatrixWarehouseBatchedTask<MatrixType, IdB>>(gq_*windowWidth_);
-        dwTaskB->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*windowWidth_*depth_*lookAhead_, T, memoryType)
-        );
+        dwTaskB->connectMemoryManager(mmB_);
 
         graph.template input<Triplet>(inputStateManager);
         graph.template edge<MatrixA>(inputStateManager, dwTaskA);
@@ -336,6 +347,10 @@ private:
     int64_t depth_          = 0;
     int64_t lookAhead_      = 0;
     int64_t productThreads_ = 0;
+    int64_t tileSize_       = 0;
+
+    std::shared_ptr<hh::StaticMemoryManager<MatrixTile<MatrixType, IdA>, int64_t, MemoryType>> mmA_ = nullptr;
+    std::shared_ptr<hh::StaticMemoryManager<MatrixTile<MatrixType, IdB>, int64_t, MemoryType>> mmB_ = nullptr;
 };
 
 #endif //HH3_MATMUL_MMD_H

@@ -703,4 +703,152 @@ private:
     DotTimer                                       dotTimer_              {};
 };
 
+template<typename MatrixType, char Id>
+class MatrixWareHouseBroadcastBatchedTask: public hh::AbstractTask<2, MatrixContainer<MatrixType, Id>, BroadcastBatchRequest<Id>, MatrixTile<MatrixType, Id>> {
+private:
+    using Matrix     = MatrixContainer<MatrixType, Id>;
+    using Tile       = MatrixTile<MatrixType, Id>;
+
+public:
+    explicit MatrixWareHouseBroadcastBatchedTask(const int32_t sendTokens = 2048): hh::AbstractTask<2, MatrixContainer<MatrixType, Id>, BroadcastBatchRequest<Id>, MatrixTile<MatrixType, Id>>("DW Broadcast", 1, false) {
+        sendTokens_ = sendTokens;
+    }
+
+    void execute(std::shared_ptr<Matrix> matrix) override {
+        assert(matrix != nullptr);
+
+        matrix_ = matrix;
+        if(batchRequest_ != nullptr) {
+            execute();
+        }
+    }
+
+    void execute(std::shared_ptr<BroadcastBatchRequest<Id>> batchRequest) override {
+        assert(batchRequest != nullptr);
+        assert(batchRequest_ == nullptr);
+
+        batchRequest_ = batchRequest;
+        if(matrix_ != nullptr) {
+            execute();
+        }
+    }
+
+    [[nodiscard]] bool canTerminate() const override {
+        return canTerminate_.load() and hh::AbstractTask<2, Matrix, BroadcastBatchRequest<Id>, Tile>::canTerminate();
+    }
+
+    [[nodiscard]] std::string extraPrintingInformation() const override {
+        auto dotTimer = this->dotTimer_;
+        auto suffix = "MB/s";
+
+        double size = (matrix_->tileDim()*matrix_->tileDim()*sizeof(MatrixType))/(1024.*1024.);
+        auto min = std::to_string(size/dotTimer.max());
+        auto avg = std::to_string(size/dotTimer.avg());
+        auto max = std::to_string(size/dotTimer.min());
+        return "#Tiles received: " + std::to_string(dotTimer.count()) + "\\n"
+            "BW:\\n"
+            "Min: " + min.substr(0, min.find('.', 0)+4) + suffix + "\\n"
+            "Avg: " + avg.substr(0, avg.find('.', 0)+4) + suffix + "\\n"
+            "Max: " + max.substr(0, max.find('.', 0)+4) + suffix + "\\n"
+            "Total time spent: " + std::to_string(dotTimer.totalTime()) + "s"
+        ;
+    }
+
+private:
+
+    void execute() {
+        assert(matrix_ != nullptr);
+        assert(batchRequest_ != nullptr);
+
+        canTerminate_.store(batchRequest_->quit);
+
+        senderDaemon_ = std::thread(&MatrixWareHouseBroadcastBatchedTask::senderDaemon, this);
+
+        MPI_Status mpiStatus;
+        for(auto [rowIdx, colIdx]: batchRequest_->data) {
+            if(auto tile = matrix_->tile(rowIdx, colIdx); tile != nullptr) {
+                this->addResult(tile);
+            }
+            else {
+                tile = std::dynamic_pointer_cast<Tile>(this->getManagedMemory());
+                dotTimer_.start();
+                checkMpiErrors(MPI_Recv(
+                    tile->data(),
+                    tile->byteSize(),
+                    MPI_BYTE,
+                    matrix_->owner(rowIdx, colIdx),
+                    getTagId(*matrix_, rowIdx, colIdx),
+                    matrix_->mpiComm(),
+                    &mpiStatus
+                ));
+                dotTimer_.stop();
+                tile->init(rowIdx, colIdx, matrix_->tileHeight(rowIdx, colIdx), matrix_->tileWidth(rowIdx, colIdx));
+                this->addResult(tile);
+            }
+        }
+        senderDaemon_.join();
+        batchRequest_ = nullptr;
+    }
+
+    void senderDaemon() {
+        std::vector<MPI_Request> mpiRequests;
+        MPI_Status mpiStatus;
+        for(auto [rowIdx, colIdx]: batchRequest_->data) {
+            if(auto tile = matrix_->tile(rowIdx, colIdx); tile != nullptr) {
+                for(auto destinationNode: batchRequest_->broadCastList) {
+                    if(destinationNode == getNodeId()) continue;
+
+                    while(sendTokens_ == 0) {
+                        int32_t index = -1, flag = 0;
+                        checkMpiErrors(MPI_Testany(mpiRequests.size(), mpiRequests.data(), &index, &flag, &mpiStatus));
+
+                        if(flag) {
+                            sendTokens_++;
+                            mpiRequests.erase(mpiRequests.begin()+index);
+                        }
+                        else {
+                            using namespace std::chrono_literals;
+                            std::this_thread::sleep_for(4ms);
+                        }
+                    }
+
+                    mpiRequests.emplace_back(MPI_Request{});
+                    checkMpiErrors(MPI_Isend(
+                        tile->data(),
+                        tile->byteSize(),
+                        MPI_BYTE,
+                        destinationNode,
+                        getTagId(*matrix_, rowIdx, colIdx),
+                        matrix_->mpiComm(),
+                        &mpiRequests.back()
+                    ));
+//                    checkMpiErrors(MPI_Send(
+//                        tile->data(),
+//                        tile->byteSize(),
+//                        MPI_BYTE,
+//                        destinationNode,
+//                        getTagId(*matrix_, rowIdx, colIdx),
+//                        matrix_->mpiComm()
+//                    ));
+                    sendTokens_--;
+                }
+            }
+        }
+
+        if(!mpiRequests.empty()) {
+            std::vector<MPI_Status> mpiStatuses(mpiRequests.size());
+            checkMpiErrors(MPI_Waitall(mpiRequests.size(), mpiRequests.data(), mpiStatuses.data()));
+            sendTokens_ += mpiRequests.size();
+        }
+    }
+
+private:
+    std::atomic_bool                           canTerminate_ = false;
+    std::shared_ptr<Matrix>                    matrix_       = nullptr;
+    std::shared_ptr<BroadcastBatchRequest<Id>> batchRequest_ = nullptr;
+    int32_t                                    sendTokens_   = -1;
+    std::thread                                senderDaemon_ = {};
+    DotTimer                                   dotTimer_       {};
+};
+
 #endif //HH3_MATMUL_COMMON_TASKS_H

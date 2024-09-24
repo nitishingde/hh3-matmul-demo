@@ -40,6 +40,39 @@ target_link_libraries(v3_lib
         ${OpenBLAS_LIBRARIES}
 )
 
+add_library(v3_lib_mpi_multi_threaded
+    STATIC
+        data.h
+        graphs.h
+        states.h
+        tasks.h
+        utility.h
+        mmd.h
+)
+set_target_properties(v3_lib_mpi_multi_threaded PROPERTIES LINKER_LANGUAGE CXX)
+target_compile_definitions(v3_lib_mpi_multi_threaded
+    PUBLIC
+        HH_USE_CUDA
+        HH_ENABLE_CHECK_CUDA
+        MMD_ENABLE_CHECK_MPI
+        MMD_MPI_MULTI_THREADED
+)
+target_include_directories(v3_lib_mpi_multi_threaded
+    PUBLIC
+        ${Hedgehog_INCLUDE_DIRS}
+        ${CUDA_INCLUDE_DIRS}
+        ${TCLAP_SOURCE_DIR}/include/
+        ../include/
+)
+target_link_libraries(v3_lib_mpi_multi_threaded
+    PUBLIC
+        ${CUDA_CUBLAS_LIBRARIES}
+        ${CUDA_LIBRARIES}
+        ${Hedgehog_LIBRARIES}
+        MPI::MPI_CXX
+        ${OpenBLAS_LIBRARIES}
+)
+
 add_executable(v3_tests v3_tests.cpp)
 target_link_libraries(v3_tests
     PUBLIC
@@ -58,6 +91,12 @@ target_link_libraries(v3_demo2
        v3_lib
 )
 
+add_executable(v3_demo3 v3_demo3.cpp)
+target_link_libraries(v3_demo3
+    PUBLIC
+        v3_lib_mpi_multi_threaded
+)
+
 add_executable(v3_benchmark1 v3_benchmark1.cpp)
 target_link_libraries(v3_benchmark1
     PUBLIC
@@ -68,4 +107,10 @@ add_executable(v3_benchmark2 v3_benchmark2.cpp)
 target_link_libraries(v3_benchmark2
     PUBLIC
         v3_lib
+)
+
+add_executable(v3_benchmark3 v3_benchmark3.cpp)
+target_link_libraries(v3_benchmark3
+    PUBLIC
+        v3_lib_mpi_multi_threaded
 )

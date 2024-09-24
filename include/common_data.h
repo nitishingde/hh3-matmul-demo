@@ -229,6 +229,31 @@ private:
 };
 
 template<typename MatrixType, char Id>
+class MatrixContainer;
+
+static int32_t sTagRegisterCounter = 255;
+static std::atomic_int32_t sMatrixId = 0;
+static std::unordered_map<int32_t, std::tuple<int32_t, int32_t>> tagRegistry;
+template<typename MatrixType, char Id>
+std::tuple<int32_t, int32_t> registerMatrix(const MatrixContainer<MatrixType, Id> &matrix) {
+    const auto id = matrix.id();
+    assert(!tagRegistry.contains(id));
+
+    const auto count = matrix.matrixNumRowTiles()*matrix.matrixNumColTiles();
+    tagRegistry[id] = std::make_tuple(sTagRegisterCounter, sTagRegisterCounter+count);
+    sTagRegisterCounter += count;
+    return tagRegistry[id];
+}
+
+template<typename MatrixType, char Id>
+[[nodiscard]] int32_t getTagId(const MatrixContainer<MatrixType, Id> &matrix, const int64_t rowIdx, const int64_t colIdx) {
+    assert(tagRegistry.contains(matrix.id()));
+
+    auto [start, end] = tagRegistry[matrix.id()];
+    return start + colIdx*matrix.matrixNumRowTiles() + rowIdx;
+}
+
+template<typename MatrixType, char Id>
 class MatrixContainer {
 private:
     using Tile = MatrixTile<MatrixType, Id>;
@@ -248,6 +273,8 @@ public:
 
         tileGrid_.resize((height+tileDim-1)/tileDim, std::vector<std::shared_ptr<Tile>>((width+tileDim-1)/tileDim, nullptr));
         tileOwnership_.resize((height+tileDim-1)/tileDim, std::vector<int64_t>((width+tileDim-1)/tileDim, 0));
+        id_ = sMatrixId.fetch_add(1);
+        registerMatrix(*this);
     }
 
     virtual bool init() = 0;
@@ -267,6 +294,7 @@ public:
     [[nodiscard]] int64_t         numNodes()                                        const { return numNodes_;                       }
     [[nodiscard]] bool            isRootNodeId()                                    const { return nodeId_ == 0;                    }
     [[nodiscard]] bool            isLastNodeId()                                    const { return nodeId_ == (numNodes_-1);        }
+    [[nodiscard]] int64_t         id()                                              const { return id_;                             }
 
     [[nodiscard]] int64_t tileHeight(int64_t rowIdx, [[maybe_unused]]int64_t colIdx) const {
         return std::min(tileDim_.y, int64_t(height_-tileDim_.y*rowIdx));
@@ -311,6 +339,7 @@ protected:
     int64_t                     numNodes_       = -1;
     int64_t                     pGridDim_       = -1;
     int64_t                     qGridDim_       = -1;
+    int64_t                     id_             = -1;
 };
 
 template<typename MatrixType, char Id>
@@ -467,6 +496,23 @@ struct DwBatchRequest {
 
     void addIndex(int32_t rowIdx, int32_t colIdx) {
         data.emplace_back(rowIdx, colIdx, tagGenerator());
+    }
+};
+
+template<char Id>
+struct BroadcastBatchRequest {
+    bool                                      quit          = false;
+    std::vector<std::tuple<int32_t, int32_t>> data          = {};
+    std::set<int32_t>                         broadCastList = {};
+
+    explicit BroadcastBatchRequest() = default;
+
+    explicit BroadcastBatchRequest(bool shouldQuit) {
+        quit = shouldQuit;
+    }
+
+    void addIndex(const int32_t rowIdx, const int32_t colIdx) {
+        data.emplace_back(rowIdx, colIdx);
     }
 };
 

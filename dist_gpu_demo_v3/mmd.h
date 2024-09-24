@@ -353,4 +353,172 @@ private:
     std::shared_ptr<hh::StaticMemoryManager<MatrixTile<MatrixType, IdB>, int64_t, MemoryType>> mmB_ = nullptr;
 };
 
+template<class MatrixType, char IdA, char IdB, char IdC>
+class MMD_WindowStrategy3: public MMD_Strategy<MatrixType, IdA, IdB, IdC> {
+private:
+    using MatrixA = MMD_Strategy<MatrixType, IdA, IdB, IdC>::MatrixA;
+    using MatrixB = MMD_Strategy<MatrixType, IdA, IdB, IdC>::MatrixB;
+    using MatrixC = MMD_Strategy<MatrixType, IdA, IdB, IdC>::MatrixC;
+
+public:
+    explicit MMD_WindowStrategy3() = default;
+
+    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t gp, const int64_t gq, const int64_t windowHeight, const int64_t windowWidth, const int64_t depth, const int64_t lookAhead, const int64_t productThreads, const int64_t tileSize = 8192) {
+        gp_             = gp;
+        gq_             = gq;
+        windowHeight_   = windowHeight;
+        windowWidth_    = windowWidth;
+        depth_          = depth;
+        lookAhead_      = lookAhead;
+        productThreads_ = productThreads;
+        tileSize_       = tileSize;
+
+        constexpr MemoryType memoryType = MemoryType::HOST;
+        using TileA = MatrixTile<MatrixType, IdA>;
+        using TileB = MatrixTile<MatrixType, IdB>;
+        mmA_ = std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*windowHeight_*depth_*lookAhead_, tileSize_, memoryType);
+        mmB_ = std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*windowWidth_*depth_*lookAhead_, tileSize_, memoryType);
+
+        return *this;
+    }
+
+    double executeImpl(
+        std::shared_ptr<MatrixA> matrixA,
+        std::shared_ptr<MatrixB> matrixB,
+        std::shared_ptr<MatrixC> matrixC,
+        const std::vector<int32_t> &deviceIds,
+        MPI_Comm mpiComm,
+        std::string dotFile
+    ) override {
+        constexpr MemoryType memoryType = MemoryType::HOST;
+
+        using Triplet    = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
+        using TileA      = MatrixTile<MatrixType, IdA>;
+        using TileB      = MatrixTile<MatrixType, IdB>;
+        using TileC      = MatrixTile<MatrixType, IdC>;
+        using Job        = GpuJob<MatrixType, IdA, IdB, IdC>;
+
+        auto MT     = matrixC->matrixNumRowTiles();
+        auto KT     = matrixA->matrixNumColTiles();
+        auto NT     = matrixC->matrixNumColTiles();
+        auto T      = std::max(std::max(matrixA->tileDim(), matrixB->tileDim()), matrixC->tileDim());
+        auto [P, Q] = getGridDim();
+        auto G      = deviceIds.size();
+
+        auto graphFilterState = std::make_shared<GraphFilterState>(deviceIds);
+
+        // Generate graph
+        auto graph = hh::Graph<1, Triplet, TileC>("MM");
+
+        auto inputStateManager  = std::make_shared<hh::StateManager<1, Triplet, MatrixA, MatrixB, MatrixC, Triplet>>(
+            std::make_shared<InputState<MatrixType, IdA, IdB, IdC>>(),
+            "InputStateManager",
+            false
+        );
+        auto jobGenTask         = std::make_shared<GpuJobGeneratorTask3<MatrixType, IdA, IdB, IdC>>(gp_, gq_, windowHeight_, windowWidth_, graphFilterState);
+        jobGenTask->connectMemoryManager(std::make_shared<GpuTokenMemoryManager>(deviceIds));
+        auto tileSorterTask     = std::make_shared<TileSorterTask<MatrixType, IdA, IdB>>(gp_, gq_);
+        auto execPipeline       = std::make_shared<OuterProductExecutionPipeline<MatrixType, IdA, IdB, IdC>>(
+            std::make_shared<OuterProductGpuGraph<MatrixType, IdA, IdB, IdC>>(MT, KT, NT, T, windowHeight_, windowWidth_, depth_, productThreads_),
+            deviceIds,
+            graphFilterState
+        );
+
+        if(tileSize_ != T) {
+            mmA_.reset();
+            mmB_.reset();
+            tileSize_ = T;
+            mmA_ = std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*windowHeight_*depth_*lookAhead_, tileSize_, memoryType);
+            mmB_ = std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*windowWidth_*depth_*lookAhead_, tileSize_, memoryType);
+        }
+        auto dwTaskA            = std::make_shared<MatrixWareHouseBroadcastBatchedTask<MatrixType, IdA>>(gp_*windowHeight_);
+        dwTaskA->connectMemoryManager(mmA_);
+        auto dwTaskB            = std::make_shared<MatrixWareHouseBroadcastBatchedTask<MatrixType, IdB>>(gq_*windowWidth_);
+        dwTaskB->connectMemoryManager(mmB_);
+
+        graph.template input<Triplet>(inputStateManager);
+        graph.template edge<MatrixA>(inputStateManager, dwTaskA);
+        graph.template edge<MatrixB>(inputStateManager, dwTaskB);
+        graph.template edge<Triplet>(inputStateManager, jobGenTask);
+        graph.template edge<BroadcastBatchRequest<IdA>>(jobGenTask, dwTaskA);
+        graph.template edge<BroadcastBatchRequest<IdB>>(jobGenTask, dwTaskB);
+        graph.template edge<TileA>(dwTaskA, tileSorterTask);
+        graph.template edge<TileB>(dwTaskB, tileSorterTask);
+        graph.template edge<TileA>(tileSorterTask, execPipeline);
+        graph.template edge<TileB>(tileSorterTask, execPipeline);
+        graph.template edge<Job>(jobGenTask, execPipeline);
+        graph.template output<TileC>(execPipeline);
+        graph.executeGraph();
+
+        MPI_Barrier(mpiComm);
+        graph.pushData(std::make_shared<Triplet>(std::make_tuple(matrixA, matrixB, matrixC)));
+        graph.finishPushingData();
+
+#ifndef NDEBUG
+        std::atomic_bool quit = false;
+        auto dotGraphDaemon = std::thread([&graph, &dotFile, &quit]() {
+            using namespace std::chrono_literals;
+            while(!quit.load()) {
+                graph.createDotFile(
+                    dotFile,
+                    hh::ColorScheme::EXECUTION,
+                    hh::StructureOptions::QUEUE,
+                    hh::InputOptions::SEPARATED,
+                    hh::DebugOptions::ALL,
+                    std::make_unique<hh::JetColor>(),
+                    false
+                );
+                std::this_thread::sleep_for(4ms);
+            }
+        });
+#endif
+        graph.waitForTermination();
+
+#if NDEBUG
+        graph.createDotFile(
+            dotFile,
+            hh::ColorScheme::EXECUTION,
+            hh::StructureOptions::QUEUE,
+            hh::InputOptions::GATHERED,
+            hh::DebugOptions::NONE,
+            std::make_unique<hh::JetColor>(),
+            false
+        );
+#else
+        quit.store(true);
+        dotGraphDaemon.join();
+        graph.createDotFile(
+            dotFile,
+            hh::ColorScheme::EXECUTION,
+            hh::StructureOptions::QUEUE,
+            hh::InputOptions::GATHERED,
+            hh::DebugOptions::NONE,
+            std::make_unique<hh::JetColor>(),
+            false
+        );
+#endif
+        double time = double((
+                graph.core()->dequeueExecDuration() == std::chrono::nanoseconds::zero()?
+                    std::chrono::system_clock::now() - graph.core()->startExecutionTimeStamp():
+                    graph.core()->dequeueExecDuration()
+            ).count())/1.e9;
+        double maxTime = 0;
+        checkMpiErrors(MPI_Reduce(&time, &maxTime, 1, MPI_DOUBLE, MPI_MAX, 0, mpiComm));
+        return maxTime;
+    }
+
+private:
+    int64_t windowHeight_   = 0;
+    int64_t windowWidth_    = 0;
+    int64_t gp_             = 0;
+    int64_t gq_             = 0;
+    int64_t depth_          = 0;
+    int64_t lookAhead_      = 0;
+    int64_t productThreads_ = 0;
+    int64_t tileSize_       = 0;
+
+    std::shared_ptr<hh::StaticMemoryManager<MatrixTile<MatrixType, IdA>, int64_t, MemoryType>> mmA_ = nullptr;
+    std::shared_ptr<hh::StaticMemoryManager<MatrixTile<MatrixType, IdB>, int64_t, MemoryType>> mmB_ = nullptr;
+};
+
 #endif //HH3_MATMUL_MMD_H

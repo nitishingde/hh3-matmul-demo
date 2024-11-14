@@ -2,8 +2,9 @@
 #define HH3_MATMUL_COMMON_TASKS_H
 
 #include <array>
-
 #include "common_data.h"
+
+using namespace std::chrono_literals;
 
 template<typename MatrixType, char Id>
 class MatrixWarehouseTask: public hh::AbstractTask<2, MatrixContainer<MatrixType, Id>, DbRequest<Id>, MatrixTile<MatrixType, Id>> {
@@ -709,6 +710,292 @@ private:
     std::atomic_int32_t        canProcessResponses_ = false;
     std::shared_ptr<DwRequest> currentRequest_      = nullptr;
     DotTimer                   dotTimer_              {};
+};
+
+/**
+ * A specialized MPI task.
+ * It supports only 1 CommType type, which is the same for both input and output.
+ * It relies on memory manager to get buffer for receiving data.
+ * An MPI edge is formed based on the tuple (MPI_Comm, messageTag). This edge is similar to the switch rule observed in execution pipeline.
+ *
+ * FIXME: global variable dependency: mpiMutex
+ *
+ * @tparam CommType
+ * @tparam OtherInputTypes
+ */
+template<class CommType, class ...OtherInputTypes>
+class AbstractMpiCommTask: public hh::AbstractTask<sizeof...(OtherInputTypes)+1, CommType, OtherInputTypes..., CommType> {
+private:
+    class CommQueues {
+    public:
+        void lock() {
+            mutex_.lock();
+        }
+
+        void unlock() {
+            this->sendQueueSize.store(this->sendQueue.size());
+            this->recvQueueSize.store(this->recvQueue.size());
+            mutex_.unlock();
+        }
+
+        [[nodiscard]] bool try_lock() noexcept {
+            return mutex_.try_lock();
+        }
+
+        void logBandwidth(const std::chrono::time_point<std::chrono::system_clock> &startTime, const std::chrono::time_point<std::chrono::system_clock> &endTime, const int32_t sizeInBytes) {
+            const auto time      = double(std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count());
+            const auto bandwidth = sizeInBytes/time;
+
+            receiveCount_++;
+            avgBandwidth_  = (avgBandwidth_*(receiveCount_-1) + bandwidth)/receiveCount_;
+            minBandwidth_  = std::min(minBandwidth_, bandwidth);
+            maxBandwidth_  = std::max(maxBandwidth_, bandwidth);
+        }
+
+        [[nodiscard]] double avgBw() const {
+            return avgBandwidth_;
+        }
+
+        [[nodiscard]] double minBw() const {
+            return minBandwidth_;
+        }
+
+        [[nodiscard]] double maxBw() const {
+            return maxBandwidth_;
+        }
+
+        [[nodiscard]] int32_t receiveCount() const {
+            return receiveCount_;
+        }
+
+    public:
+        std::vector<std::tuple<std::shared_ptr<CommType>, MPI_Request, std::chrono::time_point<std::chrono::system_clock>>> recvQueue     = {};
+        std::atomic_int32_t                                                                                                 recvQueueSize = -1;
+        std::vector<std::tuple<std::shared_ptr<CommType>, MPI_Request>>                                                     sendQueue     = {};
+        std::atomic_int32_t                                                                                                 sendQueueSize = -1;
+
+    private:
+        std::mutex mutex_         = {};
+        double     minBandwidth_  = std::numeric_limits<double>::max();
+        double     maxBandwidth_  = -1;
+        double     avgBandwidth_  = 0;
+        int32_t    receiveCount_  = 0;
+    };
+
+public:
+    explicit AbstractMpiCommTask(const std::string &name, MPI_Comm mpiComm = MPI_COMM_WORLD, bool autoMaticStart = false):
+            hh::AbstractTask<sizeof...(OtherInputTypes)+1, CommType, OtherInputTypes..., CommType>(name, 1, autoMaticStart), mpiComm_(mpiComm) {
+
+        std::lock_guard mpiLc(mpiMutex);
+        checkMpiErrors(MPI_Comm_rank(mpiComm, &mpiNodeId_));
+        checkMpiErrors(MPI_Comm_size(mpiComm, &mpiNumNodes_));
+    }
+
+    virtual void initializeComm() {}
+
+    void initialize() final {
+        consumerDaemon_ = std::thread(&AbstractMpiCommTask::consumerDaemon, this);
+        receiverDaemon_ = std::thread(&AbstractMpiCommTask::receiverDaemon, this);
+
+        initializeComm();
+    }
+
+    virtual void shutdownComm() {}
+
+    void shutdown() final {
+        shutdownComm();
+
+        if(consumerDaemon_.joinable()) consumerDaemon_.join();
+        if(receiverDaemon_.joinable()) receiverDaemon_.join();
+    }
+
+    // Getters
+    [[nodiscard]] int32_t mpiNodeId()               const { return mpiNodeId_;                            }
+    [[nodiscard]] int32_t mpiNumNodes()             const { return mpiNumNodes_;                          }
+    [[nodiscard]] bool    isCommSendQueueEmpty()    const { return commQueues_.sendQueueSize.load() == 0; }
+    [[nodiscard]] bool    isCommReceiveQueueEmpty() const { return commQueues_.recvQueueSize.load() == 0; }
+
+    void sendToViaMpiAsync(std::shared_ptr<CommType> &data, const int32_t destinationNodeId, const int32_t tagId = 0) {
+        assert(0 <= destinationNodeId);
+        assert(0 <= tagId);
+
+        std::lock_guard commLg(commQueues_);
+        auto &sendQueue = commQueues_.sendQueue;
+        sendQueue.emplace_back(data, MPI_Request{});
+        auto &mpiRequest = std::get<1>(sendQueue.back());
+
+        std::lock_guard mpiLg(mpiMutex);
+        checkMpiErrors(MPI_Isend(getBuffer(*data), getBufferSizeInBytes(*data), MPI_BYTE, destinationNodeId, std::max(tagId, 0), mpiComm_, &mpiRequest));
+    }
+
+    virtual void postProcessMpiSentData([[maybe_unused]] std::shared_ptr<CommType> &data, [[maybe_unused]] int32_t destinationNodeId, [[maybe_unused]] int32_t tagId, [[maybe_unused]] int32_t sizeInBytes) {}
+
+    void joinCommThreads() {
+        consumerDaemon_.join();
+        receiverDaemon_.join();
+    }
+
+    virtual std::tuple<std::shared_ptr<CommType>, int32_t, int32_t, bool> mpiReceiveProtocol() {
+        assert(this->memoryManager() != nullptr);
+        return std::make_tuple(std::dynamic_pointer_cast<CommType>(this->getManagedMemory()), MPI_ANY_SOURCE, MPI_ANY_TAG, false);
+    }
+
+    virtual void preProcessMpiReceivedData([[maybe_unused]] std::shared_ptr<CommType> &data, [[maybe_unused]] int32_t sourceNodeId, [[maybe_unused]] int32_t tagId, [[maybe_unused]] int32_t sizeInBytes) {}
+
+    [[nodiscard]] virtual bool canTerminateComm() const = 0;
+
+    [[nodiscard]] bool canTerminate() const final {
+        return canTerminateComm() and hh::AbstractTask<sizeof...(OtherInputTypes)+1, CommType, OtherInputTypes..., CommType>::canTerminate();
+    }
+
+    [[nodiscard]] std::string extraPrintingInformation() const override {
+        //std::lock_guard lg(commQueues_);FIXME: needed?
+        constexpr auto suffix = "MB/s";
+
+        auto min = std::to_string(commQueues_.minBw());
+        auto avg = std::to_string(commQueues_.avgBw());
+        auto max = std::to_string(commQueues_.maxBw());
+
+        return "#Elements received via MPI: " + std::to_string(commQueues_.receiveCount())
+            + "\\nBW:"
+            + "\\nMin: " + min.substr(0, min.find('.', 0)+4) + suffix
+            + "\\nAvg: " + avg.substr(0, avg.find('.', 0)+4) + suffix
+            + "\\nMax: " + max.substr(0, max.find('.', 0)+4) + suffix
+        ;
+    }
+
+private:
+    int32_t postMpiReceive() {
+        auto [data, sourceNodeId, tagId, blocking] = this->mpiReceiveProtocol();
+        if(data == nullptr) return 0;
+
+        if(blocking) {
+            MPI_Status mpiStatus;
+            const auto bufferSizeInBytes = getBufferSizeInBytes(*data);
+
+            std::lock_guard mpiLg(mpiMutex);
+            auto start = std::chrono::system_clock::now();
+            checkMpiErrors(MPI_Recv(getBuffer(*data), bufferSizeInBytes, MPI_BYTE, sourceNodeId, tagId, mpiComm_, &mpiStatus));
+            auto end  = std::chrono::system_clock::now();
+
+            preProcessMpiReceivedData(data, sourceNodeId, tagId, bufferSizeInBytes);
+            this->addResult(data);
+
+            std::lock_guard lg(commQueues_);
+            commQueues_.logBandwidth(start, end, bufferSizeInBytes);
+
+            return 1;
+        }
+
+        std::lock_guard commLg(commQueues_);
+        auto &recvQueue = commQueues_.recvQueue;
+
+        std::lock_guard mpiLg(mpiMutex);
+        recvQueue.emplace_back(data, MPI_Request{}, std::chrono::system_clock::now());
+        auto &mpiRequest = std::get<1>(recvQueue.back());
+        checkMpiErrors(MPI_Irecv(getBuffer(*data), getBufferSizeInBytes(*data), MPI_BYTE, sourceNodeId, tagId, mpiComm_, &mpiRequest));
+
+        return recvQueue.size();
+    }
+
+    int32_t processRecvQueue(bool flush = false) {
+        std::lock_guard commLg(commQueues_);
+        auto &recvQueue = commQueues_.recvQueue;
+
+        for(auto it = recvQueue.begin(); it != recvQueue.end();) {
+            auto &[data, mpiRequest, start] = *it;
+            int32_t flag = false;
+            MPI_Status mpiStatus;
+            std::lock_guard mpiLg(mpiMutex);
+            checkMpiErrors(MPI_Test(&mpiRequest, &flag, &mpiStatus));
+            if(flag) {
+                auto end = std::chrono::system_clock::now();
+                int32_t bufferSizeInBytes;
+                checkMpiErrors(MPI_Get_count(&mpiStatus, MPI_CHAR, &bufferSizeInBytes));
+                preProcessMpiReceivedData(data, mpiStatus.MPI_SOURCE, mpiStatus.MPI_TAG, bufferSizeInBytes);
+                this->addResult(data);
+                it = recvQueue.erase(it);
+                commQueues_.logBandwidth(start, end, bufferSizeInBytes);
+            }
+            else {
+                it++;
+            }
+        }
+
+        if(flush) {
+            std::vector<MPI_Request> enqueuedMpiReceiveRequests;
+            enqueuedMpiReceiveRequests.reserve(recvQueue.size()+8);
+            for(auto &[data, mpiRequest, start]: recvQueue) {
+                std::lock_guard mpiLg(mpiMutex);
+                checkMpiErrors(MPI_Cancel(&mpiRequest));
+                enqueuedMpiReceiveRequests.emplace_back(mpiRequest);
+            }
+            std::lock_guard mpiLg(mpiMutex);
+            checkMpiErrors(MPI_Waitall(enqueuedMpiReceiveRequests.size(), enqueuedMpiReceiveRequests.data(), MPI_STATUSES_IGNORE));
+            recvQueue.clear();
+        }
+
+        return recvQueue.size();
+    }
+
+    int32_t processSendQueue(bool flush = false) {
+        std::lock_guard commLg(commQueues_);
+        auto &sendQueue = commQueues_.sendQueue;
+
+        do {
+            for(auto it = sendQueue.begin(); it != sendQueue.end();) {
+                auto &[data, mpiRequest] = *it;
+                int flag = false;
+
+                std::lock_guard mpiLg(mpiMutex);
+                MPI_Status mpiStatus;
+                checkMpiErrors(MPI_Test(&mpiRequest, &flag, &mpiStatus));
+                if(flag) {
+                    postProcessMpiSentData(data, mpiStatus.MPI_SOURCE, mpiStatus.MPI_TAG, getBufferSizeInBytes(*data));
+                    it = sendQueue.erase(it);
+                }
+                else {
+                    it++;
+                }
+            }
+        } while(flush and !sendQueue.empty());
+
+        return sendQueue.size();
+    }
+
+    void consumerDaemon() {
+        while(!canTerminate()) {
+            processRecvQueue();
+            processSendQueue();
+
+            std::this_thread::sleep_for(sleepTime_);
+        }
+
+        // process recv and send queues if any
+        processSendQueue(true);
+        processRecvQueue(true);
+    }
+
+    void receiverDaemon() {
+        postMpiReceive();
+        while(!canTerminate()) {
+            if(postMpiReceive() == 0 and processRecvQueue() == 0) {
+                std::this_thread::sleep_for(sleepTime_);
+            }
+            processSendQueue();
+        }
+    }
+
+protected:
+
+private:
+    CommQueues                commQueues_       {};
+    std::thread               consumerDaemon_ = {};
+    MPI_Comm                  mpiComm_        = MPI_COMM_WORLD;
+    int32_t                   mpiNodeId_      = 0;
+    int32_t                   mpiNumNodes_    = 0;
+    std::thread               receiverDaemon_ = {};
+    std::chrono::milliseconds sleepTime_      = 4ms;
 };
 
 #endif //HH3_MATMUL_COMMON_TASKS_H

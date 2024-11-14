@@ -417,6 +417,146 @@ private:
     std::shared_ptr<GraphFilterState> graphFilterState_ = nullptr;
 };
 
+template<char Id>
+struct CommBatchRequest {
+    std::vector<std::tuple<int64_t, int64_t>>          requestList = {};
+    std::vector<std::tuple<int64_t, int64_t, int64_t>> sendList    = {};
+    bool                                               lastRequest = false;
+};
+
+template<typename MatrixType, char Id>
+int32_t getBufferSizeInBytes(MatrixTile<MatrixType, Id> &tile) {
+    return tile.byteSize();
+}
+
+template<typename MatrixType, char Id>
+void* getBuffer(MatrixTile<MatrixType, Id> &tile) {
+    return tile.data();
+}
+
+template<typename MatrixType, char Id>
+class MatrixCommTask: public AbstractMpiCommTask<MatrixTile<MatrixType, Id>, CommBatchRequest<Id>> {
+public:
+    using Matrix = MatrixContainer<MatrixType, Id>;
+    using Tile   = MatrixTile<MatrixType, Id>;
+
+    explicit MatrixCommTask(const std::string &name, std::shared_ptr<MatrixContainer<MatrixType, Id>> matrix, const int32_t receiveLimit, const int32_t sendLimit = 64):
+        AbstractMpiCommTask<MatrixTile<MatrixType, Id>, CommBatchRequest<Id>>(name, matrix->mpiComm(), false), matrix_(matrix) {
+
+        receiveLimit_ = receiveLimit;
+        sendTtl_      = sendLimit;
+    }
+
+    void execute([[maybe_unused]] std::shared_ptr<Tile> tile) override {}
+
+    void execute(std::shared_ptr<CommBatchRequest<Id>> commBatchRequest) override {
+        if(true) {
+            std::unique_lock ul(mutex_);
+            const auto &requestList = commBatchRequest->requestList;
+            requestQueue_.insert(requestQueue_.end(), requestList.begin(), requestList.end());
+            requestQueueSize_.store(requestQueue_.size());
+
+            const auto NT = matrix_->matrixNumColTiles();
+            for(const auto &[rowIdx, colIdx, destinationNodeId]: commBatchRequest->sendList) {
+                auto tile = matrix_->tile(rowIdx, colIdx);
+                if(tile == nullptr) {
+                    fprintf(stderr, "[ERROR][Node %ld][Tile-%c(%ld, %ld) is not local!]\n", getNodeId(), Id, rowIdx, colIdx);
+                    continue;
+                }
+                const int32_t tagId = rowIdx*NT + colIdx;
+                conditionVariable_.wait(ul, [this]() { return (0 < this->sendTtl_); });
+                this->sendToViaMpiAsync(tile, destinationNodeId, tagId);
+                sendTtl_--;
+            }
+        }
+
+        if(commBatchRequest->lastRequest) {
+            isLastRequestInQueue_.store(true);
+            this->joinCommThreads();
+        }
+    }
+
+    std::tuple<std::shared_ptr<Tile>, int32_t, int32_t, bool> mpiReceiveProtocol() override {
+        std::lock_guard lg(mutex_);
+
+        updateStateThreadUnsafe();
+        while(!requestQueue_.empty() and int32_t(receivedTiles_.size()) < receiveLimit_) {
+            auto [rowIdx, colIdx] = requestQueue_.front();
+            requestQueue_.pop_front();
+            if(auto tile = matrix_->tile(rowIdx, colIdx); tile != nullptr) {
+                tile->ttl(1);
+                this->addResult(tile);
+                receivedTiles_.emplace_back(tile);
+                continue;
+            }
+
+            const auto NT = matrix_->matrixNumColTiles();
+            auto tile     = std::dynamic_pointer_cast<Tile>(this->getManagedMemory());
+            receivedTiles_.emplace_back(tile);
+            requestQueueSize_.store(requestQueue_.size());
+            return std::make_tuple(tile, int32_t(matrix_->owner(rowIdx, colIdx)), int32_t(rowIdx*NT + colIdx), false);
+        }
+
+        requestQueueSize_.store(requestQueue_.size());
+        return {nullptr, MPI_ANY_SOURCE, MPI_ANY_TAG, false};
+    }
+
+    void preProcessMpiReceivedData(std::shared_ptr<MatrixTile<MatrixType, Id>> &tile, [[maybe_unused]] const int32_t sourceNodeId, const int32_t tagId, [[maybe_unused]] const int32_t sizeInBytes) override {
+        const auto NT     = matrix_->matrixNumColTiles();
+        const auto rowIdx = tagId/NT;
+        const auto colIdx = tagId%NT;
+        tile->init(rowIdx, colIdx, matrix_->tileHeight(rowIdx, colIdx), matrix_->tileWidth(rowIdx, colIdx));
+        tile->memoryState(MemoryState::SHARED);
+        tile->ttl(1);
+    }
+
+    void postProcessMpiSentData([[maybe_unused]] std::shared_ptr<MatrixTile<MatrixType, Id>> &tile, [[maybe_unused]] const int32_t destinationNodeId, [[maybe_unused]] const int32_t tagId, [[maybe_unused]] const int32_t sizeInBytes) override {
+        if(true) {
+            std::lock_guard lg(mutex_);
+            sendTtl_++;
+        }
+        conditionVariable_.notify_all();
+    }
+
+    [[nodiscard]] bool canTerminateComm() const override {
+        return true
+            and isLastRequestInQueue_.load()
+            and requestQueueSize_.load() == 0
+            and receivedTilesSize_.load() == 0
+            and this->isCommSendQueueEmpty()
+            and this->isCommReceiveQueueEmpty();
+    }
+
+private:
+    void updateStateThreadUnsafe() {
+        for(auto it = receivedTiles_.begin(); it != receivedTiles_.end();) {
+            auto tile = *it;
+            if(tile->ttl() <= 0) {
+                it = receivedTiles_.erase(it);
+            }
+            else {
+                it++;
+            }
+        }
+
+        receivedTilesSize_.store(receivedTiles_.size());
+    }
+
+private:
+    std::condition_variable                  conditionVariable_ = {};
+    std::shared_ptr<Matrix>                  matrix_            = nullptr;
+    mutable std::mutex                       mutex_             = {};
+    int32_t                                  receiveLimit_      = 64;
+    std::deque<std::tuple<int64_t, int64_t>> requestQueue_      = {};
+    int32_t                                  sendTtl_           = 64;
+    std::vector<std::shared_ptr<Tile>>       receivedTiles_     = {};
+
+    // current state, thread safe
+    std::atomic_bool    isLastRequestInQueue_ = false;
+    std::atomic_int32_t receivedTilesSize_    = 0;
+    std::atomic_int32_t requestQueueSize_     = 0;
+};
+
 template<typename MatrixType, char IdA, char IdB>
 class TileSorterTask: public hh::AbstractTask<
         2,

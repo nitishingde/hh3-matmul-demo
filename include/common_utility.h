@@ -36,12 +36,42 @@
 
 // MPI Related ------------------------------------------------------------------------------------------------------ //
 
+struct MutexWrapper {
+public:
+    [[maybe_unused]] void lock() {
+        if(disabled_) return;
+        mutex_.lock();
+    }
+
+    [[maybe_unused]] void unlock() {
+        if(disabled_) return;
+        mutex_.unlock();
+    }
+
+    [[nodiscard, maybe_unused]] bool try_lock() noexcept {
+        if(disabled_) return true;
+        return mutex_.try_lock();
+    }
+
+    void enable() {
+        disabled_ = false;
+    }
+
+    void disable() {
+        disabled_ = true;
+    }
+
+private:
+    bool       disabled_ = false;
+    std::mutex mutex_    = {};
+};
+
 static int32_t sMpiNodeId    = -1;
 static int32_t sMpiNumNodes  = -1;
 static int64_t sGridP        = -1;
 static int64_t sGridQ        = -1;
 static std::string sHostName = {};
-std::mutex         mpiMutex  = {};
+MutexWrapper       mpiMutex  = {};
 
 [[nodiscard]] int64_t getNodeId() {
     return sMpiNodeId;
@@ -90,6 +120,19 @@ public:
 
         int32_t provided;
         checkMpiErrors(MPI_Init_thread(argc, argv, flag, &provided));
+        assert(flag == provided);
+        switch (provided) {
+            case MPI_THREAD_SERIALIZED:
+                mpiMutex.enable();
+                break;
+
+            default:
+            case MPI_THREAD_SINGLE:
+            case MPI_THREAD_FUNNELED:
+            case MPI_THREAD_MULTIPLE:
+                mpiMutex.disable();
+        }
+
         init();
         int32_t len = -1;
         sHostName.resize(MPI_MAX_PROCESSOR_NAME);

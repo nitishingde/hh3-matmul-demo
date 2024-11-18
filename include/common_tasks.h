@@ -786,7 +786,7 @@ public:
     explicit AbstractMpiCommTask(const std::string &name, MPI_Comm mpiComm = MPI_COMM_WORLD, bool autoMaticStart = false):
             hh::AbstractTask<sizeof...(OtherInputTypes)+1, CommType, OtherInputTypes..., CommType>(name, 1, autoMaticStart), mpiComm_(mpiComm) {
 
-        std::lock_guard mpiLc(mpiMutex);
+        std::lock_guard mpiLg(mpiMutex);
         checkMpiErrors(MPI_Comm_rank(mpiComm, &mpiNodeId_));
         checkMpiErrors(MPI_Comm_size(mpiComm, &mpiNumNodes_));
     }

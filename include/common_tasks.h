@@ -873,10 +873,13 @@ private:
             MPI_Status mpiStatus;
             const auto bufferSizeInBytes = getBufferSizeInBytes(*data);
 
-            std::lock_guard mpiLg(mpiMutex);
-            auto start = std::chrono::system_clock::now();
-            checkMpiErrors(MPI_Recv(getBuffer(*data), bufferSizeInBytes, MPI_BYTE, sourceNodeId, tagId, mpiComm_, &mpiStatus));
-            auto end  = std::chrono::system_clock::now();
+            std::chrono::time_point<std::chrono::system_clock> start, end;
+            if(true) {
+                std::lock_guard mpiLg(mpiMutex);
+                start = std::chrono::system_clock::now();
+                checkMpiErrors(MPI_Recv(getBuffer(*data), bufferSizeInBytes, MPI_BYTE, sourceNodeId, tagId, mpiComm_, &mpiStatus));
+                end  = std::chrono::system_clock::now();
+            }
 
             preProcessMpiReceivedData(data, sourceNodeId, tagId, bufferSizeInBytes);
             this->addResult(data);
@@ -930,8 +933,14 @@ private:
                 checkMpiErrors(MPI_Cancel(&mpiRequest));
                 enqueuedMpiReceiveRequests.emplace_back(mpiRequest);
             }
-            std::lock_guard mpiLg(mpiMutex);
-            checkMpiErrors(MPI_Waitall(enqueuedMpiReceiveRequests.size(), enqueuedMpiReceiveRequests.data(), MPI_STATUSES_IGNORE));
+
+            int processed = false;
+            do {
+                std::this_thread::sleep_for(sleepTime_);
+                std::lock_guard mpiLg(mpiMutex);
+                checkMpiErrors(MPI_Testall(enqueuedMpiReceiveRequests.size(), enqueuedMpiReceiveRequests.data(), &processed, MPI_STATUSES_IGNORE));
+            } while(!processed);
+
             recvQueue.clear();
         }
 

@@ -825,7 +825,7 @@ public:
         auto &mpiRequest = std::get<1>(sendQueue.back());
 
         std::lock_guard mpiLg(mpiMutex);
-        checkMpiErrors(MPI_Isend(getBuffer(*data), getBufferSizeInBytes(*data), MPI_BYTE, destinationNodeId, std::max(tagId, 0), mpiComm_, &mpiRequest));
+        checkMpiErrors(MPI_Issend(getBuffer(*data), getBufferSizeInBytes(*data), MPI_BYTE, destinationNodeId, std::max(tagId, 0), mpiComm_, &mpiRequest));
     }
 
     virtual void postProcessMpiSentData([[maybe_unused]] std::shared_ptr<CommType> &data, [[maybe_unused]] int32_t destinationNodeId, [[maybe_unused]] int32_t tagId, [[maybe_unused]] int32_t sizeInBytes) {}

@@ -743,7 +743,7 @@ private:
         }
 
         void logBandwidth(const std::chrono::time_point<std::chrono::system_clock> &startTime, const std::chrono::time_point<std::chrono::system_clock> &endTime, const int32_t sizeInBytes) {
-            const auto time      = double(std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count());
+            const auto time      = double(std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count())/1.e9;
             const auto bandwidth = sizeInBytes/time;
 
             receiveCount_++;
@@ -852,9 +852,9 @@ public:
         //std::lock_guard lg(commQueues_);FIXME: needed?
         constexpr auto suffix = "MB/s";
 
-        auto min = std::to_string(commQueues_.minBw());
-        auto avg = std::to_string(commQueues_.avgBw());
-        auto max = std::to_string(commQueues_.maxBw());
+        auto min = std::to_string(commQueues_.minBw()/(1024.*1024.));
+        auto avg = std::to_string(commQueues_.avgBw()/(1024.*1024.));
+        auto max = std::to_string(commQueues_.maxBw()/(1024.*1024.));
 
         return "#Elements received via MPI: " + std::to_string(commQueues_.receiveCount())
             + "\\nBW:"

@@ -14,7 +14,7 @@ if(NOT Hedgehog_INCLUDE_DIR)
 	FetchContent_Declare(
 		Hedgehog
 		GIT_REPOSITORY https://github.com/usnistgov/hedgehog.git
-		GIT_TAG        master
+		GIT_TAG        c5dde6242703bb33c1ead0183dd6788c0e2ed061
 	)
 	FetchContent_GetProperties(Hedgehog)
 	if(NOT hedgehog_POPULATED)

@@ -572,5 +572,33 @@ private:
     std::string                                        suffix_    = "s";
 };
 
+class TokenizedConditionVariable {
+public:
+    explicit TokenizedConditionVariable(const int32_t ttl = 32): ttl_(ttl) {}
+
+    void reset(const int32_t limit) {
+        std::lock_guard lg(mutex_);
+        ttl_ = limit;
+    }
+
+    void acquire() {
+        std::unique_lock ul(mutex_);
+        conditionVariable_.wait(ul, [this]() { return (0 < this->ttl_); });
+        ttl_--;
+    }
+
+    void release() {
+        if(true) {
+            std::lock_guard lg(mutex_);
+            ttl_++;
+        }
+        conditionVariable_.notify_one();
+    }
+
+private:
+    std::mutex              mutex_             = {};
+    std::condition_variable conditionVariable_ = {};
+    int32_t                 ttl_               = 0;
+};
 
 #endif //HH3_MATMUL_COMMON_DATA_H

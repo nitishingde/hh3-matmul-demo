@@ -835,7 +835,7 @@ public:
         receiverDaemon_.join();
     }
 
-    virtual std::tuple<std::shared_ptr<CommType>, int32_t, int32_t, bool> mpiReceiveProtocol() {
+    [[nodiscard]] virtual std::tuple<std::shared_ptr<CommType>, int32_t, int32_t, bool> mpiReceiveProtocol() {
         assert(this->memoryManager() != nullptr);
         return std::make_tuple(std::dynamic_pointer_cast<CommType>(this->getManagedMemory()), MPI_ANY_SOURCE, MPI_ANY_TAG, false);
     }

@@ -840,6 +840,11 @@ public:
         return std::make_tuple(std::dynamic_pointer_cast<CommType>(this->getManagedMemory()), MPI_ANY_SOURCE, MPI_ANY_TAG, false);
     }
 
+    // WARNING: has to be non-blocking
+    [[nodiscard]] virtual std::tuple<std::shared_ptr<CommType>, int32_t, int32_t> mpiSendProtocol() {
+        return std::make_tuple(nullptr, MPI_ANY_SOURCE, MPI_ANY_TAG);
+    }
+
     virtual void preProcessMpiReceivedData([[maybe_unused]] std::shared_ptr<CommType> &data, [[maybe_unused]] int32_t sourceNodeId, [[maybe_unused]] int32_t tagId, [[maybe_unused]] int32_t sizeInBytes) {}
 
     [[nodiscard]] virtual bool canTerminateComm() const = 0;
@@ -947,6 +952,14 @@ private:
         return recvQueue.size();
     }
 
+    int32_t postMpiSend() {
+        auto [data, destinationNodeId, tagId] = this->mpiSendProtocol();
+        if(data == nullptr) return 0;
+
+        this->sendToViaMpiAsync(data, destinationNodeId, tagId);
+        return 1;
+    }
+
     int32_t processSendQueue(bool flush = false) {
         std::lock_guard commLg(commQueues_);
         auto &sendQueue = commQueues_.sendQueue;
@@ -974,6 +987,7 @@ private:
 
     void consumerDaemon() {
         while(!canTerminate()) {
+            for(int32_t i = 0; 0 < postMpiSend() and i < 32; ++i);
             processRecvQueue();
             processSendQueue();
 

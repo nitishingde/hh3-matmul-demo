@@ -418,10 +418,13 @@ private:
 };
 
 template<char Id>
-struct CommBatchRequest {
-    std::vector<std::tuple<int64_t, int64_t>>          requestList = {};
-    std::vector<std::tuple<int64_t, int64_t, int64_t>> sendList    = {};
-    bool                                               lastRequest = false;
+struct CommRequestList {
+    std::vector<std::tuple<int64_t, int64_t>> data = {};
+};
+
+template<char Id>
+struct CommSendList {
+    std::vector<std::tuple<int64_t, int64_t, int64_t>> data = {};
 };
 
 template<typename MatrixType, char Id>
@@ -435,32 +438,44 @@ void* getBuffer(MatrixTile<MatrixType, Id> &tile) {
 }
 
 template<typename MatrixType, char Id>
-class MatrixCommTask: public AbstractMpiCommTask<MatrixTile<MatrixType, Id>, CommBatchRequest<Id>> {
+class MatrixCommTask: public AbstractMpiCommTask<MatrixTile<MatrixType, Id>, CommRequestList<Id>, CommSendList<Id>> {
 public:
     using Matrix = MatrixContainer<MatrixType, Id>;
     using Tile   = MatrixTile<MatrixType, Id>;
 
     explicit MatrixCommTask(const std::string &name, std::shared_ptr<MatrixContainer<MatrixType, Id>> matrix, const int32_t receiveLimit, const int32_t sendLimit = 64):
-        AbstractMpiCommTask<MatrixTile<MatrixType, Id>, CommBatchRequest<Id>>(name, matrix->mpiComm(), false), matrix_(matrix) {
+        AbstractMpiCommTask<MatrixTile<MatrixType, Id>, CommRequestList<Id>, CommSendList<Id>>(name, matrix->mpiComm(), false), matrix_(matrix) {
 
         receiveLimit_ = receiveLimit;
-        sendToken_.reset(sendLimit);
+        sendTtl_      = sendLimit;
     }
 
     void execute([[maybe_unused]] std::shared_ptr<Tile> tile) override {}
 
-    void execute(std::shared_ptr<CommBatchRequest<Id>> commBatchRequest) override {
-        enqueueReceives(commBatchRequest);
-        enqueueSends(commBatchRequest);
-
-        if(commBatchRequest->lastRequest) {
-            isLastRequestInQueue_.store(true);
-            this->joinCommThreads();
+    void execute(std::shared_ptr<CommRequestList<Id>> commRequestList) override {
+        if(commRequestList->data.empty()) {
+            processLastRequest();
+            return;
         }
+
+        std::lock_guard lg(receiveMutex_);
+        requestQueue_.insert(requestQueue_.end(), commRequestList->data.begin(), commRequestList->data.end());
+        requestQueueSize_.store(requestQueue_.size());
     }
 
-    std::tuple<std::shared_ptr<Tile>, int32_t, int32_t, bool> mpiReceiveProtocol() override {
-        std::lock_guard lg(mutex_);
+    void execute(std::shared_ptr<CommSendList<Id>> commSendList) override {
+        if(commSendList->data.empty()) {
+            processLastRequest();
+            return;
+        }
+
+        std::lock_guard lg(sendMutex_);
+        sendQueue_.insert(sendQueue_.end(), commSendList->data.begin(), commSendList->data.end());
+        sendQueueSize_.store(sendQueue_.size());
+    }
+
+    [[nodiscard]] std::tuple<std::shared_ptr<Tile>, int32_t, int32_t, bool> mpiReceiveProtocol() override {
+        std::lock_guard lg(receiveMutex_);
 
         updateStateThreadUnsafe();
         while(!requestQueue_.empty() and int32_t(receivedTiles_.size()) < receiveLimit_) {
@@ -481,7 +496,7 @@ public:
         }
 
         requestQueueSize_.store(requestQueue_.size());
-        return {nullptr, MPI_ANY_SOURCE, MPI_ANY_TAG, false};
+        return std::make_tuple(nullptr, MPI_ANY_SOURCE, MPI_ANY_TAG, false);
     }
 
     void preProcessMpiReceivedData(std::shared_ptr<MatrixTile<MatrixType, Id>> &tile, [[maybe_unused]] const int32_t sourceNodeId, const int32_t tagId, [[maybe_unused]] const int32_t sizeInBytes) override {
@@ -493,8 +508,29 @@ public:
         tile->ttl(1);
     }
 
+    [[nodiscard]] std::tuple<std::shared_ptr<Tile>, int32_t, int32_t> mpiSendProtocol() override {
+        if(sendQueueSize_.load() == 0) {
+            return std::make_tuple(nullptr, MPI_ANY_SOURCE, MPI_ANY_TAG);
+        }
+
+        std::lock_guard lg(sendMutex_);
+        if(sendTtl_ <= 0 or sendQueue_.empty()) {
+            return std::make_tuple(nullptr, MPI_ANY_SOURCE, MPI_ANY_TAG);
+        }
+
+        const auto [rowIdx, colIdx, destinationNodeId] = sendQueue_.front();
+        sendQueue_.pop_front();
+        sendQueueSize_.store(sendQueue_.size());
+
+        auto tile = matrix_->tile(rowIdx, colIdx);
+        assert(tile != nullptr);
+
+        return std::make_tuple(tile, destinationNodeId, rowIdx*matrix_->matrixNumColTiles() + colIdx);
+    }
+
     void postProcessMpiSentData([[maybe_unused]] std::shared_ptr<MatrixTile<MatrixType, Id>> &tile, [[maybe_unused]] const int32_t destinationNodeId, [[maybe_unused]] const int32_t tagId, [[maybe_unused]] const int32_t sizeInBytes) override {
-        sendToken_.release();
+        std::lock_guard lg(sendMutex_);
+        sendTtl_++;
     }
 
     [[nodiscard]] bool canTerminateComm() const override {
@@ -502,33 +538,12 @@ public:
             and isLastRequestInQueue_.load()
             and requestQueueSize_.load() == 0
             and receivedTilesSize_.load() == 0
+            and sendQueueSize_.load() == 0
             and this->isCommSendQueueEmpty()
             and this->isCommReceiveQueueEmpty();
     }
 
 private:
-    void enqueueReceives(std::shared_ptr<CommBatchRequest<Id>> commBatchRequest) {
-        std::lock_guard lg(mutex_);
-        const auto &requestList = commBatchRequest->requestList;
-        requestQueue_.insert(requestQueue_.end(), requestList.begin(), requestList.end());
-        requestQueueSize_.store(requestQueue_.size());
-    }
-
-    void enqueueSends(std::shared_ptr<CommBatchRequest<Id>> commBatchRequest) {
-        const auto NT = matrix_->matrixNumColTiles();
-        for(const auto &[rowIdx, colIdx, destinationNodeId]: commBatchRequest->sendList) {
-            auto tile = matrix_->tile(rowIdx, colIdx);
-            if(tile == nullptr) {
-                fprintf(stderr, "[ERROR][Node %ld][Tile-%c(%ld, %ld) is not local!]\n", getNodeId(), Id, rowIdx, colIdx);
-                continue;
-            }
-            const int32_t tagId = rowIdx*NT + colIdx;
-
-            sendToken_.acquire();
-            this->sendToViaMpiAsync(tile, destinationNodeId, tagId);
-        }
-    }
-
     void updateStateThreadUnsafe() {
         for(auto it = receivedTiles_.begin(); it != receivedTiles_.end();) {
             auto tile = *it;
@@ -543,17 +558,26 @@ private:
         receivedTilesSize_.store(receivedTiles_.size());
     }
 
-private:
-    std::shared_ptr<Matrix>                  matrix_               = nullptr;
-    TokenizedConditionVariable               sendToken_              {};
-    std::atomic_bool                         isLastRequestInQueue_ = false;
+    void processLastRequest() {
+        isLastRequestInQueue_.store(true);
+        this->joinCommThreads();
+    }
 
-    std::mutex                               mutex_                = {};
-    std::vector<std::shared_ptr<Tile>>       receivedTiles_        = {};
-    std::atomic_int32_t                      receivedTilesSize_    = 0;
-    int32_t                                  receiveLimit_         = 64;
-    std::deque<std::tuple<int64_t, int64_t>> requestQueue_         = {};
-    std::atomic_int32_t                      requestQueueSize_     = 0;
+private:
+    std::shared_ptr<Matrix> matrix_               = nullptr;
+    std::atomic_bool        isLastRequestInQueue_ = false;
+
+    std::mutex                               receiveMutex_      = {};
+    std::vector<std::shared_ptr<Tile>>       receivedTiles_     = {};
+    std::atomic_int32_t                      receivedTilesSize_ = 0;
+    int32_t                                  receiveLimit_      = 64;
+    std::deque<std::tuple<int64_t, int64_t>> requestQueue_      = {};
+    std::atomic_int32_t                      requestQueueSize_  = 0;
+
+    std::mutex                                        sendMutex_     = {};
+    std::deque<std::tuple<int64_t, int64_t, int64_t>> sendQueue_     = {};
+    std::atomic_int32_t                               sendQueueSize_ = 0;
+    int32_t                                           sendTtl_       = 0;
 };
 
 template<typename MatrixType, char IdA, char IdB>

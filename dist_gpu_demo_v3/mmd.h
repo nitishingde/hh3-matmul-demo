@@ -403,11 +403,11 @@ public:
         );
         auto commTaskA          = std::make_shared<MatrixCommTask<MatrixType, IdA>>("CommTaskA", matrixA, 2*(Q-1));
         commTaskA->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*jobHeight_/*depth_*lookAhead_*/, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*jobHeight_*depth_*lookAhead_, T, memoryType)
         );
         auto commTaskB          = std::make_shared<MatrixCommTask<MatrixType, IdB>>("CommTaskB", matrixB, 2*(P-1));
         commTaskB->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*jobWidth_/*depth_*lookAhead_*/, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*jobWidth_*depth_*lookAhead_, T, memoryType)
         );
 
         graph.template input<Triplet>(inputStateManager);

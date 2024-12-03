@@ -58,6 +58,12 @@ target_link_libraries(v3_demo2
        v3_lib
 )
 
+add_executable(v3_demo3 v3_demo3.cpp)
+target_link_libraries(v3_demo3
+    PUBLIC
+       v3_lib
+)
+
 add_executable(v3_benchmark1 v3_benchmark1.cpp)
 target_link_libraries(v3_benchmark1
     PUBLIC
@@ -66,6 +72,12 @@ target_link_libraries(v3_benchmark1
 
 add_executable(v3_benchmark2 v3_benchmark2.cpp)
 target_link_libraries(v3_benchmark2
+    PUBLIC
+        v3_lib
+)
+
+add_executable(v3_benchmark3 v3_benchmark3.cpp)
+target_link_libraries(v3_benchmark3
     PUBLIC
         v3_lib
 )

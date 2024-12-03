@@ -443,14 +443,16 @@ public:
     using Matrix = MatrixContainer<MatrixType, Id>;
     using Tile   = MatrixTile<MatrixType, Id>;
 
-    explicit MatrixCommTask(const std::string &name, std::shared_ptr<MatrixContainer<MatrixType, Id>> matrix, const int32_t receiveLimit, const int32_t sendLimit = 64):
-        AbstractMpiCommTask<MatrixTile<MatrixType, Id>, CommRequestList<Id>, CommSendList<Id>>(name, matrix->mpiComm(), false), matrix_(matrix) {
+    explicit MatrixCommTask(const std::string &name, std::shared_ptr<MatrixContainer<MatrixType, Id>> matrix, const int32_t sendLimit = 64):
+        AbstractMpiCommTask<MatrixTile<MatrixType, Id>, CommRequestList<Id>, CommSendList<Id>>(name, matrix->mpiComm(), false), matrix_(matrix),
+        sendTtl_(sendLimit) {}
 
-        receiveLimit_ = receiveLimit;
-        sendTtl_      = sendLimit;
+    void execute(std::shared_ptr<Tile> tile) override {
+        tile->ttl(1);
+
+        std::lock_guard lg(receiveMutex_);
+        updateStateThreadUnsafe();
     }
-
-    void execute([[maybe_unused]] std::shared_ptr<Tile> tile) override {}
 
     void execute(std::shared_ptr<CommRequestList<Id>> commRequestList) override {
         if(commRequestList->data.empty()) {
@@ -478,20 +480,28 @@ public:
         std::lock_guard lg(receiveMutex_);
 
         updateStateThreadUnsafe();
-        while(!requestQueue_.empty() and int32_t(receivedTiles_.size()) < receiveLimit_) {
+        while(!requestQueue_.empty() and this->memoryManager()->currentSize() != 0) {
             auto [rowIdx, colIdx] = requestQueue_.front();
             requestQueue_.pop_front();
+            requestQueueSize_.store(requestQueue_.size());
             if(auto tile = matrix_->tile(rowIdx, colIdx); tile != nullptr) {
                 tile->ttl(1);
-                this->addResult(tile);
-                receivedTiles_.emplace_back(tile);
+                if(receivedTiles_.empty()) {
+                    this->addResult(tile);
+                }
+                else {
+                    receivedTiles_.emplace_back(tile);
+                    receivedTilesSize_.store(receivedTiles_.size());
+                }
                 continue;
             }
 
             const auto NT = matrix_->matrixNumColTiles();
             auto tile     = std::dynamic_pointer_cast<Tile>(this->getManagedMemory());
+            tile->init(rowIdx, colIdx, matrix_->tileHeight(rowIdx, colIdx), matrix_->tileWidth(rowIdx, colIdx));
+            tile->ttl(0);
             receivedTiles_.emplace_back(tile);
-            requestQueueSize_.store(requestQueue_.size());
+            receivedTilesSize_.store(receivedTiles_.size());
             return std::make_tuple(tile, int32_t(matrix_->owner(rowIdx, colIdx)), int32_t(rowIdx*NT + colIdx), false);
         }
 
@@ -503,7 +513,6 @@ public:
         const auto NT     = matrix_->matrixNumColTiles();
         const auto rowIdx = tagId/NT;
         const auto colIdx = tagId%NT;
-        tile->init(rowIdx, colIdx, matrix_->tileHeight(rowIdx, colIdx), matrix_->tileWidth(rowIdx, colIdx));
         tile->memoryState(MemoryState::SHARED);
         tile->ttl(1);
     }
@@ -545,16 +554,13 @@ public:
 
 private:
     void updateStateThreadUnsafe() {
-        for(auto it = receivedTiles_.begin(); it != receivedTiles_.end();) {
-            auto tile = *it;
-            if(tile->ttl() <= 0) {
-                it = receivedTiles_.erase(it);
-            }
-            else {
-                it++;
-            }
-        }
+        while(!receivedTiles_.empty()) {
+            auto tile = receivedTiles_.front();
+            if(tile->ttl() == 0) break;//tile is not ready
 
+            this->addResult(tile);
+            receivedTiles_.pop_front();
+        }
         receivedTilesSize_.store(receivedTiles_.size());
     }
 
@@ -568,7 +574,7 @@ private:
     std::atomic_bool        isLastRequestInQueue_ = false;
 
     std::mutex                               receiveMutex_      = {};
-    std::vector<std::shared_ptr<Tile>>       receivedTiles_     = {};
+    std::deque<std::shared_ptr<Tile>>        receivedTiles_     = {};
     std::atomic_int32_t                      receivedTilesSize_ = 0;
     int32_t                                  receiveLimit_      = 64;
     std::deque<std::tuple<int64_t, int64_t>> requestQueue_      = {};
@@ -578,6 +584,221 @@ private:
     std::deque<std::tuple<int64_t, int64_t, int64_t>> sendQueue_     = {};
     std::atomic_int32_t                               sendQueueSize_ = 0;
     int32_t                                           sendTtl_       = 0;
+};
+
+template<typename MatrixType, char IdA, char IdB, char IdC>
+class GpuJobGeneratorTask3: public hh::AbstractTask<
+        1,
+        std::tuple<std::shared_ptr<MatrixContainer<MatrixType, IdA>>, std::shared_ptr<MatrixContainer<MatrixType, IdB>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>,
+        CommRequestList<IdA>,
+        CommRequestList<IdB>,
+        CommSendList<IdA>,
+        CommSendList<IdB>,
+        GpuJob<MatrixType, IdA, IdB, IdC>
+    > {
+    using MatrixA = MatrixContainer<MatrixType, IdA>;
+    using MatrixB = MatrixContainer<MatrixType, IdB>;
+    using MatrixC = MatrixContainer<MatrixType, IdC>;
+    using Triplet = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
+    using TileA   = MatrixTile<MatrixType, IdA>;
+    using TileB   = MatrixTile<MatrixType, IdB>;
+    using Job     = GpuJob<MatrixType, IdA, IdB, IdC>;
+
+public:
+    explicit GpuJobGeneratorTask3(const int64_t gp, const int64_t gq, const int64_t jobHeight, const int64_t jobWidth, std::shared_ptr<GraphFilterState> &graphFilterState):
+        hh::AbstractTask<1, std::tuple<std::shared_ptr<MatrixContainer<MatrixType, IdA>>, std::shared_ptr<MatrixContainer<MatrixType, IdB>>, std::shared_ptr<MatrixContainer<MatrixType, IdC>>>, CommRequestList<IdA>, CommRequestList<IdB>, CommSendList<IdA>, CommSendList<IdB>, GpuJob<MatrixType, IdA, IdB, IdC>>("GpuJobGeneratorTask", 1, false) {
+
+        gpDim_              = gp;
+        gqDim_              = gq;
+        gpuJobWindowHeight_ = jobHeight;
+        gpuJobWindowWidth_  = jobWidth;
+        graphFilterState_   = graphFilterState;
+    }
+
+    void execute(std::shared_ptr<Triplet> triplet) override {
+        auto matrixA = std::get<std::shared_ptr<MatrixA>>(*triplet);
+        assert((std::dynamic_pointer_cast<TwoDBlockCyclicMatrix<MatrixType, IdA>>(matrixA) != nullptr));
+        auto matrixB = std::get<std::shared_ptr<MatrixB>>(*triplet);
+        assert((std::dynamic_pointer_cast<TwoDBlockCyclicMatrix<MatrixType, IdB>>(matrixB) != nullptr));
+        auto matrixC = std::get<std::shared_ptr<MatrixC>>(*triplet);
+        assert((std::dynamic_pointer_cast<TwoDBlockCyclicMatrix<MatrixType, IdC>>(matrixC) != nullptr));
+
+        auto MT = matrixA->matrixNumRowTiles();
+        auto KT = matrixA->matrixNumColTiles();
+        auto NT = matrixB->matrixNumColTiles();
+
+        const auto [pDim, qDim]       = getGridDim();
+        const auto [pNodeId, qNodeId] = getGridNodeId();
+
+        const int64_t globalWindowHeight  = pDim*gpDim_*gpuJobWindowHeight_;
+        const int64_t globalWindowWidth   = qDim*gqDim_*gpuJobWindowWidth_;
+
+        auto commSendListA = std::make_shared<CommSendList<IdA>>();
+        auto commSendListB = std::make_shared<CommSendList<IdB>>();
+
+        // create 1 batch of send list for all the computation windows
+        for(int64_t wi = 0; wi < MT; wi += globalWindowHeight) {
+            const int64_t globalWindowEndX = std::min(MT, wi+globalWindowHeight);
+            for(int64_t wj = 0; wj < NT; wj += globalWindowWidth) {
+                const int64_t globalWindowEndY = std::min(NT, wj+globalWindowWidth);
+
+                std::vector<int64_t> rowIndices;
+                rowIndices.reserve(MT);
+                std::vector<int64_t> colIndices;
+                colIndices.reserve(NT);
+                std::vector<bool> nodesInvolved(getNumNodes(), false);
+                for(int64_t row = wi; row < globalWindowEndX; ++row) {
+                    for(int64_t col = wj; col < globalWindowEndY; ++col) {
+                        const auto ownerNodeId = matrixC->owner(row, col);
+                        nodesInvolved[ownerNodeId] = true;
+                        if(ownerNodeId == getNodeId()) {
+                            if(std::find(rowIndices.begin(), rowIndices.end(), row) == rowIndices.end()) rowIndices.emplace_back(row);
+                            if(std::find(colIndices.begin(), colIndices.end(), col) == colIndices.end()) colIndices.emplace_back(col);
+                        }
+                    }
+                }
+                std::sort(rowIndices.begin(), rowIndices.end());
+                std::sort(colIndices.begin(), colIndices.end());
+
+                assert(int64_t(rowIndices.size()) <= gpuJobWindowHeight_*gpDim_);
+                assert(int64_t(colIndices.size()) <= gpuJobWindowWidth_*gqDim_);
+
+                std::vector<int64_t> broadcastListA = {};
+                for(int64_t q = 0; q < qDim; ++q) {
+                    const int64_t destinationNodeId = pNodeId*qDim + q;
+                    if(!nodesInvolved[destinationNodeId] or destinationNodeId == getNodeId()) continue;
+                    broadcastListA.emplace_back(destinationNodeId);
+                }
+
+                std::vector<int64_t> broadcastListB = {};
+                for(int64_t p = 0; p < pDim; ++p) {
+                    const int64_t destinationNodeId = p*qDim + qNodeId;
+                    if(!nodesInvolved[destinationNodeId] or destinationNodeId == getNodeId()) continue;
+                    broadcastListB.emplace_back(destinationNodeId);
+                }
+
+                for(int64_t col = qNodeId; col < KT; col += qDim) {
+                    for(const auto row: rowIndices) {
+                        for(const auto destinationId: broadcastListA) {
+                            assert(matrixA->tile(row, col) != nullptr);
+                            commSendListA->data.emplace_back(row, col, destinationId);
+                        }
+                    }
+                }
+
+                for(int64_t row = pNodeId; row < KT; row += pDim) {
+                    for(const auto col: colIndices) {
+                        for(const auto destinationId: broadcastListB) {
+                            assert(matrixB->tile(row, col) != nullptr);
+                            commSendListB->data.emplace_back(row, col, destinationId);
+                        }
+                    }
+                }
+            }
+        }
+
+        this->addResult(commSendListA);
+        this->addResult(commSendListB);
+
+        // create batch of requests as the window progresses
+        for(int64_t wi = 0; wi < MT; wi += globalWindowHeight) {
+            const int64_t globalWindowEndX = std::min(MT, wi+globalWindowHeight);
+            for(int64_t wj = 0; wj < NT; wj += globalWindowWidth) {
+                const int64_t globalWindowEndY = std::min(NT, wj+globalWindowWidth);
+
+                std::vector<int64_t> rowIndices;
+                rowIndices.reserve(MT);
+                std::vector<int64_t> colIndices;
+                colIndices.reserve(NT);
+                for(int64_t row = wi; row < globalWindowEndX; ++row) {
+                    for(int64_t col = wj; col < globalWindowEndY; ++col) {
+                        if(matrixC->owner(row, col) == getNodeId()) {
+                            if(std::find(rowIndices.begin(), rowIndices.end(), row) == rowIndices.end()) rowIndices.emplace_back(row);
+                            if(std::find(colIndices.begin(), colIndices.end(), col) == colIndices.end()) colIndices.emplace_back(col);
+                        }
+                    }
+                }
+                std::sort(rowIndices.begin(), rowIndices.end());
+                std::sort(colIndices.begin(), colIndices.end());
+
+                assert(int64_t(rowIndices.size()) <= gpuJobWindowHeight_*gpDim_);
+                assert(int64_t(colIndices.size()) <= gpuJobWindowWidth_*gqDim_);
+
+                std::vector<std::shared_ptr<Job>> jobs(gpDim_*gqDim_, nullptr);
+                for(int64_t gp = 0; gp < gpDim_; ++gp) {
+                    for(int64_t gq = 0; gq < gqDim_; ++gq) {
+                        auto job   = std::make_shared<Job>();
+                        auto token = std::static_pointer_cast<GpuToken>(this->getManagedMemory());
+                        job->token(token);
+                        token->id       = gp*gqDim_ + gq;
+                        jobs[token->id] = job;
+                        graphFilterState_->rowIndices[token->id].clear();
+                        graphFilterState_->colIndices[token->id].clear();
+                        for(int64_t i = gp; i < int64_t(rowIndices.size()); i += gpDim_) {
+                            const auto row = rowIndices[i];
+                            job->height++;
+                            job->width = 0;
+                            for(int64_t j = gq; j < int64_t(colIndices.size()); j += gqDim_) {
+                                const auto col = colIndices[j];
+                                job->addTileC(matrixC->tile(row, col));
+                                job->width++;
+                                graphFilterState_->rowIndices[token->id].insert(row);
+                                graphFilterState_->colIndices[token->id].insert(col);
+                            }
+                        }
+
+                        if(job->tilesFromMatrixC().empty()) {
+                            job->processed();
+                            job->finished();
+                            continue;
+                        };
+                        this->addResult(job);
+                    }
+                }
+
+                // wait for all the gpu jobs to be processed before start sending tiles from matrices A and B
+                for(auto &job: jobs) {
+                    while(!job->hasBeenProcessed()) continue;
+                }
+
+                auto commRequestListA = std::make_shared<CommRequestList<IdA>>();
+                auto commRequestListB = std::make_shared<CommRequestList<IdB>>();
+                for(int64_t kt = 0; kt < KT; ++kt) {
+                    for(auto rowIdx: rowIndices) {
+                        commRequestListA->data.emplace_back(rowIdx, kt);
+                    }
+
+                    for(auto colIdx: colIndices) {
+                        commRequestListB->data.emplace_back(kt, colIdx);
+                    }
+                }
+                this->addResult(commRequestListA);
+                this->addResult(commRequestListB);
+
+                this->taskBarrier();
+            }
+        }
+
+        this->taskBarrier();
+
+        this->addResult(std::make_shared<CommRequestList<IdA>>());
+        this->addResult(std::make_shared<CommRequestList<IdB>>());
+        this->addResult(std::make_shared<Job>(true));
+    }
+private:
+    void taskBarrier() {
+        using namespace std::chrono_literals;
+        while(this->memoryManager()->currentSize() != this->memoryManager()->capacity()) {
+            std::this_thread::sleep_for(4ms);
+        }
+    }
+
+private:
+    int64_t                           gpDim_              = 0;
+    int64_t                           gqDim_              = 0;
+    int64_t                           gpuJobWindowHeight_ = 0;
+    int64_t                           gpuJobWindowWidth_  = 0;
+    std::shared_ptr<GraphFilterState> graphFilterState_   = nullptr;
 };
 
 template<typename MatrixType, char IdA, char IdB>

@@ -81,6 +81,10 @@ MutexWrapper       mpiMutex  = {};
     return sMpiNumNodes;
 }
 
+[[nodiscard]] std::tuple<int64_t, int64_t> getGridNodeId() {
+    return {getNodeId()/sGridQ, getNodeId()%sGridQ};
+}
+
 [[nodiscard]] std::tuple<int64_t, int64_t> getGridDim() {
     return {sGridP, sGridQ};
 }

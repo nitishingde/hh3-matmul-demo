@@ -791,6 +791,8 @@ public:
         checkMpiErrors(MPI_Comm_size(mpiComm, &mpiNumNodes_));
     }
 
+    void execute(std::shared_ptr<CommType> data) {}
+
     virtual void initializeComm() {}
 
     void initialize() final {
@@ -887,7 +889,7 @@ private:
             }
 
             preProcessMpiReceivedData(data, sourceNodeId, tagId, bufferSizeInBytes);
-            this->addResult(data);
+            this->execute(data);
 
             std::lock_guard lg(commQueues_);
             commQueues_.logBandwidth(start, end, bufferSizeInBytes);
@@ -921,7 +923,7 @@ private:
                 int32_t bufferSizeInBytes;
                 checkMpiErrors(MPI_Get_count(&mpiStatus, MPI_CHAR, &bufferSizeInBytes));
                 preProcessMpiReceivedData(data, mpiStatus.MPI_SOURCE, mpiStatus.MPI_TAG, bufferSizeInBytes);
-                this->addResult(data);
+                this->execute(data);
                 it = recvQueue.erase(it);
                 commQueues_.logBandwidth(start, end, bufferSizeInBytes);
             }

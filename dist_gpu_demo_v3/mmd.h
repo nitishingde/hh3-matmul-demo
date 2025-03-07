@@ -401,13 +401,13 @@ public:
             deviceIds,
             graphFilterState
         );
-        auto commTaskA          = std::make_shared<MatrixCommTask<MatrixType, IdA>>("CommTaskA", matrixA, 2*(Q-1));
+        auto commTaskA          = std::make_shared<MatrixCommTask<MatrixType, IdA>>("CommTaskA", matrixA, 2*std::max(Q-1, int64_t(1)));
         commTaskA->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(gp_*jobHeight_*depth_*lookAhead_, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(jobHeight_*lookAhead_, T, memoryType)
         );
-        auto commTaskB          = std::make_shared<MatrixCommTask<MatrixType, IdB>>("CommTaskB", matrixB, 2*(P-1));
+        auto commTaskB          = std::make_shared<MatrixCommTask<MatrixType, IdB>>("CommTaskB", matrixB, 2*std::max(P-1, int64_t(1)));
         commTaskB->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(gq_*jobWidth_*depth_*lookAhead_, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(jobWidth_*lookAhead_, T, memoryType)
         );
 
         graph.template input<Triplet>(inputStateManager);

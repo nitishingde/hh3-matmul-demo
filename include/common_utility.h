@@ -1,6 +1,7 @@
 #ifndef HH3_MATMUL_COMMON_UTILITY_H
 #define HH3_MATMUL_COMMON_UTILITY_H
 
+#include <cublas_v2.h>
 #include <mpi.h>
 #include <string>
 #include <tclap/CmdLine.h>
@@ -160,17 +161,17 @@ public:
 class CublasGlobalLockGuard {
 public:
     explicit CublasGlobalLockGuard(const std::vector<int32_t> &deviceIds): deviceIds_(deviceIds) {
-        for(auto deviceId: deviceIds_) {
-            checkCudaErrors(cudaSetDevice(deviceId));
-            checkCudaErrors(cublasInit());
-        }
+        // for(auto deviceId: deviceIds_) {
+            // checkCudaErrors(cudaSetDevice(deviceId));
+            // checkCudaErrors(cublasInit());
+        // }
     }
 
     ~CublasGlobalLockGuard() {
-        for(auto deviceId: deviceIds_) {
-            checkCudaErrors(cudaSetDevice(deviceId));
-            checkCudaErrors(cublasShutdown());
-        }
+        // for(auto deviceId: deviceIds_) {
+            // checkCudaErrors(cudaSetDevice(deviceId));
+            // checkCudaErrors(cublasShutdown());
+        // }
     }
 
 private:

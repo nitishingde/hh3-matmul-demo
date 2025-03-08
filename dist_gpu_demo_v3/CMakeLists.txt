@@ -33,7 +33,7 @@ target_include_directories(v3_lib
 )
 target_link_libraries(v3_lib
     PUBLIC
-        ${CUDA_CUBLAS_LIBRARIES}
+        CUDA::cublas
         ${CUDA_LIBRARIES}
         ${Hedgehog_LIBRARIES}
         MPI::MPI_CXX

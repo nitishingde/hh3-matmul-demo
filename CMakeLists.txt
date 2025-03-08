@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.17)
-project(hh3-matmul)
+project(hh3-matmul CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -14,12 +14,9 @@ if(NOT Hedgehog_INCLUDE_DIR)
 	FetchContent_Declare(
 		Hedgehog
 		GIT_REPOSITORY https://github.com/usnistgov/hedgehog.git
-		GIT_TAG        c5dde6242703bb33c1ead0183dd6788c0e2ed061
+		GIT_TAG        master
 	)
-	FetchContent_GetProperties(Hedgehog)
-	if(NOT hedgehog_POPULATED)
-		FetchContent_Populate(Hedgehog)
-	endif(NOT hedgehog_POPULATED)
+	FetchContent_MakeAvailable(Hedgehog)
 
 	# Need to set variable Hedgehog_INCLUDE_DIR to the downloaded hedgehog src code
 	set(Hedgehog_INCLUDE_DIR "${hedgehog_SOURCE_DIR}" CACHE STRING "${hedgehog_SOURCE_DIR}" FORCE)
@@ -44,7 +41,7 @@ set(TCLAP_SOURCE_DIR ${tclap_SOURCE_DIR})
 find_package(OpenBLAS QUIET)
 
 # Cuda
-find_package(CUDA QUIET)
+find_package(CUDAToolkit REQUIRED)
 find_package(NVTX QUIET)
 
 # MPI
@@ -56,14 +53,14 @@ if (NOT MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra -Werror -pedantic")
 endif (NOT MSVC)
 
-if(CUDA_FOUND AND MPI_FOUND)
-	message(STATUS "CUDA found")
-	set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-	set(CUDA_NVCC_FLAGS_RELEASE -O3; -DNDEBUG)
+if(MPI_FOUND)
+	# message(STATUS "CUDA found")
+	# set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+	# set(CUDA_NVCC_FLAGS_RELEASE -O3; -DNDEBUG)
 	add_subdirectory(dist_gpu_demo)
 	add_subdirectory(dist_gpu_demo_v2)
 	add_subdirectory(dist_gpu_demo_v3)
-endif(CUDA_FOUND AND MPI_FOUND)
+endif(MPI_FOUND)
 
 if(OpenBLAS_FOUND AND MPI_FOUND)
     message(STATUS "OpenBLAS found")

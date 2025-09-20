@@ -791,7 +791,7 @@ public:
         checkMpiErrors(MPI_Comm_size(mpiComm, &mpiNumNodes_));
     }
 
-    void execute(std::shared_ptr<CommType> data) {}
+    virtual void execute([[maybe_unused]] std::shared_ptr<CommType> data) {}
 
     virtual void initializeComm() {}
 

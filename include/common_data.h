@@ -4,7 +4,6 @@
 #include <hedgehog/hedgehog.h>
 #include <atomic>
 #include <string>
-#include <utility>
 #include "common_utility.h"
 
 struct Vec2 {
@@ -134,7 +133,7 @@ public:
      *
      * @param cudaStream
      */
-    void recordEvent(cudaStream_t cudaStream, int32_t deviceId = 0) {
+    void recordEvent([[maybe_unused]] cudaStream_t cudaStream, int32_t deviceId = 0) {
         if (!cudaEventCreated_[deviceId]) {
             checkCudaErrors(cudaEventCreate(&cudaEvents_[deviceId]));
             cudaEventCreated_[deviceId] = true;

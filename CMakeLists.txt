@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.17)
-project(hh3-matmul CXX CUDA)
+project(hh3-matmul CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -28,20 +28,16 @@ find_package(Hedgehog REQUIRED)
 # TCLAP - Templatized Command Line Argument Parser
 FetchContent_Declare(
 	TCLAP
-	GIT_REPOSITORY https://github.com/mirror/tclap.git
-	GIT_TAG        v1.2.5
+	GIT_REPOSITORY https://github.com/DAarno/tclap.git
+	GIT_TAG        1.4.0-rc2
 )
-FetchContent_GetProperties(TCLAP)
-if(NOT tclap_POPULATED)
-	FetchContent_Populate(TCLAP)
-endif(NOT tclap_POPULATED)
-set(TCLAP_SOURCE_DIR ${tclap_SOURCE_DIR})
+FetchContent_MakeAvailable(TCLAP)
 
 # OpenBLAS
-find_package(OpenBLAS QUIET)
+find_package(OpenBLAS CONFIG QUIET)
 
 # Cuda
-find_package(CUDAToolkit REQUIRED)
+find_package(CUDAToolkit QUIET)
 find_package(NVTX QUIET)
 
 # MPI
@@ -53,14 +49,14 @@ if (NOT MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra -Werror -pedantic")
 endif (NOT MSVC)
 
-if(MPI_FOUND)
+if(MPI_FOUND AND CUDA_FOUND)
 	# message(STATUS "CUDA found")
 	# set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 	# set(CUDA_NVCC_FLAGS_RELEASE -O3; -DNDEBUG)
 	add_subdirectory(dist_gpu_demo)
 	add_subdirectory(dist_gpu_demo_v2)
 	add_subdirectory(dist_gpu_demo_v3)
-endif(MPI_FOUND)
+endif(MPI_FOUND AND CUDA_FOUND)
 
 if(OpenBLAS_FOUND AND MPI_FOUND)
     message(STATUS "OpenBLAS found")

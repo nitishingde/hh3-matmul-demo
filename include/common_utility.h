@@ -1,8 +1,17 @@
 #ifndef HH3_MATMUL_COMMON_UTILITY_H
 #define HH3_MATMUL_COMMON_UTILITY_H
 
+#include <cassert>
+#ifdef HH_USE_CUDA
 #include <cublas_v2.h>
+#else
+#define checkCudaErrors(x)
+using cudaStream_t = int64_t;
+using cudaEvent_t = int64_t;
+#endif
+#include <filesystem>
 #include <mpi.h>
+#include <mutex>
 #include <string>
 #include <tclap/CmdLine.h>
 #include <unistd.h>

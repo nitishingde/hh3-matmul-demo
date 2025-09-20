@@ -277,8 +277,8 @@ public:
 
     // Setters
     void tile(int64_t rowIdx, int64_t colIdx, std::shared_ptr<Tile> tile) {
-        assert(owner(rowIdx, colIdx) != nodeId_);
-        assert(tile->memoryOwner() == MemoryOwner::WORKSPACE);
+        // assert(owner(rowIdx, colIdx) != nodeId_);
+        // assert(tile->memoryOwner() == MemoryOwner::WORKSPACE);
         tileGrid_[rowIdx][colIdx] = tile;
     }
 

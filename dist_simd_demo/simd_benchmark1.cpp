@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
 
     auto strategy = MMD_Simd1<MatrixType, IdA, IdB, IdC>();
     //warmup
-    auto time = strategy.builder(productThreads, lookAhead).executeImpl(matrixA, matrixB, matrixC, mpiComm, path + "window" + "_" + std::to_string(getNodeId()) + ".dot");
+    auto time = strategy.builder(productThreads, lookAhead).executeImpl(matrixA, matrixB, matrixC, mpiComm, path + "job" + "_node" + std::to_string(getNodeId()) + ".dot");
     if(isRootNodeId()) {
         printf("[Warmup][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
             (static_cast<double>(M) * static_cast<double>(K) * static_cast<double>(N) * static_cast<double>(2)) / (1.e9 * time),
@@ -51,12 +51,12 @@ int main(int argc, char *argv[]) {
     constexpr int32_t ITER = 10;
     double times[ITER];
     for(int32_t iter = 0; iter < ITER; ++iter) {
-        times[iter]  = strategy.builder(productThreads, lookAhead).executeImpl(matrixA, matrixB, matrixC, mpiComm, path + "window" + std::to_string(iter) + "_" + std::to_string(getNodeId()) + ".dot");
+        times[iter]  = strategy.builder(productThreads, lookAhead).executeImpl(matrixA, matrixB, matrixC, mpiComm, path + "job" + std::to_string(iter) + "_node" + std::to_string(getNodeId()) + ".dot");
         if(isRootNodeId()) {
             double gflops = (static_cast<double>(M) * static_cast<double>(K) * static_cast<double>(N) * static_cast<double>(2)) / (1.e9 * times[iter]);
             csvFile << iter+1 << ", " << gflops << ", " << times[iter] << std::endl;
             printf("[%s][Iterations: %3d/%d][ Perf " GREEN("%9.3f") " gflops ][ Time " BLUE("%8.3f") " secs]\n",
-                   "WindowStrategyBroadcast_v3",
+                   "SIMD_v1",
                    iter+1, ITER,
                    gflops,
                    times[iter]
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
         double avgTime = std::accumulate(times, times+ITER, 0.0)/static_cast<double>(ITER);
         double maxTime = *std::max_element(times, times+ITER);
         printf("[%s][Iterations: %3d/%d][ Max " GREEN("%9.3f") " gflops ][ Avg " CYAN("%9.3f") " gflops ][ Min " RED("%9.3f") " gflops ][ Min " GREEN("%8.3f") " secs ][ Avg " CYAN("%8.3f") " secs ][ Max " RED("%8.3f") " secs ]\n",
-           "WindowStrategyBroadcast_v3",
+           "SIMD_v1",
            ITER, ITER,
            gflop/minTime,
            gflop/avgTime,

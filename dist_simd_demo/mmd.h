@@ -1,6 +1,8 @@
 #ifndef HH3_MATMUL_MMD_H
 #define HH3_MATMUL_MMD_H
 
+#include <openblas/cblas.h>
+
 #include "common_data.h"
 #include "tasks.h"
 
@@ -28,9 +30,9 @@ template<class MatrixType, char IdA, char IdB, char IdC>
 class MMD_Simd1 final: public MMD_Strategy<MatrixType, IdA, IdB, IdC> {
 public:
     using base = MMD_Strategy<MatrixType, IdA, IdB, IdC>;
-    using MatrixA = base::MatrixA;
-    using MatrixB = base::MatrixB;
-    using MatrixC = base::MatrixC;
+    using MatrixA = typename base::MatrixA;
+    using MatrixB = typename base::MatrixB;
+    using MatrixC = typename base::MatrixC;
 
     explicit MMD_Simd1() = default;
 

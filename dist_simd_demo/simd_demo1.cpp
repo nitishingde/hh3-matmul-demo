@@ -1,4 +1,3 @@
-#include <openblas/cblas.h>
 #include <print>
 #include "common_matrix_utility.h"
 #include "utility.h"
@@ -64,10 +63,6 @@ void printMatrix(const auto &mat, const int64_t height, const int64_t width, con
 int main(int argc, char *argv[]) {
     auto [p, q, M, K, N, T, l, _gp, _gq, _wh, _ww, _d, productThreads, verbose, path, resultsFile] = parseArgs(argc, argv);
     auto mpiLg = MpiGlobalLockGuard(&argc, &argv, p, q);
-
-    // int i = 0;
-    // while (!i)
-    //     sleep(5);
 
     using MatrixType = float;
 

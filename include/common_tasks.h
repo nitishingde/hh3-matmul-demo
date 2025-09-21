@@ -857,8 +857,9 @@ public:
 
     [[nodiscard]] std::string extraPrintingInformation() const override {
         //std::lock_guard lg(commQueues_);FIXME: needed?
-        constexpr auto suffix = "MB/s";
+        if(commQueues_.receiveCount() == 0) return "";
 
+        constexpr auto suffix = "MB/s";
         auto min = std::to_string(commQueues_.minBw()/(1024.*1024.));
         auto avg = std::to_string(commQueues_.avgBw()/(1024.*1024.));
         auto max = std::to_string(commQueues_.maxBw()/(1024.*1024.));

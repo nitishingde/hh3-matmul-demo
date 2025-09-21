@@ -36,6 +36,13 @@ public:
 
     explicit MMD_Simd1() = default;
 
+    MMD_Strategy<MatrixType, IdA, IdB, IdC>& builder(const int64_t productThreads, const int64_t lookAhead = 1) {
+        lookAhead_      = lookAhead;
+        productThreads_ = productThreads;
+
+        return *this;
+    }
+
     double executeImpl(
         std::shared_ptr<MatrixA> matrixA,
         std::shared_ptr<MatrixB> matrixB,
@@ -51,23 +58,27 @@ public:
 
         constexpr MemoryType memoryType = MemoryType::HOST;
 
-        auto MT     = matrixC->matrixNumRowTiles();
-        auto KT     = matrixA->matrixNumColTiles();
-        auto NT     = matrixC->matrixNumColTiles();
-        auto T      = std::max(std::max(matrixA->tileDim(), matrixB->tileDim()), matrixC->tileDim());
+        const auto MT                   = matrixC->matrixNumRowTiles();
+        const auto KT                   = matrixA->matrixNumColTiles();
+        const auto NT                   = matrixC->matrixNumColTiles();
+        const auto T                    = std::max(std::max(matrixA->tileDim(), matrixB->tileDim()), matrixC->tileDim());
+        const auto [pNodeId, qNodeId]   = getGridNodeId();
+        const auto [pNodeDim, qNodeDim] = getGridDim();
+        const auto jobWidth             = (NT-qNodeId + qNodeDim-1)/qNodeDim;
+        const auto jobHeight            = (MT-pNodeId + pNodeDim-1)/pNodeDim;
 
         auto jobGenerator = std::make_shared<JobGenerator<MatrixType, IdA, IdB, IdC>>();
 
-        auto commTaskA    = std::make_shared<MatrixCommTask<MatrixType, IdA>>("CommA", matrixA);
+        auto commTaskA    = std::make_shared<MatrixCommTask<MatrixType, IdA>>("CommA", matrixA, jobHeight);
         commTaskA->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(MT, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(jobHeight*lookAhead_, T, memoryType)
         );
-        auto commTaskB    = std::make_shared<MatrixCommTask<MatrixType, IdB>>("CommB", matrixB);
+        auto commTaskB    = std::make_shared<MatrixCommTask<MatrixType, IdB>>("CommB", matrixB, jobWidth);
         commTaskB->connectMemoryManager(
-            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(NT, T, memoryType)
+            std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(jobWidth*lookAhead_, T, memoryType)
         );
         auto jobScheduler = std::make_shared<JobScheduler<MatrixType, IdA, IdB, IdC>>("JobScheduler");
-        auto productTask  = std::make_shared<hh::LambdaTask<1, TileTriplet, TileTriplet>>("Product", 4, false);
+        auto productTask  = std::make_shared<hh::LambdaTask<1, TileTriplet, TileTriplet>>("Product", productThreads_, false);
         productTask->template setLambda<TileTriplet>([](const std::shared_ptr<TileTriplet> &triplet, auto self) {
             auto &[tileA, tileB, tileC] = *triplet;
             constexpr MatrixType alpha = 1;
@@ -141,6 +152,10 @@ public:
 
         return maxTime;
     }
+
+private:
+    int64_t lookAhead_      = 1;
+    int64_t productThreads_ = 4;
 };
 
 #endif //HH3_MATMUL_MMD_H

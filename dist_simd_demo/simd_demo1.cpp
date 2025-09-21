@@ -61,7 +61,7 @@ void printMatrix(const auto &mat, const int64_t height, const int64_t width, con
 }
 
 int main(int argc, char *argv[]) {
-    auto [p, q, M, K, N, T, l, _gp, _gq, _wh, _ww, _d, productThreads, verbose, path, resultsFile] = parseArgs(argc, argv);
+    auto [p, q, M, K, N, T, lookAhead, _gp, _gq, _wh, _ww, _d, productThreads, verbose, path, resultsFile] = parseArgs(argc, argv);
     auto mpiLg = MpiGlobalLockGuard(&argc, &argv, p, q);
 
     using MatrixType = float;
@@ -83,6 +83,7 @@ int main(int argc, char *argv[]) {
     auto             C = getMatrixToRoot<MatrixType, IdC>(matrixC);
 
     auto mmd  = MMD_Simd1<MatrixType, IdA, IdB, IdC>();
+    mmd.builder(productThreads, lookAhead);
     if(isRootNodeId()) {
         printDataDistribution<MatrixType, IdA, IdB, IdC>(matrixA, matrixB, matrixC);
         std::filesystem::remove_all(path);

@@ -30,9 +30,9 @@ template<class MatrixType, char IdA, char IdB, char IdC>
 class MMD_Simd1 final: public MMD_Strategy<MatrixType, IdA, IdB, IdC> {
 public:
     using base = MMD_Strategy<MatrixType, IdA, IdB, IdC>;
-    using MatrixA = typename base::MatrixA;
-    using MatrixB = typename base::MatrixB;
-    using MatrixC = typename base::MatrixC;
+    using MatrixA = base::MatrixA;
+    using MatrixB = base::MatrixB;
+    using MatrixC = base::MatrixC;
 
     explicit MMD_Simd1() = default;
 

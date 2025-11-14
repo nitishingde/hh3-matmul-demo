@@ -31,9 +31,7 @@ target_link_libraries(dist_simd_lib
 
 add_executable(simd_demo1 simd_demo1.cpp)
 target_link_libraries(simd_demo1 PUBLIC dist_simd_lib)
-target_compile_options(simd_demo1 PRIVATE
-    $<$<CONFIG:Debug>:-O0>
-)
+target_compile_options(simd_demo1 PRIVATE $<$<CONFIG:Debug>:-O0>)
 
 add_executable(simd_benchmark1 simd_benchmark1.cpp)
 target_link_libraries(simd_benchmark1 PUBLIC dist_simd_lib)

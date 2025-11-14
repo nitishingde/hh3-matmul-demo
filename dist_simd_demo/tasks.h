@@ -440,4 +440,198 @@ private:
     int32_t                                           sendTtl_       = 0;
 };
 
+// Major::ROW => traverse along the row
+// Major::COL => traverse along the column
+template<Major Traversal>
+class IndexGenerator2D {
+public:
+    explicit IndexGenerator2D(const std::array<int64_t, 2> index0, const std::array<int64_t, 2> stride, const std::array<int64_t, 2> extent)
+        :index0_(index0), index_(index0), stride_(stride), extent_(extent) {}
+
+    std::tuple<int64_t, int64_t> operator++() {
+        increment();
+        return indices();
+    }
+
+    std::tuple<int64_t, int64_t> operator++(int32_t) {
+        const auto ret = indices();
+        increment();
+        return ret;
+    }
+
+    [[nodiscard]] std::tuple<int64_t, int64_t> indices() const {
+        if(empty()) return std::make_tuple(-1, -1);
+        return std::make_tuple(index_[0], index_[1]);
+    }
+
+    [[nodiscard]] bool empty() const { return extent_[0] <= index_[0] or extent_[1] <= index_[1]; }
+
+private:
+    void increment() {
+        if constexpr(Traversal == Major::ROW) {
+            index_[1] += stride_[1];
+            if(extent_[1] <= index_[1]) {
+                index_[0] += stride_[0];
+                index_[1]  = index0_[1];
+            }
+        }
+        if constexpr(Traversal == Major::COL) {
+            index_[0] += stride_[0];
+            if(extent_[0] <= index_[0]) {
+                index_[0]  = index0_[0];
+                index_[1] += stride_[1];
+            }
+        }
+    }
+
+    std::array<int64_t, 2> index0_ = {};
+    std::array<int64_t, 2> index_  = {};
+    std::array<int64_t, 2> stride_ = {};
+    std::array<int64_t, 2> extent_ = {};
+};
+
+template<typename MatrixType, char IdA, char IdB
+    , class MatrixA  = MatrixContainer<MatrixType, IdA>
+    , class MatrixB  = MatrixContainer<MatrixType, IdB>
+    , class MatrixAB = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>>
+    , class TileA    = MatrixTile<MatrixType, IdA>
+    , class TileB    = MatrixTile<MatrixType, IdB>
+>
+class BroadcastTask final: public hh::AbstractTask<1, MatrixAB, TileA, TileB> {
+public:
+    using base = hh::AbstractTask<1, MatrixAB, TileA, TileB>;
+
+    explicit BroadcastTask(const std::string &name, const MPI_Comm gridComm, const MPI_Comm groupCommA, const MPI_Comm groupCommB, const int32_t mmACap, const int64_t mmBCap, const int64_t tileSize):
+        base(name, 1, false), gridComm_(gridComm), groupCommA_(groupCommA), groupCommB_(groupCommB), limitA_(mmACap), limitB_(mmBCap), tileSize_(tileSize) {}
+
+    void initialize() override {
+        mmA_ = std::make_shared<hh::StaticMemoryManager<TileA, int64_t, MemoryType>>(limitA_, tileSize_, MemoryType::HOST);
+        mmB_ = std::make_shared<hh::StaticMemoryManager<TileB, int64_t, MemoryType>>(limitB_, tileSize_, MemoryType::HOST);
+
+        mmA_->initialize();
+        mmB_->initialize();
+    }
+
+    void execute(std::shared_ptr<MatrixAB> matAB) override {
+        auto [matrixA, matrixB] = *matAB;
+
+        int32_t groupSizeA = {};
+        int32_t groupSizeB = {};
+        if constexpr(true) {
+            auto mpiLg = std::lock_guard(mpiMutex);
+            checkMpiErrors(MPI_Comm_size(groupCommA_, &groupSizeA));
+            checkMpiErrors(MPI_Comm_size(groupCommB_, &groupSizeB));
+        }
+        const auto [p0, q0]     = getGridNodeId();
+        const auto [pDim, qDim] = getGridDim();
+
+        const int32_t MT = matrixA->matrixNumRowTiles();
+        const int32_t KT = matrixA->matrixNumColTiles();
+        const int32_t NT = matrixB->matrixNumColTiles();
+
+        auto generatorA   = IndexGenerator2D<Major::COL>({p0, 0}, {pDim, 1}, {MT, KT});
+        auto tilesA       = std::vector(limitA_, std::shared_ptr<MatrixTile<MatrixType, IdA>>(nullptr));
+        auto freeIndicesA = std::deque(limitA_, 0);
+        std::iota(freeIndicesA.begin(), freeIndicesA.end(), 0);
+
+        auto generatorB   = IndexGenerator2D<Major::ROW>({0, q0}, {1, qDim}, {KT, NT});
+        auto tilesB       = std::vector(limitB_, std::shared_ptr<MatrixTile<MatrixType, IdB>>(nullptr));
+        auto freeIndicesB = std::deque(limitB_, 0);
+        std::iota(freeIndicesB.begin(), freeIndicesB.end(), 0);
+
+        const auto limit       = limitA_ + limitB_;
+        auto       mpiRequests = std::vector(limit, MPI_REQUEST_NULL);
+        auto       indices     = std::vector(limit, -1);
+
+        while(!generatorA.empty() or !generatorB.empty() or static_cast<int64_t>(freeIndicesA.size()) < limitA_ or static_cast<int64_t>(freeIndicesB.size()) < limitB_) {
+            for(;!freeIndicesA.empty() and !generatorA.empty() and 0 < mmA_->currentSize(); freeIndicesA.pop_front(), ++generatorA) {
+                const auto indexA           = freeIndicesA.front();
+                const auto [rowIdx, colIdx] = generatorA.indices();
+                auto       tileA            = matrixA->tile(rowIdx, colIdx);
+                if(tileA == nullptr) {
+                    tileA          = std::dynamic_pointer_cast<TileA>(mmA_->getManagedMemory());
+                    tilesA[indexA] = tileA;
+                }
+                tileA->init(rowIdx, colIdx, matrixA->tileHeight(rowIdx, colIdx), matrixA->tileWidth(rowIdx, colIdx));
+
+                auto mpiLG = std::lock_guard(mpiMutex);
+                checkMpiErrors(MPI_Ibcast(
+                    tileA->data(),
+                    tileA->byteSize(),
+                    MPI_BYTE,
+                    colIdx%groupSizeA,
+                    groupCommA_,
+                    &mpiRequests[indexA]
+                ));
+            }
+
+            for(;!freeIndicesB.empty() and !generatorB.empty() and 0 < mmB_->currentSize(); freeIndicesB.pop_front(), ++generatorB) {
+                const auto indexB           = freeIndicesB.front();
+                const auto [rowIdx, colIdx] = generatorB.indices();
+                auto       tileB            = matrixB->tile(rowIdx, colIdx);
+                if(tileB == nullptr) {
+                    tileB          = std::dynamic_pointer_cast<TileB>(mmB_->getManagedMemory());
+                    tilesB[indexB] = tileB;
+                }
+                tileB->init(rowIdx, colIdx, matrixB->tileHeight(rowIdx, colIdx), matrixB->tileWidth(rowIdx, colIdx));
+
+                auto mpiLG = std::lock_guard(mpiMutex);
+                checkMpiErrors(MPI_Ibcast(
+                    tileB->data(),
+                    tileB->byteSize(),
+                    MPI_BYTE,
+                    rowIdx%groupSizeB,
+                    groupCommB_,
+                    &mpiRequests[limitA_ + indexB]
+                ));
+            }
+
+            int32_t outCount;
+            if constexpr(true) {
+                auto mpiLG = std::lock_guard(mpiMutex);
+                checkMpiErrors(MPI_Testsome(
+                    static_cast<int32_t>(mpiRequests.size()),
+                    mpiRequests.data(),
+                    &outCount,
+                    indices.data(),
+                    MPI_STATUSES_IGNORE
+                ));
+            }
+            for(int32_t i = 0; i < outCount; ++i) {
+                const auto index = indices[i];
+                if(const auto indexA = index; 0 <= indexA and indexA < limitA_) {
+                    if(std::ranges::find(freeIndicesA, indexA) != freeIndicesA.end()) continue;
+                    if(tilesA[indexA]) this->addResult(tilesA[indexA]);
+                    tilesA[indexA]     = nullptr;
+                    freeIndicesA.emplace_back(indexA);
+                    mpiRequests[index] = MPI_REQUEST_NULL;
+                }
+                else if(const auto indexB = indices[i]-limitA_; 0 <= indexB and indexB < limitB_) {
+                    if(std::ranges::find(freeIndicesB, indexB) != freeIndicesB.end()) continue;
+                    if(tilesB[indexB]) this->addResult(tilesB[indexB]);
+                    tilesB[indexB]     = nullptr;
+                    freeIndicesB.emplace_back(indexB);
+                    mpiRequests[index] = MPI_REQUEST_NULL;
+                }
+            }
+
+            if((freeIndicesA.empty() or generatorA.empty()) and (freeIndicesB.empty() or generatorB.empty()))
+                std::this_thread::yield();
+        }
+
+        while(mmA_->currentSize() != mmA_->capacity() or mmB_->currentSize() != mmB_->capacity())
+            std::this_thread::yield();
+    }
+
+private:
+    MPI_Comm                                   gridComm_   = MPI_COMM_NULL;
+    MPI_Comm                                   groupCommA_ = MPI_COMM_NULL;
+    MPI_Comm                                   groupCommB_ = MPI_COMM_NULL;
+    int64_t                                    limitA_     = 1;
+    int64_t                                    limitB_     = 1;
+    int64_t                                    tileSize_   = 1;
+    std::shared_ptr<hh::AbstractMemoryManager> mmA_        = nullptr;
+    std::shared_ptr<hh::AbstractMemoryManager> mmB_        = nullptr;
+};
+
 #endif //HH3_MATMUL_TASKS_H

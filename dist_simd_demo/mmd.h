@@ -158,4 +158,128 @@ private:
     int64_t productThreads_ = 4;
 };
 
+template<class MatrixType, char IdA, char IdB, char IdC>
+class MMD_Simd2 final: public MMD_Strategy<MatrixType, IdA, IdB, IdC> {
+public:
+    using base    = MMD_Strategy<MatrixType, IdA, IdB, IdC>;
+    using MatrixA = base::MatrixA;
+    using MatrixB = base::MatrixB;
+    using MatrixC = base::MatrixC;
+
+    explicit MMD_Simd2(const MPI_Comm groupCommA, const MPI_Comm groupCommB):
+        groupCommA_(groupCommA), groupCommB_(groupCommB) {}
+
+    auto& builder(const int64_t productThreads, const int64_t lookAhead = 1) {
+        productThreads_ = productThreads;
+        lookAhead_      = lookAhead;
+
+        return *this;
+    }
+
+    double executeImpl(
+        std::shared_ptr<MatrixA> matrixA,
+        std::shared_ptr<MatrixB> matrixB,
+        std::shared_ptr<MatrixC> matrixC,
+        const MPI_Comm gridComm,
+        const std::string &dotFile
+    ) override {
+        using TileA         = MatrixTile<MatrixType, IdA>;
+        using TileB         = MatrixTile<MatrixType, IdB>;
+        using TileC         = MatrixTile<MatrixType, IdC>;
+        using TileTriplet   = std::tuple<std::shared_ptr<TileA>, std::shared_ptr<TileB>, std::shared_ptr<TileC>>;
+        using MatrixTriplet = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>, std::shared_ptr<MatrixC>>;
+        using MatrixDuplet  = std::tuple<std::shared_ptr<MatrixA>, std::shared_ptr<MatrixB>>;
+
+        auto MT = matrixC->matrixNumRowTiles();
+        auto KT = matrixA->matrixNumColTiles();
+        auto NT = matrixC->matrixNumColTiles();
+        auto T = std::max(std::max(matrixA->tileDim(), matrixB->tileDim()), matrixC->tileDim());
+
+        auto jobGenerator = std::make_shared<JobGenerator<MatrixType, IdA, IdB, IdC>>();
+
+        auto [p0, q0]     = getGridNodeId();
+        auto [pDim, qDim] = getGridDim();
+
+        const auto limitA = ((MT - p0 + pDim - 1)/pDim)*lookAhead_;
+        const auto limitB = ((NT - q0 + qDim - 1)/qDim)*lookAhead_;
+
+        auto commTask     = std::make_shared<BroadcastTask<MatrixType, IdA, IdB>>("Comm", gridComm, groupCommA_, groupCommB_, limitA, limitB, T);
+        auto jobScheduler = std::make_shared<JobScheduler<MatrixType, IdA, IdB, IdC>>("JobScheduler");
+        auto productTask  = std::make_shared<hh::LambdaTask<1, TileTriplet, TileTriplet>>("Product", 4, false);
+        productTask->template setLambda<TileTriplet>([](const std::shared_ptr<TileTriplet> &triplet, auto self) {
+            auto &[tileA, tileB, tileC] = *triplet;
+            constexpr MatrixType alpha = 1;
+            constexpr MatrixType beta  = 1;
+            if constexpr(std::is_same_v<MatrixType, float>) {
+                cblas_sgemm(
+                    CblasColMajor, CblasNoTrans, CblasNoTrans,
+                    tileC->height(), tileC->width(), tileA->width(),
+                    alpha,
+                    static_cast<float*>(tileA->data()), tileA->leadingDimension(),
+                    static_cast<float*>(tileB->data()), tileB->leadingDimension(),
+                    beta,
+                    static_cast<float*>(tileC->data()), tileC->leadingDimension()
+                );
+            }
+            else if constexpr(std::is_same_v<MatrixType, double>) {
+                cblas_dgemm(
+                    CblasColMajor, CblasNoTrans, CblasNoTrans,
+                    tileC->height(), tileC->width(), tileA->width(),
+                    alpha,
+                    static_cast<double*>(tileA->data()), tileA->leadingDimension(),
+                    static_cast<double*>(tileB->data()), tileB->leadingDimension(),
+                    beta,
+                    static_cast<double*>(tileC->data()), tileC->leadingDimension()
+                );
+            }
+
+            self.addResult(triplet);
+        });
+
+        auto graph = hh::Graph<2, MatrixTriplet, MatrixDuplet, TileC>("SIMD");
+
+        // job scheduler
+        graph.template input<MatrixTriplet>(jobScheduler);
+        graph.template input<MatrixDuplet>(commTask);
+        graph.template edge<TileA>(commTask, jobScheduler);
+        graph.template edge<TileB>(commTask, jobScheduler);
+        graph.template edge<TileTriplet>(jobScheduler, productTask);
+        graph.template edge<TileTriplet>(productTask, jobScheduler);
+        graph.template output<TileC>(jobScheduler);
+
+        graph.executeGraph();
+
+        graph.pushData(std::make_shared<MatrixTriplet>(std::make_tuple(matrixA, matrixB, matrixC)));
+        graph.pushData(std::make_shared<MatrixDuplet>(std::make_tuple(matrixA, matrixB)));
+        graph.finishPushingData();
+
+        graph.waitForTermination();
+
+        graph.createDotFile(
+            dotFile,
+            hh::ColorScheme::EXECUTION,
+            hh::StructureOptions::QUEUE,
+            hh::InputOptions::GATHERED,
+            hh::DebugOptions::NONE,
+            std::make_unique<hh::JetColor>(),
+            false
+        );
+
+        const double time = static_cast<double>((graph.core()->dequeueExecDuration() == std::chrono::nanoseconds::zero()?
+            std::chrono::system_clock::now() - graph.core()->startExecutionTimeStamp():
+            graph.core()->dequeueExecDuration()
+        ).count())/1.e9;
+        double maxTime = 0;
+        checkMpiErrors(MPI_Reduce(&time, &maxTime, 1, MPI_DOUBLE, MPI_MAX, 0, gridComm));
+
+        return maxTime;
+    }
+
+private:
+    MPI_Comm groupCommA_     = MPI_COMM_NULL;
+    MPI_Comm groupCommB_     = MPI_COMM_NULL;
+    int64_t  productThreads_ = 12;
+    int64_t  lookAhead_      = 1;
+};
+
 #endif //HH3_MATMUL_MMD_H

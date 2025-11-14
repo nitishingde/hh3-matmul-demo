@@ -76,39 +76,39 @@ private:
     std::mutex mutex_    = {};
 };
 
-static int32_t sMpiNodeId    = -1;
-static int32_t sMpiNumNodes  = -1;
-static int64_t sGridP        = -1;
-static int64_t sGridQ        = -1;
-static std::string sHostName = {};
-MutexWrapper       mpiMutex  = {};
+static int32_t sMpiNodeId     = -1;
+static int32_t sMpiNumNodes   = -1;
+static int64_t sGridP         = -1;
+static int64_t sGridQ         = -1;
+static std::string  sHostName = {};
+inline MutexWrapper mpiMutex  = {};
 
-[[nodiscard]] int64_t getNodeId() {
+[[nodiscard]] inline int64_t getNodeId() {
     return sMpiNodeId;
 }
 
-[[nodiscard]] int64_t getNumNodes() {
+[[nodiscard]] inline int64_t getNumNodes() {
     return sMpiNumNodes;
 }
 
-[[nodiscard]] std::tuple<int64_t, int64_t> getGridNodeId() {
+[[nodiscard]] inline std::tuple<int64_t, int64_t> getGridNodeId() {
     return {getNodeId()/sGridQ, getNodeId()%sGridQ};
 }
 
-[[nodiscard]] std::tuple<int64_t, int64_t> getGridDim() {
+[[nodiscard]] inline std::tuple<int64_t, int64_t> getGridDim() {
     return {sGridP, sGridQ};
 }
 
-[[nodiscard]] bool isRootNodeId() {
+[[nodiscard]] inline bool isRootNodeId() {
     return sMpiNodeId == 0;
 }
 
-[[nodiscard]] std::string getHostName() {
+[[nodiscard]] inline std::string getHostName() {
     return sHostName;
 }
 
 #ifndef checkMpiErrors
-void __checkMpiErrors(const int errorCode, const char *file, const int line) {
+inline void checkMpiErrors_(const int errorCode, const char *file, const int line) {
     if(errorCode == MPI_SUCCESS or (errorCode < 0 or MPI_ERR_LASTCODE <= errorCode)) return;
     char msg[MPI_MAX_ERROR_STRING];
     int length;
@@ -119,7 +119,7 @@ void __checkMpiErrors(const int errorCode, const char *file, const int line) {
 
 #if MMD_ENABLE_CHECK_MPI
 //#define checkMpiErrors(err) if(int errorCode = err; errorCode != MPI_SUCCESS) __checkMpiErrors(errorCode, __FILE__, __LINE__)
-#define checkMpiErrors(err) __checkMpiErrors(err, __FILE__, __LINE__)
+#define checkMpiErrors(err) checkMpiErrors_(err, __FILE__, __LINE__)
 #else
 #define checkMpiErrors(err) err
 #endif
@@ -158,10 +158,11 @@ public:
         checkMpiErrors(MPI_Finalize());
     }
 
-    static void init(MPI_Comm mpiComm = MPI_COMM_WORLD) {
+    static void init(const MPI_Comm mpiComm = MPI_COMM_WORLD) {
+        auto mpiLG = std::lock_guard(mpiMutex);
         checkMpiErrors(MPI_Comm_rank(mpiComm, &sMpiNodeId));
         checkMpiErrors(MPI_Comm_size(mpiComm, &sMpiNumNodes));
-        assert(sGridP*sGridQ == int64_t(sMpiNumNodes));
+        assert(sGridP*sGridQ == static_cast<int64_t>(sMpiNumNodes));
     }
 };
 
@@ -170,17 +171,17 @@ public:
 class CublasGlobalLockGuard {
 public:
     explicit CublasGlobalLockGuard(const std::vector<int32_t> &deviceIds): deviceIds_(deviceIds) {
-        // for(auto deviceId: deviceIds_) {
-            // checkCudaErrors(cudaSetDevice(deviceId));
-            // checkCudaErrors(cublasInit());
-        // }
+        for(const auto deviceId: deviceIds_) {
+            checkCudaErrors(cudaSetDevice(deviceId));
+            checkCudaErrors(cublasInit());
+        }
     }
 
     ~CublasGlobalLockGuard() {
-        // for(auto deviceId: deviceIds_) {
-            // checkCudaErrors(cudaSetDevice(deviceId));
-            // checkCudaErrors(cublasShutdown());
-        // }
+        for(const auto deviceId: deviceIds_) {
+            checkCudaErrors(cudaSetDevice(deviceId));
+            checkCudaErrors(cublasShutdown());
+        }
     }
 
 private:
@@ -203,7 +204,7 @@ inline int32_t tagGenerator() {
 
 // Thread Counter --------------------------------------------------------------------------------------------------- //
 
-int getThreadCount() {
+[[nodiscard]] inline int getThreadCount() {
     auto pid = getpid();
     int count = 0;
     for(const auto &dirEntry: std::filesystem::directory_iterator("/proc/"+std::to_string(pid)+"/task/")) {
